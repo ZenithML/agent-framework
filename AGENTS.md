@@ -36,6 +36,6 @@ There is no `CLAUDE.md` — Claude Code falls back to this file when it is absen
 | Respond to PR review feedback | `/sdd:fix-pr` |
 | Review a pull request | `/sdd:review-pr` |
 | Lint skills / agents / standards (judgment half) | `/sdd:lint-harness` |
-| Run every mechanical gate before marking an MR ready | `./scripts/check-all.sh` (and `./tests/run-fixtures.sh`) |
+| Run every mechanical gate before marking an MR ready | `./scripts/check-all.sh` (and `./tests/run-fixtures.sh`, and `./tests/install-paths.sh` when installers or manifests change) |
 | Hold one more skill to the strict authoring schema | Add its name to [`scripts/checks/harness-config.json`](scripts/checks/harness-config.json); removals are refused |
 | Audit docs | `/sdd:audit` |

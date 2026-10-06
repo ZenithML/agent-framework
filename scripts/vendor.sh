@@ -86,6 +86,16 @@ else
   rm -rf "${VENDOR_DIR:?}/.claude-plugin" "${VENDOR_DIR:?}/plugins"
   cp -r "$HARNESS_DIR/.claude-plugin" "$VENDOR_DIR/"
   cp -r "$HARNESS_DIR/plugins"        "$VENDOR_DIR/"
+  # The vendored marketplace must carry the vendor key as its name: Claude Code
+  # resolves sdd@<key> against the marketplace's own name, not the settings key.
+  python3 - "$VENDOR_DIR/.claude-plugin/marketplace.json" "$REPO_NAME" <<'PY'
+import json, sys
+path, name = sys.argv[1], sys.argv[2]
+m = json.load(open(path))
+m["name"] = name
+json.dump(m, open(path, "w"), indent=2)
+open(path, "a").write("\n")
+PY
   echo "  Copied plugin files → .claude/vendors/$REPO_NAME/"
 fi
 
