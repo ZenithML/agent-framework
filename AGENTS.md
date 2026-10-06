@@ -24,7 +24,6 @@ There is no `CLAUDE.md` — Claude Code falls back to this file when it is absen
 | Harness architecture | [`plugins/sdd/standards/harness.md`](plugins/sdd/standards/harness.md) |
 | SDD pipeline | [`plugins/sdd/standards/agent-pipeline.md`](plugins/sdd/standards/agent-pipeline.md) |
 | Agent roles and tool contracts | [`plugins/sdd/standards/harness.md`](plugins/sdd/standards/harness.md) |
-| Latest structural review of this harness | [`docs/reviews/2026-09-07-harness-assessment.md`](docs/reviews/2026-09-07-harness-assessment.md) |
 
 ## Skill Routing
 

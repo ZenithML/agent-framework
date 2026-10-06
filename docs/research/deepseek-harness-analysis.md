@@ -7,7 +7,7 @@ This report has two parts:
 - **Part 1** — what DeepSeek Harness does right, with the specific mechanism in each case.
 - **Part 2** — a general rubric: what any good harness repo or plugin should have, extracted from Part 1 and stated so it can be scored.
 
-Part 3 is the gap read against this repository; the actionable version lives in [`docs/specs/harness-quality/`](../specs/harness-quality/requirements.md).
+Part 3 is the gap read against this repository as it stood in August 2026.
 
 ---
 
@@ -384,7 +384,7 @@ A rubric. Ten pillars; each has a *why*, and checklist items stated so they can 
 
 ## Part 3 — Gap read against this repository
 
-Scored against Part 2. Detail and remediation live in [`docs/specs/harness-quality/requirements.md`](../specs/harness-quality/requirements.md).
+Scored against Part 2, as of August 2026. Several gaps have since closed: CI now runs the gates, their negative controls, and every install path.
 
 | Pillar | State | Headline gap |
 |---|---|---|
