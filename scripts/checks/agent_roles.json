@@ -1,0 +1,31 @@
+{
+  "_comment": "Tool contracts per agent role. This file is data, not prose, so the gate does not depend on an agent reading a standards document correctly at runtime. docs/standards/harness-standard.md explains each role; this file is what CI enforces.",
+  "roles": {
+    "orchestrator": {
+      "purpose": "Runs the pipeline and routes between stages. Broad access by nature.",
+      "required_tools": ["Agent"],
+      "forbidden_tools": []
+    },
+    "author": {
+      "purpose": "Writes specs, plans, or code. Needs read and write.",
+      "required_tools": ["Read", "Write"],
+      "forbidden_tools": []
+    },
+    "reviewer": {
+      "purpose": "Assesses an artifact and returns a verdict. Must not be able to change what it judges.",
+      "required_tools": ["Read"],
+      "forbidden_tools": ["Write", "Edit", "NotebookEdit"]
+    },
+    "verifier": {
+      "purpose": "Tests observable behaviour against declared scenarios. Must not be able to read the implementation it is judging - a verifier that can see the code it grades is the configuration that self-scores high while real behaviour degrades.",
+      "required_tools": [],
+      "forbidden_tools": ["Read", "Grep", "Glob", "Write", "Edit", "NotebookEdit"],
+      "residual_risk": "Bash is not forbidden, because the verifier needs it to start a dev server. Bash can read source. This is a declared, accepted hole - closing it properly needs QA to run where sources are not present. See harness-standard.md."
+    },
+    "auditor": {
+      "purpose": "Read-only inspection and reporting.",
+      "required_tools": ["Read"],
+      "forbidden_tools": ["Write", "Edit", "NotebookEdit"]
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "sdd-harness",
+  "owner": {
+    "name": "zenithml"
+  },
+  "description": "Agent harness — a stack-agnostic spec-driven pipeline (spec → plan → implement → QA → publish), plus a verification harness for perceptual work, packaged as reusable Claude Code plugins.",
+  "version": "0.6.0",
+  "plugins": [
+    {
+      "name": "sdd",
+      "source": "./plugins/sdd",
+      "description": "Spec-driven development pipeline: orchestrator + planner/executor/critic/tester/publisher/archivist agents, TDD implement loop, doc-audit, and PR workflow. Stack-agnostic via .claude/sdd/config.json.",
+      "version": "0.6.0",
+      "author": {
+        "name": "zenithml"
+      },
+      "category": "workflow",
+      "keywords": [
+        "sdd",
+        "spec-driven",
+        "tdd",
+        "pipeline",
+        "agents",
+        "pr-workflow"
+      ]
+    },
+    {
+      "name": "render",
+      "source": "./plugins/render",
+      "description": "Verification harness for perceptual work: capture endpoint, named observation set, numeric proxies, symptom-keyed traps. For domains where a failure is something you see rather than something that throws.",
+      "version": "0.1.0",
+      "author": {
+        "name": "zenithml"
+      },
+      "category": "workflow",
+      "keywords": [
+        "visual",
+        "graphics",
+        "verification",
+        "screenshot",
+        "art-direction",
+        "game",
+        "determinism"
+      ]
+    }
+  ]
+}

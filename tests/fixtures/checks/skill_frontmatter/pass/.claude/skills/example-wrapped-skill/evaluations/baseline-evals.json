@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "skill": "example-wrapped-skill",
+  "skill_version_at_eval_creation": "0.1.0",
+  "purpose": "Cover the happy path, a gate, and the signature failure mode.",
+  "scenarios": [
+    {
+      "id": "example-wrapped-skill-001-happy-path",
+      "query": "Do the normal thing.",
+      "expected_behavior": [
+        "Does it"
+      ]
+    },
+    {
+      "id": "example-wrapped-skill-002-gate",
+      "query": "Do it without a precondition.",
+      "expected_behavior": [
+        "Refuses"
+      ]
+    },
+    {
+      "id": "example-wrapped-skill-003-wrapped-clause-false-positive",
+      "query": "Wrap the clause.",
+      "expected_behavior": [
+        "Still accepted"
+      ]
+    }
+  ]
+}

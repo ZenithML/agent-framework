@@ -1,0 +1,10 @@
+{
+  "name": "render",
+  "description": "Verification harness for perceptual work — domains where a failure is something you see rather than something that throws. Gives an agent a capture endpoint, a named observation set, numeric proxies and a symptom-keyed traps table, so visual iteration stops requiring a human to look. Stack-agnostic; the project supplies a theme and a state adapter.",
+  "version": "0.1.0",
+  "author": {
+    "name": "zenithml"
+  },
+  "homepage": "https://github.com/zenithml/agent-framework",
+  "keywords": ["visual", "graphics", "verification", "screenshot", "art-direction", "game", "determinism"]
+}

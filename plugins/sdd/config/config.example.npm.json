@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zenithml/agent-framework/main/plugins/sdd/config/config.schema.json",
+  "commands": {
+    "install": "npm ci",
+    "test": "npm test",
+    "testOne": "npm test {file}",
+    "lint": "npm run lint",
+    "build": "npm run build",
+    "dev": "npm run dev",
+    "devHost": "npm run dev -- --host",
+    "shoot": "npm run shoot"
+  },
+  "source": { "dir": "src" },
+  "test": {
+    "filePattern": "*.test.ts, *.test.tsx",
+    "configFile": "vitest.config.ts"
+  },
+  "devServer": { "url": "http://localhost:3000" },
+  "branching": {
+    "mainBranch": "main",
+    "devBranch": "development",
+    "featurePrefix": "feature/"
+  },
+  "docs": { "root": "docs" }
+}

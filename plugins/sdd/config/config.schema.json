@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/zenithml/agent-framework/main/plugins/sdd/config/config.schema.json",
+  "title": "SDD harness project configuration",
+  "description": "Per-repo configuration consumed by the sdd plugin's skills and agents. Place this file at the repo root as .claude/sdd/config.json. Every field is optional; when omitted, skills auto-detect from package.json / pyproject.toml / Makefile and fall back to the documented defaults.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema URI for editor validation."
+    },
+    "commands": {
+      "type": "object",
+      "description": "Shell commands for the project's toolchain. Placeholders in skills map to these keys.",
+      "properties": {
+        "install": {
+          "type": "string",
+          "description": "<INSTALL_CMD> \u2014 install dependencies. e.g. 'npm ci', 'pip install -e .'"
+        },
+        "test": {
+          "type": "string",
+          "description": "<TEST_CMD> \u2014 run the full test suite. e.g. 'npm test', 'pytest'"
+        },
+        "testOne": {
+          "type": "string",
+          "description": "<TEST_CMD> <test-file> template \u2014 run a single test file. Use {file} as the placeholder, e.g. 'npm test {file}', 'pytest {file}'. If omitted, '<test> <file>' is assumed."
+        },
+        "lint": {
+          "type": "string",
+          "description": "<LINT_CMD> \u2014 run the linter. e.g. 'npm run lint', 'ruff check .'"
+        },
+        "build": {
+          "type": "string",
+          "description": "<BUILD_CMD> \u2014 build the project. e.g. 'npm run build', 'python -m build'"
+        },
+        "dev": {
+          "type": "string",
+          "description": "<DEV_CMD> \u2014 start the dev server (foreground form). e.g. 'npm run dev'"
+        },
+        "devHost": {
+          "type": "string",
+          "description": "<DEV_HOST_CMD> \u2014 start the dev server bound to all interfaces. e.g. 'npm run dev -- --host'"
+        },
+        "shoot": {
+          "type": "string",
+          "description": "<SHOOT_CMD> \u2014 run the named observation set headless and exit non-zero on a budget breach. e.g. 'npm run shoot'. Read by the render plugin's skills."
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "description": "Source layout conventions.",
+      "properties": {
+        "dir": {
+          "type": "string",
+          "default": "src",
+          "description": "<SOURCE_DIR> \u2014 root of application source, used to scope diffs (git diff -- <dir>/)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "test": {
+      "type": "object",
+      "description": "Test conventions.",
+      "properties": {
+        "filePattern": {
+          "type": "string",
+          "description": "Glob(s) identifying test files. e.g. '*.test.ts, *.test.tsx', '**/test_*.py'"
+        },
+        "configFile": {
+          "type": "string",
+          "description": "The test runner's config file, used by /test to detect whether tests are configured. e.g. 'vitest.config.ts', 'pyproject.toml'"
+        }
+      },
+      "additionalProperties": false
+    },
+    "devServer": {
+      "type": "object",
+      "description": "Dev server reachability, used by the tester agent and screenshot steps.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL the dev server is reachable at once started."
+        }
+      },
+      "additionalProperties": false
+    },
+    "branching": {
+      "type": "object",
+      "description": "Branch topology. GitHub Flow is the default (devBranch == mainBranch); trunk-based uses the same shape, and Gitflow-style repos set a separate devBranch.",
+      "properties": {
+        "mainBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "<MAIN_BRANCH> \u2014 the production/release branch."
+        },
+        "devBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "<DEV_BRANCH> \u2014 the integration branch features are cut from and PR'd into. Defaults to main, matching mainBranch, which is GitHub Flow; set a separate branch (e.g. development) only for Gitflow."
+        },
+        "featurePrefix": {
+          "type": "string",
+          "default": "feature/",
+          "description": "Prefix for feature branches; '<feature-branch>' = featurePrefix + <domain>."
+        }
+      },
+      "additionalProperties": false
+    },
+    "docs": {
+      "type": "object",
+      "description": "Documentation layout in the consuming repo.",
+      "properties": {
+        "root": {
+          "type": "string",
+          "default": "docs",
+          "description": "Docs root. specs live at <root>/specs/<domain>/, index at <root>/INDEX.md, ADRs at <root>/decisions/."
+        }
+      },
+      "additionalProperties": false
+    },
+    "render": {
+      "type": "object",
+      "description": "Perceptual-verification layout, read by the render plugin. Omit entirely for projects with no visual output.",
+      "properties": {
+        "framesPath": {
+          "type": "string",
+          "default": "src/theme/frames.ts",
+          "description": "The named observation set \u2014 one entry per frame, each with a required intent."
+        },
+        "themePath": {
+          "type": "string",
+          "default": "src/theme/theme.ts",
+          "description": "The configuration layer: the only file allowed to contain colour literals."
+        },
+        "shotsDir": {
+          "type": "string",
+          "default": ".shots",
+          "description": "Where captures land. Gitignore the images; commit the index."
+        },
+        "standard": {
+          "type": "string",
+          "default": "docs/standards/art-direction/design.md",
+          "description": "The look contract and its traps table."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

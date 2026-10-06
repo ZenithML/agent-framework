@@ -1,0 +1,32 @@
+{
+  "_comment": "Per-repo gate configuration. Two things live here: where skills and agents are found in this repo's layout, and which skills are held to the stricter rules. Adoption is a ratchet - see coverage_ratchet.py. Nineteen skills cannot adopt a seven-field frontmatter schema in one commit, and pretending otherwise produces either a red pipeline everyone learns to ignore or a gate nobody turns on.",
+  "layout": {
+    "skill_globs": [
+      "plugins/*/skills/**/SKILL.md",
+      ".claude/skills/**/SKILL.md"
+    ],
+    "agent_globs": [
+      "plugins/*/agents/*.md",
+      ".claude/agents/*.md"
+    ]
+  },
+  "minimum_frontmatter": [
+    "name",
+    "description"
+  ],
+  "strict_frontmatter": [
+    "name",
+    "description",
+    "version",
+    "owner",
+    "updated",
+    "source",
+    "changelog"
+  ],
+  "_strict_skills": "Skills held to strict_frontmatter. Add names as they are brought up to the standard; coverage_ratchet.py refuses removals.",
+  "strict_skills": [],
+  "_evals_required": "Skills required to ship evaluations/baseline-evals.json with three real scenarios. Same ratchet.",
+  "evals_required": [],
+  "_manifest_skills": "Skills required to close with a manifest. Plugin skills here do not carry one yet.",
+  "manifest_skills": []
+}

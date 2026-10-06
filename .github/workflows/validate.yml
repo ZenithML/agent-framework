@@ -1,0 +1,59 @@
+# Validation for every pull request.
+#
+# Three things run here, and the second is the one people skip:
+#
+#   1. The official plugin validator, on both manifests. It covers manifest
+#      schema, duplicate names, source path traversal, skill and agent
+#      frontmatter, and hooks.json. This repository shipped an invalid `skills`
+#      array in plugin.json for several releases because nothing ever ran it.
+#   2. The repo's own gates.
+#   3. The negative controls, which assert every gate still rejects a
+#      known-bad input. A gate that silently stops firing is worse than no
+#      gate, because it reports success.
+
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # version_bump and coverage_ratchet need the merge base
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Harness gates
+        run: ./scripts/check-all.sh
+
+      - name: Negative controls
+        run: ./tests/run-fixtures.sh
+
+  plugin-validate:
+    runs-on: ubuntu-latest
+    continue-on-error: true     # advisory until the CLI version is pinned — see below
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Validate marketplace manifest
+        run: claude plugin validate . --strict
+
+      - name: Validate plugin manifest
+        run: claude plugin validate ./plugins/sdd --strict
+
+# plugin-validate is advisory (continue-on-error) on purpose: it installs the
+# CLI unpinned, so a validator change upstream would break unrelated pull
+# requests. Pin the version and drop continue-on-error in the same change —
+# an advisory gate is a preference, and this one is only meant to stay advisory
+# until the pin lands.

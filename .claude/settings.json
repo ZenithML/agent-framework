@@ -1,0 +1,8 @@
+{
+  "extraKnownMarketplaces": {
+    "sdd-harness": { "source": { "source": "directory", "path": "." } }
+  },
+  "enabledPlugins": {
+    "sdd@sdd-harness": true
+  }
+}

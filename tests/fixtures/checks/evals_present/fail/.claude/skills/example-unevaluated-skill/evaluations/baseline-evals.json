@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "skill": "example-unevaluated-skill",
+  "skill_version_at_eval_creation": "0.1.0",
+  "purpose": "TODO",
+  "scenarios": [
+    {
+      "id": "one",
+      "query": "TODO",
+      "expected_behavior": [
+        "TODO"
+      ]
+    },
+    {
+      "id": "two",
+      "query": "TODO",
+      "expected_behavior": [
+        "TODO"
+      ]
+    }
+  ]
+}

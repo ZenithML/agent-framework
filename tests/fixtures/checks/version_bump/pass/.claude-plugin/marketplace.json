@@ -1,0 +1,11 @@
+{
+  "name": "sdd-harness",
+  "version": "99.0.0",
+  "plugins": [
+    {
+      "name": "sdd",
+      "source": "./plugins/sdd",
+      "version": "99.0.0"
+    }
+  ]
+}

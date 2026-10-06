@@ -1,0 +1,32 @@
+{
+  "layout": {
+    "skill_globs": [
+      ".claude/skills/**/SKILL.md"
+    ],
+    "agent_globs": [
+      ".claude/agents/*.md"
+    ]
+  },
+  "minimum_frontmatter": [
+    "name",
+    "description"
+  ],
+  "strict_frontmatter": [
+    "name",
+    "description",
+    "version",
+    "owner",
+    "updated",
+    "source",
+    "changelog"
+  ],
+  "manifest_required": true,
+  "strict_skills": [
+    "example-alpha-skill",
+    "example-beta-skill"
+  ],
+  "evals_required": [
+    "example-alpha-skill",
+    "example-beta-skill"
+  ]
+}

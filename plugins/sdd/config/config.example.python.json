@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zenithml/agent-framework/main/plugins/sdd/config/config.schema.json",
+  "commands": {
+    "install": "pip install -e '.[dev]'",
+    "test": "pytest",
+    "testOne": "pytest {file}",
+    "lint": "ruff check .",
+    "build": "python -m build",
+    "dev": "uvicorn app.main:app --reload",
+    "devHost": "uvicorn app.main:app --host 0.0.0.0 --reload",
+    "shoot": "python -m app.shoot"
+  },
+  "source": { "dir": "src" },
+  "test": {
+    "filePattern": "test_*.py, *_test.py",
+    "configFile": "pyproject.toml"
+  },
+  "devServer": { "url": "http://localhost:8000" },
+  "branching": {
+    "mainBranch": "main",
+    "devBranch": "main",
+    "featurePrefix": "feature/"
+  },
+  "docs": { "root": "docs" }
+}

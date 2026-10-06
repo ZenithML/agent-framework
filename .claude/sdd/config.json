@@ -1,0 +1,8 @@
+{
+  "branching": {
+    "mainBranch": "main",
+    "devBranch": "main",
+    "featurePrefix": "claude/"
+  },
+  "commands": {}
+}

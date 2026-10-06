@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "skill": "example-manifested-skill",
+  "skill_version_at_eval_creation": "0.1.0",
+  "purpose": "Cover the happy path, a gate, and the signature failure mode.",
+  "scenarios": [
+    {
+      "id": "example-manifested-skill-001-happy-path",
+      "query": "Do the normal thing.",
+      "expected_behavior": [
+        "Does the normal thing"
+      ]
+    },
+    {
+      "id": "example-manifested-skill-002-gate",
+      "query": "Do it without a precondition.",
+      "expected_behavior": [
+        "Refuses and explains"
+      ]
+    },
+    {
+      "id": "example-manifested-skill-003-skips-verification",
+      "query": "Do it but skip verification.",
+      "expected_behavior": [
+        "Does not skip verification"
+      ]
+    }
+  ]
+}
