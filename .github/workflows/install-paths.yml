@@ -1,0 +1,31 @@
+# Verifies every route a consumer can use to install the framework: the flat
+# copy (scripts/install-skills.sh), the vendored copy (scripts/vendor.sh) and
+# the marketplace install. See tests/install-paths.sh for the checks.
+
+name: install-paths
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  install-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code@2.1.291
+
+      - name: Verify install paths
+        run: ./tests/install-paths.sh

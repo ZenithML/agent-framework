@@ -1,5 +1,14 @@
 # Docs Index
 
+## Guides
+
+| Guide | Document |
+|---|---|
+| Installation: flat copy, marketplace, vendored copy | [`installation.md`](installation.md) |
+| Plugins: `sdd` and `render`, and every skill | [`plugins.md`](plugins.md) |
+| Configuration: `sdd-init`, `config.json`, placeholders, SessionStart hook | [`configuration.md`](configuration.md) |
+| Branching topologies | [`branching.md`](branching.md) |
+
 ## Standards
 
 | Domain | Document | Status |
@@ -10,9 +19,7 @@
 
 ## Specs
 
-| Domain | Documents | Status |
-|---|---|---|
-| Harness quality | [`specs/harness-quality/requirements.md`](specs/harness-quality/requirements.md) · [`tasks.md`](specs/harness-quality/tasks.md) | Draft |
+_None yet._ `/sdd:ship` creates `specs/<domain>/` as features are developed.
 
 ## Research
 
@@ -22,4 +29,4 @@
 
 ## Decisions
 
-_No ADRs yet — see [`specs/harness-quality/requirements.md`](specs/harness-quality/requirements.md) §W3._
+_No ADRs yet._

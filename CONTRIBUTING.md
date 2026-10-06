@@ -15,7 +15,12 @@ plugins/sdd/
   config/                           — config schema + examples
   templates/docs/                   — canonical doc templates
 scripts/
-  vendor.sh                         — copy the plugin into a consuming project (see README)
+  install-skills.sh                 — flat-copy the harness into a consuming project
+  vendor.sh                         — vendor the plugin into a consuming project
+  check-all.sh, checks/             — the mechanical gates
+tests/
+  run-fixtures.sh                   — negative controls for every gate
+  install-paths.sh                  — every install route (see docs/installation.md)
 ```
 
 ## Setting up locally
@@ -50,7 +55,22 @@ scripts/vendor.sh /path/to/your-project
 
 The vendor script uses the consuming repository's directory name as the local marketplace key by default (e.g. `.claude/vendors/my-repo` and plugin id `sdd@my-repo`). Use `--name <key>` to choose a custom marketplace key, or `--dry-run` to preview actions without changing files.
 
-Edits to a local checkout are picked up immediately — no reinstall needed.
+To point a consuming repo at your checkout through its settings instead, use a directory source in that repo's `.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "sdd-harness": {
+      "source": { "source": "directory", "path": "/path/to/agent-framework" }
+    }
+  },
+  "enabledPlugins": {
+    "sdd@sdd-harness": true
+  }
+}
+```
+
+Edits to a local checkout are picked up on the next session start, with no reinstall needed. Keep directory sources in a project's settings, not your global `~/.claude/settings.json`: Claude Code keeps one source per marketplace name per machine, so a global one redirects every repo that uses `sdd-harness`.
 
 ## Making changes
 
@@ -105,7 +125,7 @@ claude plugin validate ./plugins/sdd --strict  # plugin.json, skill/agent frontm
 
 It checks for step-delegation cross-references, prohibited screenshot mechanisms, rule drift between execution-layer files, and skill-name references in changed standards.
 
-Neither runs in CI yet. Closing that gap is the P0 workstream in [`docs/specs/harness-quality/`](docs/specs/harness-quality/requirements.md).
+CI runs `claude plugin validate --strict` (advisory until the CLI version is pinned), `./scripts/check-all.sh`, `./tests/run-fixtures.sh` and `./tests/install-paths.sh`. `/sdd:lint-harness` is a judgment check and stays manual: run it before marking a PR ready.
 
 ## Versioning
 
