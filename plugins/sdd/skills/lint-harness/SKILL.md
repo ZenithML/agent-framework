@@ -4,7 +4,8 @@ description: >
   Use when a skill, agent, or standards document changed and its instruction text should be
   checked for the anti-patterns that make agents misbehave — step-delegation references and rule
   drift. Judgment-level review only. Does not trigger for documentation structure (that is
-  /sdd:audit), and does not replace the mechanical gates in scripts/checks, which run in CI.
+  /sdd:audit), and does not replace the mechanical gates in agent-framework's scripts/checks, which run in
+  its CI.
 ---
 
 > **Configuration.** This skill uses project-specific commands and branch names. Resolve each placeholder from `.claude/sdd/config.json` at the repo root (keys: `commands.test`→`<TEST_CMD>`, `commands.testOne`→`<TEST_CMD> <test-file>`, `commands.lint`→`<LINT_CMD>`, `commands.build`→`<BUILD_CMD>`, `commands.dev`→`<DEV_CMD>`, `commands.devHost`→`<DEV_HOST_CMD>`, `commands.install`→`<INSTALL_CMD>`, `branching.devBranch`→`<DEV_BRANCH>`, `branching.mainBranch`→`<MAIN_BRANCH>`, `source.dir`→`<SOURCE_DIR>`, `branching.featurePrefix`→ the `feature/` prefix in `<feature-branch>`). If `.claude/sdd/config.json` is absent, auto-detect: read `package.json` scripts (npm/pnpm/yarn) or `pyproject.toml`/`Makefile` (python) for test/lint/build/dev commands; default branches to `main` (and `development` only if it exists on the remote); default `<SOURCE_DIR>` to `src`. Use the resolved values wherever a placeholder appears below.
@@ -24,7 +25,9 @@ See `${CLAUDE_PLUGIN_ROOT}/standards/harness.md` for the full background and cro
 ```
 .github/copilot-instructions.md
 .claude/skills/*/SKILL.md
+.claude/agents/*.md
 ${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md
+${CLAUDE_PLUGIN_ROOT}/agents/*.md
 ```
 
 **1b. Standards files (prefilter, then conditionally read).** Do **not** read every file under `docs/standards/` — compute the diff first and only read the files it returns:

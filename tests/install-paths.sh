@@ -5,8 +5,8 @@
 # touches your ~/.claude (marketplace checks use a throwaway CLAUDE_CONFIG_DIR).
 #
 #   flat         scripts/install-skills.sh into an empty project: skills, agents,
-#                hook, version stamp; a re-run is idempotent; --with-render adds
-#                render; --dry-run writes nothing; a project's own skills survive
+#                hook, version stamp; a re-run is idempotent and keeps local
+#                edits; --with-render adds render; --dry-run writes nothing; a project's own skills survive
 #   vendor       scripts/vendor.sh: the vendored marketplace installs sdd@<key>
 #                at this repo's version; --dry-run writes nothing
 #   marketplace  install every plugin from this repo's marketplace into an empty
@@ -55,10 +55,41 @@ test_flat() {
   check "hook declared once"        test "$(grep -c remote-session-start "$p/.claude/settings.json")" -eq 1
   check ".harness-version = $SDD_VERSION" grep -qx "$SDD_VERSION" "$p/.claude/sdd/.harness-version"
   check "no plugin-root paths left" bash -c "! grep -rq 'CLAUDE_PLUGIN_ROOT' '$p/.claude/skills' '$p/.claude/agents'"
+  check "no /sdd: skill names left" bash -c "! grep -rE '/sdd:[a-z<]' '$p/.claude' | grep -v 'when installed as a plugin'"
+  check "plugin-root rewrite adds no duplicate lines" \
+    test "$(grep -cx '.claude/skills/\*/SKILL.md' "$p/.claude/skills/lint-harness/SKILL.md")" -eq 1
+  check "manifest written"          test -s "$p/.claude/sdd/.harness-manifest"
 
   git -C "$p" add -A && git -C "$p" -c user.name=t -c user.email=t@t commit -qm installed
   "$install" "$p" >/dev/null 2>&1
   check "re-run is idempotent" test -z "$(git -C "$p" status --porcelain)"
+
+  # Local edits survive a re-run; the manifest is what tells them from upstream changes.
+  local ship="$p/.claude/skills/ship/SKILL.md" m="$p/.claude/sdd/.harness-manifest"
+  echo "local edit" >> "$ship"
+  "$install" "$p" >/dev/null 2>&1
+  check "re-run keeps a local edit" grep -qx "local edit" "$ship"
+  check "no upstream copy when upstream is unchanged" test ! -e "$p/.claude/sdd/upstream"
+  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['files']['skills/ship/SKILL.md']='0'*64; json.dump(d,open(sys.argv[1],'w'))" "$m"
+  "$install" "$p" >/dev/null 2>&1
+  check "edited + upstream-changed: local kept" grep -qx "local edit" "$ship"
+  check "edited + upstream-changed: upstream copy saved" test -f "$p/.claude/sdd/upstream/skills/ship/SKILL.md"
+  "$install" --overwrite-local "$p" >/dev/null 2>&1
+  check "--overwrite-local replaces the edit" bash -c "! grep -qx 'local edit' '$ship'"
+
+  # A file the release stops shipping is removed, unless it was edited.
+  mkdir -p "$p/.claude/skills/retired" && echo "old" > "$p/.claude/skills/retired/SKILL.md"
+  echo "old2" > "$p/.claude/agents/retired-agent.md"
+  python3 - "$m" "$p/.claude" <<'PY'
+import hashlib, json, sys
+d = json.load(open(sys.argv[1]))
+d['files']['skills/retired/SKILL.md'] = hashlib.sha256(b'old\n').hexdigest()
+d['files']['agents/retired-agent.md'] = hashlib.sha256(b'edited-since\n').hexdigest()
+json.dump(d, open(sys.argv[1], 'w'))
+PY
+  "$install" "$p" >/dev/null 2>&1
+  check "unedited retired file removed" test ! -e "$p/.claude/skills/retired"
+  check "edited retired file kept" test -f "$p/.claude/agents/retired-agent.md"
 
   local r; r="$(new_project render)"
   "$install" --with-render "$r" >/dev/null 2>&1

@@ -1,7 +1,7 @@
 {
   "name": "sdd",
   "description": "Spec-driven development harness — a stack-agnostic pipeline (spec → plan → implement → QA → publish) with orchestrator and specialist agents, embedded critic gates, a TDD implement loop, doc auditing, and a PR workflow. Configured per-repo via .claude/sdd/config.json.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "author": {
     "name": "zenithml"
   },
