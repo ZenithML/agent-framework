@@ -168,7 +168,7 @@ declaration change. Until then, `Bash` in a verifier is for process control, not
 ## Every rule names its gate
 
 **Each rule stated in a standards document carries a `Gate` column.** The value is either the
-name of a script in [`scripts/checks/`](../../../scripts/checks/), or the literal word
+name of a script in [`scripts/checks/`](https://github.com/zenithml/agent-framework/tree/main/scripts/checks), or the literal word
 `judgment`.
 
 An empty cell is a bug. This repository's own harness-quality spec put it best: *"A rule
@@ -178,7 +178,7 @@ rule `judgment` is a good answer — some rules genuinely cannot be mechanised, 
 honest. Leaving the column blank is what is not allowed.
 
 Adoption is a **ratchet**, not a flag day. `strict_skills` and `evals_required` in
-[`harness-config.json`](../../../scripts/checks/harness-config.json) list the skills held to the
+[`harness-config.json`](https://github.com/zenithml/agent-framework/blob/main/scripts/checks/harness-config.json) list the skills held to the
 fuller authoring schema; raise the bar for one skill, add its name, move on. `coverage_ratchet`
 refuses removals, because the failure mode of a staged rollout is that a red pipeline gets fixed
 by quietly deleting a name.
@@ -189,8 +189,9 @@ by quietly deleting a name.
 ```
 
 `/sdd:lint-harness` remains the judgment half — step-delegation and rule drift need a reading of
-intent. The mechanical half now runs in CI on every pull request, so the two are complementary
-rather than the same check done less reliably.
+intent. The mechanical half runs in agent-framework's CI on every pull request, so the two are
+complementary rather than the same check done less reliably. The gate scripts live in that
+repository and are not installed into consuming projects.
 
 ### Rules in this document
 

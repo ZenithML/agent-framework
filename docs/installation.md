@@ -42,14 +42,16 @@ cd agent-framework
 ./scripts/install-skills.sh /path/to/your-project
 ```
 
-The script does five things:
+The script does these things:
 - copies `plugins/sdd/{skills,agents,standards,templates,config,hooks}` into
   `<your-project>/.claude/`
-- rewrites the plugin's `${CLAUDE_PLUGIN_ROOT}` paths to repo-relative `.claude/` paths
+- rewrites the plugin's `${CLAUDE_PLUGIN_ROOT}` paths to repo-relative `.claude/` paths, and
+  `/sdd:<skill>` references to `/<skill>` (flat-installed skills have no namespace)
 - declares the SessionStart hook in `.claude/settings.json`
 - symlinks `.agents/skills` to `.claude/skills`, so Antigravity (`agy`) discovers the skills too
   (skipped with a warning if `.agents/skills` already exists)
-- writes a `.claude/sdd/.harness-version` stamp
+- writes a `.claude/sdd/.harness-version` stamp and a `.claude/sdd/.harness-manifest` that
+  records each installed file's hash, so a later re-run can tell your edits from upstream changes
 
 It refuses to write into a `.claude/` it didn't create unless you pass `--force`. With `--force`
 it installs alongside your own skills and leaves them untouched.
@@ -66,9 +68,13 @@ git commit -m "chore: install sdd harness"
 start the pipeline.
 
 **To update later:** `git pull` in your harness checkout, re-run
-`./scripts/install-skills.sh /path/to/your-project`, and commit. The re-run overwrites harness
-files in place but does **not** delete skills, agents or standards that a newer harness version
-removed, so delete any stale ones manually. Compare `.claude/sdd/.harness-version` against this
+`./scripts/install-skills.sh /path/to/your-project`, and commit. The re-run updates harness
+files you have not edited and deletes the ones a newer version no longer ships. Files you **have**
+edited since the last install are kept. If upstream changed one of those too, the new upstream copy
+is written to `.claude/sdd/upstream/<path>` for you to merge by hand (don't commit that directory),
+or pass `--overwrite-local` to take the upstream version. An install from before the manifest
+existed has no record of your edits, so its first re-run overwrites them. Check `git diff` after
+that run. Compare `.claude/sdd/.harness-version` against this
 repo's plugin version to see whether you are behind.
 
 ---
