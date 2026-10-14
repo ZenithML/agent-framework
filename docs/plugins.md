@@ -1,7 +1,7 @@
 # Plugins
 
-This repository ships two Claude Code plugins. `.claude-plugin/marketplace.json` at the repo
-root lists both, so **the repository is itself the marketplace** (`sdd-harness`).
+This repository ships three Claude Code plugins. `.claude-plugin/marketplace.json` at the repo
+root lists them all, so **the repository is itself the marketplace** (`sdd-harness`).
 
 ## sdd: the spec-driven pipeline
 
@@ -68,3 +68,28 @@ boundary tests: swap, transplant, and a grep for colour literals in the engine. 
 > The plugin ships no rendering code. It is prose: the method, not the engine. An engine is a
 > per-project or per-org package, because it has a different consumer and a different release
 > cadence. A plugin that pulled in a 3D library would be a plugin nobody can install.
+
+## ci-runner: GitHub Actions on your own machine
+
+A shell command first and a plugin second, so it works without Claude Code: `ci-runner`
+registers a self-hosted runner for a repository (or an organization) as a systemd service on
+Linux or a launchd agent on macOS, writes a `select-runner.yml` reusable workflow, and flips
+repository variables to send jobs to the runner, back to GitHub-hosted, or to the runner only
+while it is online. Generalised from ZenithML/zenith's `self-hosted-runner/` scripts.
+
+```
+plugins/ci-runner/
+  .claude-plugin/plugin.json   — plugin manifest
+  bin/ci-runner                 — the command (bash 3.2 safe)
+  install.sh                    — links bin/ci-runner into ~/.local/bin
+  templates/select-runner.yml   — the reusable workflow `ci-runner workflow` writes
+  skills/setup/SKILL.md         — /ci-runner:setup, the order to run it in
+```
+
+| Skill | Does |
+|---|---|
+| `/ci-runner:setup` | Install the runner under a dedicated account, wire the workflows, then switch |
+
+Self-hosted runners are for private repositories only, and should run under a dedicated
+account. The plugin's [README](../plugins/ci-runner/README.md) covers both, the commands and
+how to make jobs safe to run there.

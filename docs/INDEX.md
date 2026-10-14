@@ -5,7 +5,7 @@
 | Guide | Document |
 |---|---|
 | Installation: flat copy, marketplace, vendored copy | [`installation.md`](installation.md) |
-| Plugins: `sdd` and `render`, and every skill | [`plugins.md`](plugins.md) |
+| Plugins: `sdd`, `render` and `ci-runner`, and every skill | [`plugins.md`](plugins.md) |
 | Configuration: `sdd-init`, `config.json`, placeholders, SessionStart hook | [`configuration.md`](configuration.md) |
 | Branching topologies | [`branching.md`](branching.md) |
 
