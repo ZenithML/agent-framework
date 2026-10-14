@@ -42,6 +42,22 @@
         "game",
         "determinism"
       ]
+    },
+    {
+      "name": "ci-runner",
+      "source": "./plugins/ci-runner",
+      "description": "Run a repository's GitHub Actions jobs on your own Linux or macOS machine: a self-hosted runner installed as a service, a select-runner workflow, and a repository-variable switch with automatic fallback to GitHub-hosted runners.",
+      "version": "0.1.0",
+      "author": {
+        "name": "zenithml"
+      },
+      "category": "workflow",
+      "keywords": [
+        "ci",
+        "github-actions",
+        "self-hosted-runner",
+        "runner"
+      ]
     }
   ]
 }

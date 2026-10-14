@@ -1,0 +1,106 @@
+name: Select CI runner
+
+# Written by `ci-runner workflow` (agent-framework, plugins/ci-runner).
+# Re-run that command to update it; local edits are overwritten only with --force.
+#
+# A reusable workflow every other job defers to for `runs-on:`. Repository
+# variables choose the runner, so switching never needs a commit:
+#
+#   (nothing set)          GitHub-hosted (the `hosted` input, ubuntu-latest by default).
+#   CI_RUNNER_LABEL=L      Always the self-hosted runner labelled L. Jobs wait in the
+#                          queue while no such runner is online. (`ci-runner on`)
+#   CI_RUNNER_AUTO=true    Live check on every run: a runner labelled
+#                          CI_RUNNER_LABEL (default self-hosted) that is online -> use
+#                          it, otherwise fall back to GitHub-hosted. (`ci-runner auto`)
+#                          Needs the RUNNER_STATUS_PAT secret, because listing runners
+#                          needs admin read access that GITHUB_TOKEN cannot be given.
+#                          Without it, every run falls back with a warning.
+#   CI_RUNNER_SCOPE=org    With auto: the runner is registered on the organization,
+#                          so look it up there (the PAT then needs the org permission
+#                          "Self-hosted runners: Read-only").
+#
+# Callers:
+#   jobs:
+#     select-runner:
+#       uses: ./.github/workflows/select-runner.yml
+#       secrets: inherit
+#     build:
+#       needs: select-runner
+#       runs-on: ${{ needs.select-runner.outputs.target }}
+#
+# Jobs that can land on the self-hosted runner should skip actions/cache there
+# (`if: needs.select-runner.outputs.self-hosted != 'true'`) and must not need
+# passwordless sudo.
+
+on:
+  workflow_call:
+    inputs:
+      hosted:
+        description: "GitHub-hosted runs-on value to use when the self-hosted runner is off or offline"
+        type: string
+        default: ubuntu-latest
+    outputs:
+      target:
+        description: "runs-on value every calling job should use"
+        value: ${{ jobs.select.outputs.target }}
+      self-hosted:
+        description: "'true' when target is the self-hosted runner"
+        value: ${{ jobs.select.outputs.self-hosted }}
+
+jobs:
+  select:
+    name: Decide runner
+    # Static mode runs this job where the jobs will run, so an always-on
+    # self-hosted setup needs no GitHub-hosted minutes at all. Auto mode runs it
+    # GitHub-hosted, because it must work while the self-hosted runner is off.
+    runs-on: ${{ (vars.CI_RUNNER_AUTO != 'true' && vars.CI_RUNNER_LABEL) || inputs.hosted }}
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      target: ${{ steps.decide.outputs.target }}
+      self-hosted: ${{ steps.decide.outputs.self-hosted }}
+    steps:
+      - name: Decide
+        id: decide
+        env:
+          AUTO: ${{ vars.CI_RUNNER_AUTO }}
+          LABEL: ${{ vars.CI_RUNNER_LABEL }}
+          SCOPE: ${{ vars.CI_RUNNER_SCOPE }}
+          HOSTED: ${{ inputs.hosted }}
+          GH_TOKEN: ${{ secrets.RUNNER_STATUS_PAT }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          pick() {
+            echo "target=$1" >> "$GITHUB_OUTPUT"
+            echo "self-hosted=$2" >> "$GITHUB_OUTPUT"
+            echo "Runner: $1"
+          }
+
+          if [ "$AUTO" != "true" ]; then
+            if [ -n "$LABEL" ]; then pick "$LABEL" true; else pick "$HOSTED" false; fi
+            exit 0
+          fi
+
+          export LABEL="${LABEL:-self-hosted}"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::CI_RUNNER_AUTO=true but the RUNNER_STATUS_PAT secret is not set; using $HOSTED. Run 'ci-runner auto' for setup steps."
+            pick "$HOSTED" false
+            exit 0
+          fi
+
+          if [ "$SCOPE" = "org" ]; then path="orgs/$OWNER/actions/runners"; else path="repos/$REPO/actions/runners"; fi
+          if ! online=$(gh api "$path?per_page=100" --jq \
+              '[.runners[] | select(.status == "online") | select(any(.labels[]; .name == env.LABEL))] | length' 2>&1); then
+            echo "::warning::Could not list runners on $path ($online); using $HOSTED."
+            pick "$HOSTED" false
+            exit 0
+          fi
+
+          if [ "$online" -gt 0 ]; then
+            echo "$online '$LABEL' runner(s) online."
+            pick "$LABEL" true
+          else
+            echo "No '$LABEL' runner online."
+            pick "$HOSTED" false
+          fi

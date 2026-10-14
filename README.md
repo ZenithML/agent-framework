@@ -7,6 +7,7 @@ for driving software work with an agent.
 |---|---|
 | **`sdd`** | The pipeline — **spec → plan → implement → QA → publish**, with embedded critic gates and a TDD implement loop |
 | **`render`** | Perceptual work — domains where a failure is something you *see* rather than something that throws |
+| **`ci-runner`** | CI on your own machine — a `ci-runner` command that installs a self-hosted GitHub Actions runner and switches a repo between it and GitHub-hosted runners |
 
 **Framework, not a hosted service.** Everything runs inside your own Claude Code sessions and
 your own repository. No account, server or external infrastructure is required.
@@ -36,7 +37,7 @@ pipeline. To install through the GitHub marketplace or as a vendored copy instea
 | Guide | Covers |
 |---|---|
 | [Installation](docs/installation.md) | Flat copy, GitHub marketplace and vendored copy, and how to update each |
-| [Plugins](docs/plugins.md) | What `sdd` and `render` contain, and every skill |
+| [Plugins](docs/plugins.md) | What `sdd`, `render` and `ci-runner` contain, and every skill |
 | [Configuration](docs/configuration.md) | What `sdd-init` sets up, `.claude/sdd/config.json`, placeholders, the SessionStart hook |
 | [Branching](docs/branching.md) | GitHub Flow (default), trunk-based and Gitflow |
 | [Docs index](docs/INDEX.md) | Standards, research, and everything else in `docs/` |

@@ -37,6 +37,17 @@ jobs:
       - name: Negative controls
         run: ./tests/run-fixtures.sh
 
+  ci-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck plugins/ci-runner/bin/ci-runner plugins/ci-runner/install.sh tests/ci-runner.sh
+
+      - name: Test ci-runner
+        run: ./tests/ci-runner.sh
+
   plugin-validate:
     runs-on: ubuntu-latest
     continue-on-error: true     # advisory until the CLI version is pinned — see below
@@ -51,6 +62,9 @@ jobs:
 
       - name: Validate plugin manifest
         run: claude plugin validate ./plugins/sdd --strict
+
+      - name: Validate ci-runner plugin manifest
+        run: claude plugin validate ./plugins/ci-runner --strict
 
 # plugin-validate is advisory (continue-on-error) on purpose: it installs the
 # CLI unpinned, so a validator change upstream would break unrelated pull

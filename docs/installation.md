@@ -103,7 +103,9 @@ not exist), then commit it so every teammate and CI session inherits the plugin:
 }
 ```
 
-Omit the `render` line for projects with no visual output.
+Omit the `render` line for projects with no visual output. Add `"ci-runner@sdd-harness": true`
+for the `/ci-runner:setup` skill; the `ci-runner` command itself is installed with
+`plugins/ci-runner/install.sh` from a checkout (see its [README](../plugins/ci-runner/README.md)).
 
 To pin an exact version, add a `ref` to the source. Without one, the repo tracks the default
 branch and picks up updates automatically:

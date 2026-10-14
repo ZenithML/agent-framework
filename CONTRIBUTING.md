@@ -14,6 +14,7 @@ plugins/sdd/
   standards/                        — shared harness conventions
   config/                           — config schema + examples
   templates/docs/                   — canonical doc templates
+plugins/ci-runner/                  — the ci-runner command (self-hosted runners) and its skill
 scripts/
   install-skills.sh                 — flat-copy the harness into a consuming project
   vendor.sh                         — vendor the plugin into a consuming project
@@ -21,6 +22,7 @@ scripts/
 tests/
   run-fixtures.sh                   — negative controls for every gate
   install-paths.sh                  — every install route (see docs/installation.md)
+  ci-runner.sh                      — the ci-runner command, against a fake gh
 ```
 
 ## Setting up locally
