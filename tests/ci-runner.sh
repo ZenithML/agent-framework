@@ -46,7 +46,7 @@ ID
 chmod +x "$WORK/bin/id"
 export PATH="$WORK/bin:$PATH" HOME="$WORK/home" GH_LOG="$WORK/gh.log"
 ci() { : > "$GH_LOG"; "$BASH_BIN" "$CLI" "$@"; }
-# shellcheck disable=SC2329  # called through check
+# shellcheck disable=SC2317,SC2329  # called through check
 logged() { grep -qF -- "$1" "$GH_LOG"; }
 
 echo "== syntax"
