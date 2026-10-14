@@ -332,10 +332,11 @@ cmd_install() {
 cmd_uninstall() {
   need_gh
   resolve_repo
-  local base dir found=false token user
+  local base dir found=false token user run_as_given="$RUN_AS"
   base="$(default_dir_base)"
   for dir in $(instance_dirs "$base"); do
     [ -x "$dir/config.sh" ] || continue
+    RUN_AS="$run_as_given"  # decided per directory below, never carried over from the last one
     found=true
     say "Removing the runner at $dir"
     if [ -x "$dir/svc.sh" ]; then
