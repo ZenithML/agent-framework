@@ -67,8 +67,10 @@ you create once:
    - run `ci-runner on` and paste it when asked (input is hidden), or
    - `RUNNER_STATUS_PAT=<token> ci-runner on` (never put a token in the command line itself).
 
-No token? `ci-runner on` still works, in the `--no-fallback` mode, and tells you so. Run it again
-with a token later to add the fallback. For a runner registered on an organization
+No token? In a terminal you can press Enter to skip: `ci-runner on` then works in the
+`--no-fallback` mode and says so. Run it again with a token later to add the fallback. Without a
+terminal (a script) it refuses instead, so the fallback is never dropped silently: pass
+`RUNNER_STATUS_PAT=<token>`, or `--no-fallback`. For a runner registered on an organization
 (`install --org`), use `on --org-runner` and the organization permission
 **Self-hosted runners: Read-only**.
 

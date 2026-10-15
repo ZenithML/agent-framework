@@ -31,7 +31,7 @@ case "$*" in
   "variable get CI_RUNNER_AUTO"*) [ -n "${FAKE_AUTO:-}" ] && echo "$FAKE_AUTO" || exit 1 ;;
   "variable get CI_RUNNER_LABEL"*) [ -n "${FAKE_LABEL:-}" ] && echo "$FAKE_LABEL" || exit 1 ;;
   "variable get"*) exit 1 ;;
-  "secret list"*) [ -n "${FAKE_NO_SECRET:-}" ] || printf 'RUNNER_STATUS_PAT\t2026-01-01\n' ;;
+  "secret list"*) [ -z "${FAKE_SECRET_FAIL:-}" ] || exit 1; [ -n "${FAKE_NO_SECRET:-}" ] || printf 'RUNNER_STATUS_PAT\t2026-01-01\n' ;;
   "secret set"*) cat > "$GH_LOG.secret" ;;
   *"| length"*) echo "${FAKE_ONLINE:-1}" ;;
   "api repos/"*"/actions/runners"*) printf '  host-widget\tonline\tself-hosted,Linux\n' ;;
@@ -108,10 +108,13 @@ check "the stored token is exactly the one given" sh -c "[ \"\$(cat '$GH_LOG.sec
 check "the token never appears on a command line" sh -c "! grep -q 'tok-123' '$GH_LOG'"
 check "fallback is on once the token is stored" logged "variable set CI_RUNNER_AUTO --repo acme/widget --body true"
 check "no secret set when it already exists" sh -c "! FAKE_NO_SECRET= RUNNER_STATUS_PAT=x '$BASH_BIN' '$CLI' on --repo acme/widget </dev/null | grep -q Stored"
-out="$(FAKE_NO_SECRET=1 ci on --repo acme/widget </dev/null 2>&1)"
-check "without a token, on falls back to always-self-hosted" sh -c "echo \"\$0\" | grep -q \"On, always 'self-hosted'\"" "$out"
-check "...and says how to add the fallback" sh -c "echo \"\$0\" | grep -q 'RUNNER_STATUS_PAT=<token> ci-runner on'" "$out"
-check "...and links where to create the token" sh -c "echo \"\$0\" | grep -q 'personal-access-tokens/new'" "$out"
+out="$(FAKE_NO_SECRET=1 ci on --repo acme/widget </dev/null 2>&1)" && rc=0 || rc=$?
+check "without a token and no terminal, on refuses" sh -c "[ $rc -ne 0 ]"
+check "...and names the two ways out" sh -c "echo \"\$0\" | grep -q -- '--no-fallback'" "$out"
+: > "$GH_LOG"
+FAKE_SECRET_FAIL=1 ci on --repo acme/widget </dev/null >/dev/null 2>&1
+check "when secrets cannot be listed, the fallback stays on" logged "variable set CI_RUNNER_AUTO --repo acme/widget --body true"
+check "...and no secret is overwritten" sh -c "! grep -q 'secret set' '$GH_LOG'"
 out="$(FAKE_NO_SECRET=1 RUNNER_STATUS_PAT=tok-123 ci on --dry-run --repo acme/widget 2>&1)"
 check "--dry-run stores no secret" sh -c "! grep -q 'secret set' '$GH_LOG'"
 

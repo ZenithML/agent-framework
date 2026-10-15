@@ -80,8 +80,9 @@ workflow:
 
 The fallback needs a token that can list the repository's runners (GITHUB_TOKEN cannot),
 stored as the RUNNER_STATUS_PAT secret. 'ci-runner on' asks for it (hidden input), or takes it
-from the environment: RUNNER_STATUS_PAT=<token> ci-runner on. Without one, 'on' still works,
-but jobs always target your machine.
+from the environment: RUNNER_STATUS_PAT=<token> ci-runner on. Press Enter to skip it in a
+terminal (jobs then always target your machine); without a terminal, 'on' needs the token or
+--no-fallback.
 
 Environment:
   GH_HOST             GitHub Enterprise host (default: github.com)
@@ -424,14 +425,17 @@ delete_var() {
   gh variable delete "$1" --repo "$REPO" >/dev/null 2>&1 || true
 }
 
+# 0: the secret exists, 1: it does not, 2: could not tell (listing secrets needs admin rights).
 has_status_token() {
-  gh secret list --repo "$REPO" 2>/dev/null | grep -q '^RUNNER_STATUS_PAT[[:space:]]'
+  local list
+  list="$(gh secret list --repo "$REPO" 2>/dev/null)" || return 2
+  printf '%s\n' "$list" | grep -q '^RUNNER_STATUS_PAT[[:space:]]'
 }
 
 cmd_status() {
   need_gh
   resolve_repo
-  local base dir found=false auto label scope online listing
+  local base dir found=false auto label scope online listing rc
   if [ -z "$ORG" ]; then
     auto="$(gh variable get CI_RUNNER_AUTO --repo "$REPO" 2>/dev/null || true)"
     label="$(gh variable get CI_RUNNER_LABEL --repo "$REPO" 2>/dev/null || true)"
@@ -439,7 +443,8 @@ cmd_status() {
     echo "$REPO"
     if [ "$auto" = true ]; then
       echo "  Switch:  ON, with fallback (your '${label:-self-hosted}' runner when online, else GitHub-hosted)"
-      has_status_token || echo "  Problem: the RUNNER_STATUS_PAT secret is missing, so every run uses GitHub-hosted. Fix: ci-runner on"
+      has_status_token && rc=0 || rc=$?
+      [ "$rc" -ne 1 ] || echo "  Problem: the RUNNER_STATUS_PAT secret is missing, so every run uses GitHub-hosted. Fix: ci-runner on"
     elif [ -n "$label" ]; then
       echo "  Switch:  ON, always '$label' (jobs wait in the queue while no runner is online)"
     else
@@ -508,6 +513,10 @@ EOF
     fi
     return 0
   fi
+  # Not a terminal and no token: do not quietly turn the fallback off.
+  if [ ! -t 0 ] && ! $DRY_RUN; then
+    die "no token for the fallback. Pass RUNNER_STATUS_PAT=<token>, or --no-fallback to always use your machine"
+  fi
   cat <<EOF
 
   No token for the fallback, so jobs will always target your machine. To add the fallback:
@@ -523,8 +532,17 @@ cmd_on() {
   require_repo
   local fallback=true
   $NO_FALLBACK && fallback=false
-  if $fallback && ! has_status_token; then
-    store_status_token || fallback=false
+  if $fallback; then
+    local have=0
+    has_status_token && have=0 || have=$?
+    if [ "$have" -eq 2 ]; then
+      # Cannot list secrets: do not guess. Store a token only when one was handed over.
+      if [ -n "${RUNNER_STATUS_PAT:-}" ]; then store_status_token || true
+      else echo "Could not check for the RUNNER_STATUS_PAT secret (needs admin rights); assuming it is set." >&2
+      fi
+    elif [ "$have" -eq 1 ]; then
+      store_status_token || fallback=false
+    fi
   fi
   if $ORG_RUNNER; then
     run gh variable set CI_RUNNER_SCOPE --repo "$REPO" --body org
