@@ -9,7 +9,7 @@ description: >
 
 **Usage:** `/sdd-init` (or `/sdd:sdd-init` when installed as a plugin)
 
-Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, `docs/decisions/`, `AGENTS.md`) and a pull request template, and commits everything.
+Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, an ADR directory, `AGENTS.md`) and a pull request template, and commits everything.
 
 ---
 
@@ -20,7 +20,10 @@ test -f .claude/sdd/config.json && echo EXISTS || echo ABSENT
 ```
 
 - **ABSENT** → continue to Step 2.
-- **EXISTS** → show the current content of `.claude/sdd/config.json` to the user and ask: *".claude/sdd/config.json already exists. Overwrite it?"* Wait for confirmation. If denied, exit and report what was found.
+- **EXISTS** → show the current content of `.claude/sdd/config.json` to the user and ask: *".claude/sdd/config.json already exists. Overwrite it, or only add the keys it is missing?"* Wait for the answer.
+  - **Overwrite** → continue to Step 2.
+  - **Add missing keys** → run only the steps that derive a key the file lacks (for example Step 5b when `docs.adrDir` is absent), confirm those values in Step 6, merge them into the existing file in Step 7 without changing the keys it already has, then continue from Step 8 (which never overwrites existing files).
+  - **Neither** → exit and report what was found.
 
 ## Step 2: Detect manifest files
 
@@ -123,13 +126,35 @@ Otherwise pick the path from the code host of `git remote get-url origin`:
 
 Put the path in the proposed config as `pullRequest.template`, so the user confirms or changes it in Step 6 like any other value.
 
+## Step 5b: Find the ADR directory
+
+Repos adopting the harness often keep architectural decision records already, under a name other than `<DOCS_ROOT>/decisions/`. Look for them before proposing a new folder:
+
+```bash
+cat .adr-dir 2>/dev/null   # written by adr-tools
+for d in <DOCS_ROOT>/decisions <DOCS_ROOT>/adr <DOCS_ROOT>/adrs <DOCS_ROOT>/architecture/decisions \
+         doc/adr doc/adrs doc/architecture/decisions adr adrs decisions; do
+  [ -d "$d" ] || continue
+  count=$(find "$d" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')
+  [ "$count" -gt 0 ] || continue
+  printf '%s %s\n' "$d" "$count"
+done
+```
+
+- **`.adr-dir` exists** → use the path it names.
+- **Exactly one directory with `.md` files** → use it.
+- **Several** → ask in Step 6 which one holds the ADRs, listing each with its file count.
+- **None** → use `<DOCS_ROOT>/decisions`.
+
+Record the result as `<ADR_DIR>`. Put it in the proposed config as `docs.adrDir` unless it is `<DOCS_ROOT>/decisions` (the default). When existing ADRs were found, note their naming (for example `ADR-001-name.md` or `001-name.md`) for the Step 6 message: new ADRs follow it.
+
 ## Step 6: Confirm with the user
 
 Compose the full config JSON from the values derived in Steps 3–5a. Omit any key whose value matches the schema default and was not explicitly overridden by the user — keep the file minimal. Always include `"$schema": "https://raw.githubusercontent.com/zenithml/agent-framework/main/plugins/sdd/config/config.schema.json"`.
 
 Present the config and any open questions in a **single message** — do not make separate round trips.
 
-**If topology is Gitflow (detected):** show the config JSON and say: *"Here's what I detected. Confirm to write this, or tell me what to change. I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) and the pull request template at `pullRequest.template` unless those files already exist."*
+**If topology is Gitflow (detected):** show the config JSON and say: *"Here's what I detected. Confirm to write this, or tell me what to change. I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<ADR_DIR>/`, `AGENTS.md`) and the pull request template at `pullRequest.template` unless those files already exist."*
 
 **If topology is GitHub Flow (the default — single main branch or fresh repo):** show the config JSON and the default together in one message:
 
@@ -139,9 +164,16 @@ Present the config and any open questions in a **single message** — do not mak
 >
 > *No separate development branch exists, so I'll use **GitHub Flow** (the default): feature branches cut from `main`, merged via PR; `main` is always deployable and deploying on merge. If the team instead works **trunk-based** — very short-lived branches (hours to a couple of days), incomplete work behind feature flags — say so and I'll record that instead.*
 >
-> *I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) and the pull request template at `pullRequest.template` unless those files already exist."*
+> *I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<ADR_DIR>/`, `AGENTS.md`) and the pull request template at `pullRequest.template` unless those files already exist."*
 
-(Use `docs.root` from the proposed config for `<DOCS_ROOT>`; default to `docs`.)
+(Use `docs.root` from the proposed config for `<DOCS_ROOT>`; default to `docs`. Use the Step 5b result for `<ADR_DIR>`.)
+
+In the same message, say where ADRs will go:
+- **Existing ADRs found** → *"Your ADRs are in `<ADR_DIR>` (N files, named like `<example>`). New ADRs will go there with the same naming. Is that right?"*
+- **Several candidates** → *"I found ADR-like folders in `<dir-1>` (N files) and `<dir-2>` (M files). Which one holds your ADRs?"*
+- **None found** → *"New ADRs will go in `<DOCS_ROOT>/decisions/`. If you keep them somewhere else, tell me the folder."*
+
+Whatever the user names becomes `docs.adrDir` (omit the key when it is `<DOCS_ROOT>/decisions`).
 
 Record the topology (GitHub Flow unless the user picks trunk-based) for use in Step 8a. (Both GitHub Flow and trunk-based use the same config shape — `devBranch == mainBranch` — so the topology choice does not affect the config JSON.)
 
@@ -394,13 +426,17 @@ Write `<DOCS_ROOT>/INDEX.md` with the Standards section pre-populated from the s
 |---|---|---|
 ```
 
+If `<ADR_DIR>` already holds ADRs, add one Decisions row per file: link it, and take Status and Summary from the file (its title when it has no summary line).
+
 ---
 
 ### 8d. Decisions directory
 
+Skip this when `<ADR_DIR>` already exists. Otherwise:
+
 ```bash
-mkdir -p <DOCS_ROOT>/decisions
-touch <DOCS_ROOT>/decisions/.gitkeep
+mkdir -p <ADR_DIR>
+touch <ADR_DIR>/.gitkeep
 ```
 
 ---
@@ -488,7 +524,7 @@ Check whether the repo has any commits:
 git log --oneline -1 2>/dev/null || echo NO_COMMITS
 ```
 
-Determine which sdd-related files exist and are untracked or modified. Substitute `<DOCS_ROOT>` with the actual resolved path (from `docs.root` in the confirmed config, defaulting to `docs`) and `<PR_TEMPLATE_PATH>` with `pullRequest.template` from the confirmed config before running:
+Determine which sdd-related files exist and are untracked or modified. Substitute `<DOCS_ROOT>` with the actual resolved path (from `docs.root` in the confirmed config, defaulting to `docs`), `<ADR_DIR>` with `docs.adrDir` (defaulting to `<DOCS_ROOT>/decisions`), and `<PR_TEMPLATE_PATH>` with `pullRequest.template` from the confirmed config before running:
 
 ```bash
 git status --short \
@@ -497,7 +533,7 @@ git status --short \
   AGENTS.md \
   <PR_TEMPLATE_PATH> \
   <DOCS_ROOT>/INDEX.md \
-  <DOCS_ROOT>/decisions/.gitkeep \
+  <ADR_DIR>/.gitkeep \
   <DOCS_ROOT>/standards/branching/design.md \
   <DOCS_ROOT>/standards/code-style/design.md \
   2>/dev/null

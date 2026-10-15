@@ -20,7 +20,7 @@ docs/
     branching/design.md                — branch topology, naming rules, commit conventions
     code-style/design.md               — linting tools and coding conventions
   specs/<domain>/                      — created by /sdd:ship as features are developed
-  decisions/                           — architectural decision records (empty, ready to use)
+  decisions/                           — architectural decision records (or your existing ADR folder, see below)
 ```
 
 **Standards are stubs to grow into.** `sdd-init` fills in what it can detect: the branching
@@ -61,8 +61,24 @@ Skills use placeholders that map to config keys:
 | `<DEV_CMD>` · `<DEV_HOST_CMD>` | `commands.dev` · `commands.devHost` |
 | `<SHOOT_CMD>` | `commands.shoot` |
 | `<SOURCE_DIR>` | `source.dir` |
+| `<ADR_DIR>` | `docs.adrDir` (default `<docs.root>/decisions`) |
 | `<MAIN_BRANCH>` · `<DEV_BRANCH>` | `branching.mainBranch` · `branching.devBranch` |
 | `<feature-branch>` | `branching.featurePrefix` + `<domain>` |
+
+## ADR directory
+
+The pipeline writes cross-cutting architectural decision records to `docs/decisions/` by default.
+A repo that already keeps ADRs somewhere else points the harness at that folder:
+
+```json
+"docs": { "adrDir": "docs/adr" }
+```
+
+The path is relative to the repo root. `sdd-init` looks for an existing ADR folder (an adr-tools
+`.adr-dir` file, or a folder such as `docs/adr/` or `doc/architecture/decisions/` with Markdown
+files in it), proposes it, and asks when it finds more than one. New ADRs follow the naming the
+existing files use. On a repo that already has `.claude/sdd/config.json`, run `sdd-init` and
+choose "add missing keys" to add `docs.adrDir` without rewriting the rest.
 
 ## Pull request template
 

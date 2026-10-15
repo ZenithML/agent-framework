@@ -139,7 +139,7 @@ Read existing requirements.md and design.md, then execute steps 7–9 only. No c
 ## Constraints
 
 - No implementation code. No test code. Planning only.
-- Domain-specific decisions go in `design.md`. Cross-cutting decisions go in `docs/decisions/`.
+- Domain-specific decisions go in `design.md`. Cross-cutting decisions go in `<ADR_DIR>` as ADRs (`docs.adrDir` in `.claude/sdd/config.json`, default `docs/decisions/`); name and number a new ADR the way the existing files there are named.
 - If requirements conflict with existing codebase patterns, flag it explicitly — never resolve silently.
 - Always update `docs/INDEX.md` when creating a new domain.
 - Tasks must trace back to requirements or design — no invented work.
