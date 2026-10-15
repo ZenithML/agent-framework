@@ -4,5 +4,8 @@
     "devBranch": "main",
     "featurePrefix": "claude/"
   },
-  "commands": {}
+  "commands": {},
+  "pullRequest": {
+    "template": ".github/pull_request_template.md"
+  }
 }
