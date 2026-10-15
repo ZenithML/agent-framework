@@ -39,7 +39,7 @@ A skill **references** a standard for the rules it follows, rather than embeddin
 | `docs/INDEX.md` | Doc index — links to all standards and specs | Agent + human |
 | `docs/standards/<domain>/` | Project standards — process rules and conventions | Human + agent |
 | `docs/specs/<domain>/` | Specs — requirements, design, implementation tracking | Human + agent |
-| `docs/decisions/` | ADRs — rationale for architectural choices | Human + agent |
+| `docs/decisions/` (or `docs.adrDir`) | ADRs — rationale for architectural choices | Human + agent |
 | `.claude/sdd/config.json` | Per-repo toolchain + branch config consumed by the plugin | Agent |
 
 ---
@@ -78,7 +78,7 @@ Domain names describe the **concern**, not the ticket or tool: `frontend-design`
 
 ### Cross-Domain References
 
-Specs and standards link to each other via relative paths. Cross-cutting decisions go in `docs/decisions/` as ADRs, not in individual specs or standards.
+Specs and standards link to each other via relative paths. Cross-cutting decisions go in `docs/decisions/` (or the `docs.adrDir` directory) as ADRs, not in individual specs or standards.
 
 ---
 

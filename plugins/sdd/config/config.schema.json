@@ -116,7 +116,11 @@
         "root": {
           "type": "string",
           "default": "docs",
-          "description": "Docs root. specs live at <root>/specs/<domain>/, index at <root>/INDEX.md, ADRs at <root>/decisions/."
+          "description": "Docs root. specs live at <root>/specs/<domain>/, index at <root>/INDEX.md."
+        },
+        "adrDir": {
+          "type": "string",
+          "description": "<ADR_DIR> \u2014 directory, relative to the repo root, that holds architectural decision records. Defaults to <root>/decisions (docs/decisions). Set it when a repo already keeps ADRs elsewhere, e.g. docs/adr or doc/architecture/decisions."
         }
       },
       "additionalProperties": false

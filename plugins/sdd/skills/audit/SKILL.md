@@ -24,7 +24,7 @@ Spawn the `archivist` agent to check documentation health against `${CLAUDE_PLUG
 | No unresolved decisions | design.md Decisions table has no TBD rows |
 | Task / issue linkage | Completed tasks `[x]` reference a GitHub issue `(#N)` when the project uses per-task issues |
 | Status consistency | INDEX.md status matches actual task completion in tasks.md |
-| ADR index sync | Every file in docs/decisions/ appears in the INDEX.md ADR table |
+| ADR index sync | Every file in the ADR directory (`docs.adrDir`, default docs/decisions/) appears in the INDEX.md ADR table |
 | README structure | README.md exists and has required sections |
 
 The archivist is **read-only** — it reports issues but does not fix them.

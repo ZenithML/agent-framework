@@ -22,6 +22,8 @@ docs/
     ADR-NNN-short-name.md     — numbered sequentially, kebab-case
 ```
 
+The ADR directory is configurable: `docs.adrDir` in `.claude/sdd/config.json` (written as `<ADR_DIR>` in skills and agents) points at a repo's existing folder, such as `docs/adr/`. Everything below that says `docs/decisions/` means that directory.
+
 > Canonical templates for `requirements.md`, `design.md`, `tasks.md`, and ADRs ship with the plugin at `${CLAUDE_PLUGIN_ROOT}/templates/docs/`. Agents read those when creating new docs.
 
 ## File Rules
@@ -29,7 +31,7 @@ docs/
 ### `docs/INDEX.md`
 - Lists every standard in `docs/standards/`
 - Lists every domain in `docs/specs/` with its current status
-- Lists every file in `docs/decisions/`
+- Lists every file in `docs/decisions/` (or `docs.adrDir`)
 - **Must be updated** whenever a standard, domain, ADR, or reference guide is added or its status changes
 
 ### `docs/specs/<domain>/`
@@ -63,8 +65,8 @@ Each domain has up to three files: `requirements.md`, `design.md`, `tasks.md`. N
 - Each task completable in a single commit
 - When issue tracking is used, completed tasks (`[x]`) should reference an issue number `(#N)`. Projects that do not use per-task issues may omit this.
 
-### `docs/decisions/`
-- Named `ADR-NNN-short-name.md`, numbered sequentially from `001`
+### `docs/decisions/` (or `docs.adrDir`)
+- Named `ADR-NNN-short-name.md`, numbered sequentially from `001`. A repo that already has ADRs keeps its own naming and numbering
 - **Required sections:** Context, Decision, Consequences
 - **Status values:** `Proposed` → `Accepted` → `Superseded by ADR-NNN`
 - Append-only — to reverse a decision, write a new ADR that supersedes it
