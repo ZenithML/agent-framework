@@ -71,8 +71,8 @@ If a template is found, its headings are the description's headings, in its orde
 
 ## Testing
 
-- [x] Unit tests: <command> — <result>
-- [x] Lint / typecheck: <command> — <result>
+- [ ] Unit tests: <command> — <result>
+- [ ] Lint / typecheck: <command> — <result>
 - [ ] Build: <not run — reason>
 - [ ] Manual / QA: <scenarios run, or why not>
 
@@ -87,7 +87,7 @@ If a template is found, its headings are the description's headings, in its orde
 ## Related
 
 - Closes #N
-- Spec: `docs/specs/<domain>/`
+- Spec: <spec path, if there is one>
 - <PRs this builds on or overlaps with, and how to resolve the overlap>
 ```
 
@@ -95,7 +95,7 @@ Rules for filling it, whichever source the sections came from:
 
 - Keep the sections in the template's order. Delete the guidance comments (`<!-- … -->`) once a section is filled.
 - Leave out an optional section that has nothing to say (in the default: Changes on a small PR, Not in this PR, Deploy notes) instead of writing "None".
-- Each Testing line names what was run and the result. A box stays unchecked only with a reason.
+- Each Testing line names what was run and the result. Tick a box only once that check has actually passed; a box stays unchecked only with a reason.
 - Put `Closes #N` for every linked issue in Related, never in a section of its own.
 - The description may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
 

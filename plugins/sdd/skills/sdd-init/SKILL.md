@@ -423,7 +423,7 @@ Otherwise pick the path from the code host of `git remote get-url origin`:
 |---|---|
 | `github.com` or a GitHub Enterprise host | `.github/pull_request_template.md` |
 | `gitlab.com` or a self-managed GitLab host | `.gitlab/merge_request_templates/Default.md` |
-| anything else, or no remote | `docs/pull_request_template.md` |
+| anything else, or no remote | `<DOCS_ROOT>/pull_request_template.md` |
 
 Write the template below to that path and record the path as `pullRequest.template` in `.claude/sdd/config.json`. The host pre-fills the GitHub and GitLab paths for people, and `/sdd:create-pr` and the publisher read the configured path, so every PR or MR in the repo has one shape.
 
