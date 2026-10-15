@@ -39,7 +39,11 @@ From the design.md and requirements.md provided to you:
 ```bash
 # Resolve dev server URL from .claude/sdd/config.json (devServer.url), else default
 DEV_URL=$(node -e "try{const c=require('./.claude/sdd/config.json');console.log((c.devServer&&c.devServer.url)||'http://localhost:3000')}catch(e){console.log('http://localhost:3000')}" 2>/dev/null || echo 'http://localhost:3000')
-<DEV_HOST_CMD> &
+```
+
+Start `<DEV_HOST_CMD>` with the Bash tool's `run_in_background: true` parameter, **not** a trailing shell `&`. In sandboxed environments, `<DEV_HOST_CMD> &` inside one Bash call can leave the server in a network namespace that later calls can't reach: it keeps running, but every later `curl` or Playwright call against `$DEV_URL` fails as if nothing were listening. Then confirm it is ready:
+
+```bash
 timeout 30 bash -c "until curl -sf $DEV_URL > /dev/null; do sleep 1; done"
 echo "Server ready at $DEV_URL"
 ```
