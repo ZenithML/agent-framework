@@ -32,16 +32,29 @@ git push -u origin <current-branch>
 
 ## Step 3: Infer title (if not provided)
 
-Convert the branch name to a human-readable title:
-- Strip the prefix (`feature/`, `hotfix/`)
-- Replace hyphens with spaces
-- Capitalise the first word
+**Read the full commit history first**: `git log <base-branch>..<current-branch> --oneline`. The title describes what the branch as a whole does, not just the branch-name slug and not just the first or latest commit. If the branch's scope has drifted from its name (common on a long-running branch), the title follows the real scope.
 
-Example: `feature/add-cart-total` → `Add cart total`
+Write the title in **Conventional Commits** form, `type(scope): description`, with the scope optional. Pick the type from the change, using the branch prefix as a hint:
+
+| Branch prefix | Type |
+|---|---|
+| `feature/`, `feat/` | `feat` |
+| `fix/`, `bugfix/`, `hotfix/` | `fix` |
+| `docs/` | `docs` |
+| `chore/` | `chore` |
+| `refactor/` | `refactor` |
+| `test/` | `test` |
+| anything else | whichever of the above fits the change |
+
+Write the description in lowercase, for a reader of the release notes rather than as a restated branch name.
+
+Examples:
+- `feature/add-cart-total` → `feat: add cart total`
+- `fix/login-redirect-loop` → `fix(auth): stop the login redirect loop`
 
 ## Step 4: Build PR body
 
-If a description was supplied, use it as the content and fit it to the structure below.
+Read every commit on the branch (`git log <base-branch>..<current-branch>`), not just the latest one: the body covers everything the PR contains. If a description was supplied, use it as the content and fit it to the structure below.
 
 **Choose the structure.** The repo's description template is one file, found in this order (first match wins):
 
@@ -101,23 +114,25 @@ Rules for filling it, whichever source the sections came from:
 
 ## Step 5: Create or update PR
 
-Check which GitHub tool is available and use the first that works:
+**First, check whether a PR already exists for this branch**: `gh pr list --head <branch> --json number,title,body`, the MCP `list_pull_requests` tool filtered by `head`, or `glab mr list --source-branch <branch>` on GitLab. These return an empty list, not an error, when there is none. Someone may have opened one from the "Create PR" link that a push prints. If one exists, don't leave the title and body the host auto-filled (usually the first commit's subject): treat this run as an **update** and apply the title and body from Steps 3–4 to the existing PR.
 
-1. **GitHub MCP** — use the `create_pull_request` MCP tool if available
-2. **gh CLI** — fall back to:
+Check which tool for the repo's code host is available and use the first that works:
+
+1. **GitHub MCP** — `create_pull_request` (new) or `update_pull_request` (existing)
+2. **gh CLI**:
    ```bash
-   gh pr create \
-     --base <base-branch> \
-     --title "<title>" \
-     --body "<body>"
+   # New PR:
+   gh pr create --base <base-branch> --title "<title>" --body "<body>"
+   # Existing PR:
+   gh pr edit <number> --title "<title>" --body "<body>"
    ```
    > **Local Claude Code only**: if `gh` fails with auth errors, prepend `unset GH_TOKEN GITHUB_TOKEN;` — this clears a stale env var that may override keyring credentials. Do **not** do this in GitHub Actions or Copilot cloud agents where `GITHUB_TOKEN` is the valid runtime token.
-3. **glab CLI** — when `origin` is a GitLab remote, open a merge request instead:
+3. **glab CLI** — when `origin` is a GitLab remote, use a merge request:
    ```bash
-   glab mr create \
-     --target-branch <base-branch> \
-     --title "<title>" \
-     --description "<body>"
+   # New MR:
+   glab mr create --target-branch <base-branch> --title "<title>" --description "<body>"
+   # Existing MR:
+   glab mr update <number> --title "<title>" --description "<body>"
    ```
 
 ## Step 6: Screenshots (UI-changing PRs only)
@@ -152,6 +167,17 @@ Before you stop:
 3. Remove any generic firewall/environment warning dump from the PR body and replace it with the project-specific screenshot state
 4. Confirm the branch is pushed and the PR reflects the final description, not a placeholder TODO body
 
+## Step 8: Watch CI and review feedback
+
+Skip this step when the publisher called this skill: the publisher watches CI itself. Skip it too when the user asked not to wait (for example `--no-wait`); then report the initial check status and stop.
+
+Otherwise, stay with the PR until its checks are green and its feedback is answered:
+
+1. **Watch the checks** until every one completes: `gh pr checks <number> --watch` on GitHub, `glab ci status --live` on GitLab. Don't stop while checks are pending.
+2. **Allow time for review bots.** Automated reviewers (Copilot, Gemini, linters, deploy previews) usually post within a couple of minutes of the PR opening or checks finishing. Read the PR's review comments and reviews once more after that window (`gh api repos/:owner/:repo/pulls/<number>/comments`, `.../reviews`; `glab mr view <number> --comments` on GitLab).
+3. **Act on failures and comments.** If a check failed or a review or comment is unanswered, run `/sdd:fix-pr <number>`: it resolves conflicts, fixes code or tests, replies in each thread and pushes. Then watch the checks again.
+4. **Finish** when every check is green, every review thread and comment has its own reply, and the description matches what the PR now contains.
+
 ## Rules
 
 - Never push to `<MAIN_BRANCH>` or `<DEV_BRANCH>` directly.
@@ -159,3 +185,4 @@ Before you stop:
 - **Never commit screenshot files to any git branch** (feature, hotfix, or otherwise).
 - **Never create a GitHub Release (draft, pre-release, or otherwise) to host PR screenshots.** Releases are reserved for versioned software artifacts.
 - Do not leave a PR in draft or WIP state at session end.
+- Unless Step 8 says to skip it, do not stop while checks are pending or review bots have not had time to post.

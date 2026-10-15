@@ -52,6 +52,24 @@ if [ -n "$TEST_CMD" ]; then
   eval "$TEST_CMD" || echo "Warning: tests did not pass at session start — continuing." >&2
 fi
 
+# Playwright browsers.
+#
+# Remote images often pre-bake a Chromium build for one Playwright version.
+# When the repo pins a different @playwright/test, every e2e run dies with
+# "Executable doesn't exist at .../chromium_headless_shell-<N>", which reads
+# like a broken environment rather than a version mismatch. `playwright
+# install` is a no-op when the matching build is present, so this costs
+# nothing when they agree and self-heals when they don't. Headless shell only:
+# smaller than full Chromium on a fixed per-session disk allowance.
+# Uses the repo's own installed binary (the install step above ran first), so
+# the browser matches the pinned version and npx never fetches another copy.
+PLAYWRIGHT_BIN="$PROJECT_DIR/node_modules/.bin/playwright"
+if [ -x "$PLAYWRIGHT_BIN" ] && grep -q '"@playwright/test"' "$PROJECT_DIR/package.json" 2>/dev/null; then
+  echo "SDD: ensuring the Playwright browser matches the pinned version..."
+  "$PLAYWRIGHT_BIN" install chromium-headless-shell \
+    || echo "Warning: Playwright browser install failed — e2e runs may not work." >&2
+fi
+
 # Install gh CLI if not present
 if ! command -v gh &> /dev/null; then
   echo "Installing gh CLI from GitHub Releases..."
