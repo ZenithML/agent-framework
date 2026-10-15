@@ -134,7 +134,10 @@ Repos adopting the harness often keep architectural decision records already, un
 cat .adr-dir 2>/dev/null   # written by adr-tools
 for d in <DOCS_ROOT>/decisions <DOCS_ROOT>/adr <DOCS_ROOT>/adrs <DOCS_ROOT>/architecture/decisions \
          doc/adr doc/adrs doc/architecture/decisions adr adrs decisions; do
-  [ -d "$d" ] && printf '%s %s\n' "$d" "$(ls "$d"/*.md 2>/dev/null | wc -l | tr -d ' ')"
+  [ -d "$d" ] || continue
+  count=$(find "$d" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')
+  [ "$count" -gt 0 ] || continue
+  printf '%s %s\n' "$d" "$count"
 done
 ```
 
