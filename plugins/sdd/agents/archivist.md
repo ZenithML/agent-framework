@@ -92,7 +92,7 @@ Flag mismatches:
 
 ### Check 7: ADR index sync
 
-1. List all `.md` files in `<ADR_DIR>` (`docs.adrDir` in `.claude/sdd/config.json`, default `docs/decisions/`)
+1. List all `.md` files in `<ADR_DIR>` (`docs.adrDir` in `.claude/sdd/config.json`, default `<docs.root>/decisions/`)
 2. Read the ADR table from `docs/INDEX.md`
 3. Report files not listed in INDEX.md, and INDEX.md entries with no matching file
 
