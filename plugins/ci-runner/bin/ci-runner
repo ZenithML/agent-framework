@@ -118,7 +118,9 @@ parse_opts() {
       --label) [ $# -ge 2 ] || die "--label needs a value"; LABEL="$2"; shift 2 ;;
       --count) [ $# -ge 2 ] || die "--count needs a number"; COUNT="$2"; shift 2 ;;
       --dir) [ $# -ge 2 ] || die "--dir needs a path"; DIR_BASE="$2"; shift 2 ;;
-      --run-as) [ $# -ge 2 ] || die "--run-as needs a user"; RUN_AS="$2"; shift 2 ;;
+      --run-as) [ $# -ge 2 ] || die "--run-as needs a user"; RUN_AS="$2"
+        case "$RUN_AS" in ''|-*|*[!A-Za-z0-9._-]*) die "invalid user name '$RUN_AS' for --run-as" ;; esac
+        shift 2 ;;
       --create-user) CREATE_USER=true; shift ;;
       --no-fallback) NO_FALLBACK=true; shift ;;
       --org-runner) ORG_RUNNER=true; shift ;;

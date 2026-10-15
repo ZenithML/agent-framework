@@ -79,6 +79,7 @@ check "--org registers on the org URL" sh -c "echo \"\$0\" | grep -q 'https://gi
 check "refuses to run jobs as root" sh -c "! FAKE_UID=0 FAKE_USER=root '$BASH_BIN' '$CLI' install --dry-run --repo acme/widget --yes"
 check "--run-as is accepted as root" sh -c "FAKE_UID=0 FAKE_USER=root '$BASH_BIN' '$CLI' install --dry-run --repo acme/widget --run-as ci-runner --dir '$WORK/runas' | grep -q 'svc.sh install'"
 check "a missing --run-as user is refused without --create-user" sh -c "! '$BASH_BIN' '$CLI' install --dry-run --repo acme/widget --run-as ghost"
+check "--run-as with shell metacharacters is refused" sh -c "! '$BASH_BIN' '$CLI' install --dry-run --repo acme/widget --run-as 'x;touch $WORK/pwned' --create-user && [ ! -e '$WORK/pwned' ]"
 out="$("$BASH_BIN" "$CLI" install --dry-run --repo acme/widget --run-as ghost --create-user 2>&1)"
 check "--create-user creates the missing account" sh -c "echo \"\$0\" | grep -q 'useradd --create-home --shell /bin/bash ghost'" "$out"
 check "...and installs under its home" sh -c "echo \"\$0\" | grep -q '/home/ghost/actions-runner'" "$out"
