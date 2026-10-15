@@ -3,61 +3,57 @@ name: setup
 description: Move a repository's GitHub Actions jobs onto a self-hosted runner on this machine, or back to GitHub-hosted runners, with the ci-runner command. Does not trigger for writing or debugging ordinary workflow steps, and does not trigger for GitHub-hosted runner sizing or billing questions.
 ---
 
-**Usage:** `/ci-runner:setup [on | auto | off | status | uninstall]`
+**Usage:** `/ci-runner:setup [on | off | status | uninstall]`
 
-Everything is done by the `ci-runner` command; this skill is the order to run it in
-and the checks to make between steps. Full reference: the plugin's
-[README](../../README.md).
+Everything is done by the `ci-runner` command; this skill is the order to run it in and the
+checks to make between steps. Reference: the plugin's [README](../../README.md).
 
 ## Step 1: Make sure the command exists
 
-Run `command -v ci-runner`. If it is missing, install it from the plugin's own
-directory, which is the parent of this skill's `skills/` folder:
+Run `command -v ci-runner`. If it is missing, run the installer from the plugin's own directory,
+which is the parent of this skill's `skills/` folder:
 
 ```bash
 <plugin-dir>/install.sh            # links bin/ci-runner into ~/.local/bin
 ```
 
-Without the plugin on disk: `git clone https://github.com/zenithml/agent-framework`
-and run `agent-framework/plugins/ci-runner/install.sh`.
+Without the plugin on disk: `git clone https://github.com/zenithml/agent-framework` and run
+`agent-framework/plugins/ci-runner/install.sh`. `ci-runner` needs `gh` signed in with admin
+rights on the repository.
 
-`ci-runner` needs `gh` signed in with admin rights on the repository.
+## Step 2: Check the repository is a fit
 
-## Step 2: Decide where the runner runs, and say so
-
-Ask the user only what changes the outcome:
-
-- **Which account.** Jobs can read everything the runner's account can. Default to
-  a dedicated account: on Linux `ci-runner install --run-as ci-runner` (create it
-  with `sudo useradd --create-home --shell /bin/bash ci-runner`); on macOS sign in
-  as a separate standard user and run `ci-runner` there. Never pass `--yes` to
-  install under the user's own account unless they said so.
-- **Public repository or forks allowed:** stop. A pull request from a fork would run
-  its code on this machine. Self-hosted runners are for private repositories.
+- **Public repository, or forks allowed:** stop. A pull request from a fork would run its code on
+  this machine. Self-hosted runners are for private repositories.
+- Ask which account runs the jobs only if the user has not said. Recommend a dedicated one
+  (`--create-user` on Linux; on macOS a separate standard user). Their own account is acceptable
+  for a private repository on a machine they trust (`--yes`), but never pass `--yes` on your own.
 
 ## Step 3: Install and wire the workflows
 
 ```bash
-ci-runner install --repo OWNER/NAME [--run-as ci-runner]
-ci-runner workflow                     # writes .github/workflows/select-runner.yml
+ci-runner install --repo OWNER/NAME --create-user      # or --yes for the user's own account
+ci-runner workflow                                     # writes .github/workflows/select-runner.yml
 ```
 
-Then edit each workflow: add the `select-runner` job and set the other jobs'
-`runs-on: ${{ needs.select-runner.outputs.target }}` (the command prints the
-snippet). In jobs that can land on the runner:
+Then edit each workflow: add the `select-runner` job and set the other jobs' `runs-on` to
+`${{ needs.select-runner.outputs.target }}` (the command prints the snippet). In jobs that can land
+on the runner:
 
-- gate `actions/cache` and `cache:` inputs on
-  `needs.select-runner.outputs.self-hosted != 'true'`;
-- remove anything that needs passwordless `sudo` (`apt-get install`, writing to
-  `/usr/local/bin`); preinstall those tools on the machine and guard the step
-  with `command -v`;
+- gate `actions/cache` and `cache:` inputs on `needs.select-runner.outputs.self-hosted != 'true'`;
+- remove anything that needs passwordless `sudo` (`apt-get install`, writing to `/usr/local/bin`);
+  preinstall those tools on the machine and guard the step with `command -v`;
 - avoid fixed paths outside the workspace, since the machine persists between jobs.
 
-Land the workflow change through a pull request before switching.
+Land the workflow change through a pull request before turning it on.
 
-## Step 4: Switch
+## Step 4: Turn it on or off
 
-`ci-runner auto --repo OWNER/NAME` (self-hosted when online, else GitHub-hosted;
-needs the `RUNNER_STATUS_PAT` secret, and the command prints how to make it) or
-`ci-runner on` (always self-hosted). `ci-runner off` goes back. Confirm with
-`ci-runner status` and by watching the next run's "Decide runner" job.
+- `ci-runner on --repo OWNER/NAME`: the user's machine when online, else GitHub-hosted. It asks for
+  the fallback token (a fine-grained token with Administration: Read-only on that repo, hidden
+  input); the user can skip it, and `on` then always targets the machine, which it says.
+- `ci-runner on --no-fallback`: always the machine; jobs wait in the queue while it is off.
+- `ci-runner off`: back to GitHub-hosted from the next run.
+
+Confirm with `ci-runner status` and by reading the next run's **Decide runner** job log. For
+anything not working, use the README's troubleshooting table.

@@ -15,7 +15,7 @@
 # and no empty-array expansions under `set -u`.
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 # ── locate our own files through any symlink (no readlink -f on macOS) ──────
 self="${BASH_SOURCE[0]}"
@@ -36,39 +36,53 @@ say() { echo "==> $*"; }
 
 usage() {
   cat <<'EOF'
+ci-runner: run a repository's GitHub Actions jobs on your own machine
+
 Usage: ci-runner <command> [options]
 
-Commands:
-  install     Register this machine as a self-hosted runner and start it as a service
+Everyday:
+  on          Turn it on: jobs go to your machine when it is online, else to GitHub-hosted
+              runners (needs a token for that fallback; see below). --no-fallback: always your machine.
+  off         Turn it off: the next run is back on GitHub-hosted runners.
+  status      Is it on? Which mode? Is the runner online? What is missing?
+
+One-time setup:
+  install     Register this machine as a runner and start it as a service
+  workflow    Write .github/workflows/select-runner.yml (commit it, then point jobs at it)
   uninstall   Stop, deregister and delete the runners installed for a repo or org
-  status      Show registered runners, local runner directories and the CI switch variables
-  on          Send every job to the self-hosted runner (sets CI_RUNNER_LABEL)
-  auto        Use the self-hosted runner when one is online, else GitHub-hosted (sets CI_RUNNER_AUTO=true)
-  off         Back to GitHub-hosted runners (deletes CI_RUNNER_LABEL and CI_RUNNER_AUTO)
-  workflow    Write the select-runner reusable workflow into a repository
   version     Print the version
 
-Target (install, uninstall, status, on, auto, off):
-  --repo OWNER/NAME   Repository (default: the current directory's GitHub repo, via gh)
-  --org ORG           Register at organization level instead (install, uninstall, status).
+Options (on, off, status, install, uninstall):
+  --repo OWNER/NAME   The repository (default: the current directory's, via gh)
+  --org ORG           install/uninstall/status: register at organization level instead.
                       The runner then serves every repo the org's Default runner group allows.
-
-install options:
-  --label LABEL       Runner label that jobs target (default: self-hosted). The runner also
-                      gets its OS and architecture labels (Linux/macOS, X64/ARM64) automatically.
-  --count N           Runner instances on this machine; each runs one job at a time (default: 1)
-  --dir DIR           Where runners live (default: ~/actions-runner, or the --run-as user's home)
-  --run-as USER       Linux: install and run the service as USER, a dedicated account (recommended)
-  --runner-version V  actions/runner version (default: latest release)
-  --yes               Do not ask before installing under your own account
   --dry-run           Print what would happen, change nothing
 
-on / auto options:
-  --label LABEL       Label to target (default: self-hosted)
+install:
+  --create-user       Linux: run jobs as a dedicated account 'ci-runner', created if missing
+                      (recommended). Without it you are asked; your own account also works.
+  --run-as USER       Linux: use this account instead (--create-user creates it if missing)
+  --yes               Do not ask: use your own account
+  --count N           Runner instances on this machine; each runs one job at a time (default: 1)
+  --label LABEL       Label jobs target (default: self-hosted). The runner also gets its OS and
+                      architecture labels (Linux/macOS, X64/ARM64) automatically.
+  --dir DIR           Where runners live (default: ~/actions-runner, in the job account's home)
+  --runner-version V  actions/runner version (default: latest release)
 
-workflow options:
+on:
+  --no-fallback       Always use your machine; jobs wait in the queue while it is off
+  --label LABEL       Label to target (default: self-hosted)
+  --org-runner        The runner is registered on the organization (ci-runner install --org)
+
+workflow:
   --out PATH          Where to write it (default: .github/workflows/select-runner.yml)
   --force             Overwrite an existing file
+
+The fallback needs a token that can list the repository's runners (GITHUB_TOKEN cannot),
+stored as the RUNNER_STATUS_PAT secret. 'ci-runner on' asks for it (hidden input), or takes it
+from the environment: RUNNER_STATUS_PAT=<token> ci-runner on. Press Enter to skip it in a
+terminal (jobs then always target your machine); without a terminal, 'on' needs the token or
+--no-fallback.
 
 Environment:
   GH_HOST             GitHub Enterprise host (default: github.com)
@@ -87,6 +101,10 @@ LABEL="self-hosted"
 COUNT=1
 DIR_BASE=""
 RUN_AS=""
+CREATE_USER=false
+NO_FALLBACK=false
+ORG_RUNNER=false
+REPO_FROM_CWD=false
 RUNNER_VERSION=""
 ASSUME_YES=false
 DRY_RUN=false
@@ -101,7 +119,12 @@ parse_opts() {
       --label) [ $# -ge 2 ] || die "--label needs a value"; LABEL="$2"; shift 2 ;;
       --count) [ $# -ge 2 ] || die "--count needs a number"; COUNT="$2"; shift 2 ;;
       --dir) [ $# -ge 2 ] || die "--dir needs a path"; DIR_BASE="$2"; shift 2 ;;
-      --run-as) [ $# -ge 2 ] || die "--run-as needs a user"; RUN_AS="$2"; shift 2 ;;
+      --run-as) [ $# -ge 2 ] || die "--run-as needs a user"; RUN_AS="$2"
+        case "$RUN_AS" in ''|-*|*[!A-Za-z0-9._-]*) die "invalid user name '$RUN_AS' for --run-as" ;; esac
+        shift 2 ;;
+      --create-user) CREATE_USER=true; shift ;;
+      --no-fallback) NO_FALLBACK=true; shift ;;
+      --org-runner) ORG_RUNNER=true; shift ;;
       --runner-version) [ $# -ge 2 ] || die "--runner-version needs a version"; RUNNER_VERSION="${2#v}"; shift 2 ;;
       --out) [ $# -ge 2 ] || die "--out needs a path"; OUT="$2"; shift 2 ;;
       --yes|-y) ASSUME_YES=true; shift ;;
@@ -123,6 +146,7 @@ resolve_repo() {
   if [ -z "$REPO" ] && [ -z "$ORG" ]; then
     REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" \
       || die "not inside a GitHub repository; pass --repo OWNER/NAME"
+    REPO_FROM_CWD=true
   fi
 }
 
@@ -141,7 +165,12 @@ home_of() {
   local user="$1" h=""
   if command -v getent >/dev/null 2>&1; then h="$(getent passwd "$user" | cut -d: -f6)"; fi
   [ -n "$h" ] || h="$(eval echo "~$user")"
-  case "$h" in "~"*|"") die "user '$user' does not exist" ;; esac
+  case "$h" in
+    "~"*|"")
+      # A dry run may name an account it would create; guess where its home will be.
+      if $DRY_RUN && $CREATE_USER; then echo "/home/$user"; return 0; fi
+      die "user '$user' does not exist" ;;
+  esac
   echo "$h"
 }
 
@@ -212,33 +241,55 @@ expected_sha() {
   printf '%s\n' "$body" | sed -n "s/.*<!-- BEGIN SHA $plat -->\([0-9a-f]\{64\}\)<!-- END SHA $plat -->.*/\1/p" | head -1
 }
 
+# Linux: make sure the job account exists, creating it when asked to.
+ensure_runner_user() {
+  id "$RUN_AS" >/dev/null 2>&1 && return 0
+  $CREATE_USER || die "user '$RUN_AS' does not exist. Add --create-user to create it, or: sudo useradd --create-home --shell /bin/bash $RUN_AS"
+  say "Creating the account '$RUN_AS' (sudo)"
+  run sudo useradd --create-home --shell /bin/bash "$RUN_AS"
+}
+
+# Decide which account runs the jobs, and say plainly when it is your own.
 confirm_account() {
-  local plat="$1"
+  local plat="$1" answer
+  if $CREATE_USER && [ -z "$RUN_AS" ]; then RUN_AS="ci-runner"; fi
   if [ "$(id -u)" -eq 0 ] && { [ -z "$RUN_AS" ] || [ "$RUN_AS" = root ]; }; then
-    die "do not run CI jobs as root; pass --run-as USER (a dedicated account), or run ci-runner as that user"
+    die "do not run CI jobs as root; add --create-user (or --run-as USER) for a dedicated account, or run ci-runner as that user"
   fi
-  if [ -n "$RUN_AS" ]; then
-    case "$plat" in osx-*) die "--run-as is Linux only. On macOS, sign in as the dedicated user (su - USER) and run ci-runner there." ;; esac
-    id "$RUN_AS" >/dev/null 2>&1 || die "user '$RUN_AS' does not exist. Create it first, e.g.: sudo useradd --create-home --shell /bin/bash $RUN_AS"
-    return 0
-  fi
+  case "$plat" in
+    osx-*)
+      [ -z "$RUN_AS" ] || die "--run-as and --create-user are Linux only. On macOS, sign in as the dedicated user (su - USER) and run ci-runner there."
+      ;;
+    *)
+      if [ -n "$RUN_AS" ]; then ensure_runner_user; return 0; fi
+      ;;
+  esac
   cat >&2 <<EOF
 
-  Heads-up: the runner will run CI jobs as '$(id -un)', your current account.
+  Heads-up: the runner would run CI jobs as '$(id -un)', your current account.
   Every job can read whatever this account can (SSH keys, .env files, other
   checkouts, gh and cloud credentials), and tests that start tmux sessions,
   install services or put mock CLIs on PATH run alongside your own work.
-  Recommended: a dedicated account.
-    Linux:  sudo useradd --create-home --shell /bin/bash ci-runner
-            ci-runner install --run-as ci-runner ...
+  A dedicated account avoids that:
+    Linux:  ci-runner install --create-user ...    (creates 'ci-runner')
     macOS:  create a standard user, sign in as it, and run ci-runner there.
+  Your own account is fine for a private repo on a machine you trust.
 
 EOF
   $ASSUME_YES && return 0
   $DRY_RUN && return 0
-  [ -t 0 ] || die "refusing to install under your own account without --yes (or use --run-as USER)"
-  printf 'Install under %s anyway? [y/N] ' "$(id -un)" >&2
-  local answer; read -r answer
+  [ -t 0 ] || die "not a terminal: pass --yes to use your own account, or --create-user / --run-as USER"
+  case "$plat" in
+    linux-*)
+      printf "Create a dedicated 'ci-runner' account and use it (recommended)? [Y/n] " >&2
+      read -r answer
+      case "$answer" in
+        ''|y|Y|yes|YES) RUN_AS="ci-runner"; CREATE_USER=true; ensure_runner_user; return 0 ;;
+      esac
+      ;;
+  esac
+  printf 'Install under %s then? [y/N] ' "$(id -un)" >&2
+  read -r answer
   case "$answer" in y|Y|yes|YES) ;; *) die "cancelled" ;; esac
 }
 
@@ -318,14 +369,14 @@ cmd_install() {
 
   echo
   if $DRY_RUN; then echo "Dry run: nothing was changed."; return 0; fi
-  echo "Installed. Jobs still run on GitHub-hosted runners until you switch:"
+  echo "Installed. Jobs still run on GitHub-hosted runners until you turn it on:"
   if [ -n "$ORG" ]; then
-    echo "  ci-runner auto --repo $ORG/<repo>   (per repository that should use it)"
+    echo "  ci-runner workflow                                   (once per repo; commit the file)"
+    echo "  ci-runner on --org-runner --repo $ORG/<repo>          (per repo that should use it)"
   else
-    echo "  ci-runner auto --repo $REPO   # self-hosted when online, else GitHub-hosted"
-    echo "  ci-runner on   --repo $REPO   # always self-hosted (jobs wait if this machine is off)"
+    echo "  ci-runner workflow         (once: writes .github/workflows/select-runner.yml; commit it and point jobs at it)"
+    echo "  ci-runner on --repo $REPO"
   fi
-  echo "The repository's workflows must call select-runner.yml first (ci-runner workflow)."
   echo "Jobs should not count on passwordless sudo: preinstall what they would apt-get or brew install."
 }
 
@@ -368,72 +419,159 @@ cmd_uninstall() {
   fi
 }
 
+# Delete a repository variable; fine if it was never set.
+delete_var() {
+  if $DRY_RUN; then echo "   [dry-run] gh variable delete $1 --repo $REPO"; return 0; fi
+  gh variable delete "$1" --repo "$REPO" >/dev/null 2>&1 || true
+}
+
+# 0: the secret exists, 1: it does not, 2: could not tell (listing secrets needs admin rights).
+has_status_token() {
+  local list
+  list="$(gh secret list --repo "$REPO" 2>/dev/null)" || return 2
+  printf '%s\n' "$list" | grep -q '^RUNNER_STATUS_PAT[[:space:]]'
+}
+
 cmd_status() {
   need_gh
   resolve_repo
-  local base dir
-  echo "Runners registered on $(api_scope):"
-  gh api "$(api_scope)/actions/runners?per_page=100" \
-    --jq '.runners[] | "  \(.name)\t\(.status)\(if .busy then " (busy)" else "" end)\t\([.labels[].name] | join(","))"' 2>/dev/null \
-    || echo "  (could not list them; that needs admin rights on $(api_scope))"
+  local base dir found=false auto label scope online listing rc
+  if [ -z "$ORG" ]; then
+    auto="$(gh variable get CI_RUNNER_AUTO --repo "$REPO" 2>/dev/null || true)"
+    label="$(gh variable get CI_RUNNER_LABEL --repo "$REPO" 2>/dev/null || true)"
+    scope="$(gh variable get CI_RUNNER_SCOPE --repo "$REPO" 2>/dev/null || true)"
+    echo "$REPO"
+    if [ "$auto" = true ]; then
+      echo "  Switch:  ON, with fallback (your '${label:-self-hosted}' runner when online, else GitHub-hosted)"
+      has_status_token && rc=0 || rc=$?
+      [ "$rc" -ne 1 ] || echo "  Problem: the RUNNER_STATUS_PAT secret is missing, so every run uses GitHub-hosted. Fix: ci-runner on"
+    elif [ -n "$label" ]; then
+      echo "  Switch:  ON, always '$label' (jobs wait in the queue while no runner is online)"
+    else
+      echo "  Switch:  OFF (jobs run on GitHub-hosted runners)"
+    fi
+    if $REPO_FROM_CWD; then
+      if [ -f .github/workflows/select-runner.yml ]; then
+        echo "  This checkout: select-runner.yml present (jobs must also use its output; see the README)"
+      else
+        echo "  This checkout: .github/workflows/select-runner.yml missing. Fix: ci-runner workflow"
+      fi
+    fi
+  fi
+  if [ "${scope:-}" = org ] && [ -z "$ORG" ]; then
+    listing="orgs/${REPO%%/*}/actions/runners"
+  else
+    listing="$(api_scope)/actions/runners"
+  fi
+  echo "Runners on ${listing%/actions/runners}:" | sed 's|on repos/|on |; s|on orgs/|on org |'
+  if online="$(gh api "$listing?per_page=100" --jq '[.runners[] | select(.status == "online")] | length' 2>/dev/null)"; then
+    gh api "$listing?per_page=100" \
+      --jq '.runners[] | "  \(.name)\t\(.status)\(if .busy then " (busy)" else "" end)\t\([.labels[].name] | join(","))"' 2>/dev/null || true
+    [ "$online" -gt 0 ] || echo "  (none online: is the service running? On Linux: systemctl status 'actions.runner.*')"
+  else
+    echo "  (could not list them; that needs admin rights on ${listing%/actions/runners})"
+  fi
   base="$(default_dir_base)"
-  echo "Local runner directories under $base:"
-  local found=false
+  echo "Runner directories on this machine, under $base:"
   for dir in $(instance_dirs "$base"); do
     found=true
     echo "  $dir"
   done
   $found || echo "  (none)"
-  if [ -z "$ORG" ]; then
-    echo "Switch on $REPO:"
-    gh variable list --repo "$REPO" 2>/dev/null | grep -E '^CI_RUNNER_(LABEL|AUTO|SCOPE)[[:space:]]' | sed 's/^/  /' \
-      || echo "  (off: jobs run on GitHub-hosted runners)"
-    if gh secret list --repo "$REPO" 2>/dev/null | grep -q '^RUNNER_STATUS_PAT[[:space:]]'; then
-      echo "  RUNNER_STATUS_PAT secret: set"
-    else
-      echo "  RUNNER_STATUS_PAT secret: not set (needed for auto)"
-    fi
+}
+
+# The fallback needs a token that can list runners (GITHUB_TOKEN cannot). Store it as the
+# RUNNER_STATUS_PAT secret when handed over (environment, or a hidden prompt). Returns 0 when
+# stored, 1 when there is none; either way the caller carries on.
+store_status_token() {
+  local perm tok="${RUNNER_STATUS_PAT:-}"
+  if $ORG_RUNNER; then
+    perm='Organization permission "Self-hosted runners: Read-only"'
+  else
+    perm='Repository permission "Administration: Read-only"'
   fi
+  if [ -z "$tok" ] && [ -t 0 ] && ! $DRY_RUN; then
+    cat >&2 <<EOF
+
+  The fallback to GitHub-hosted runners needs a token that can list this repository's
+  runners. Create a fine-grained token at https://$GH_HOST_NAME/settings/personal-access-tokens/new
+    Repository access: only $REPO
+    $perm
+  and paste it here. It is stored as the RUNNER_STATUS_PAT secret and never shown.
+EOF
+    printf 'Token (hidden), or Enter to skip: ' >&2
+    read -rs tok || true
+    echo >&2
+  fi
+  if [ -n "$tok" ]; then
+    if $DRY_RUN; then
+      echo "   [dry-run] store the token as the RUNNER_STATUS_PAT secret on $REPO"
+    else
+      printf '%s' "$tok" | gh secret set RUNNER_STATUS_PAT --repo "$REPO" >/dev/null \
+        || die "could not store the RUNNER_STATUS_PAT secret on $REPO"
+      echo "Stored the RUNNER_STATUS_PAT secret on $REPO."
+    fi
+    return 0
+  fi
+  # Not a terminal and no token: do not quietly turn the fallback off.
+  if [ ! -t 0 ] && ! $DRY_RUN; then
+    die "no token for the fallback. Pass RUNNER_STATUS_PAT=<token>, or --no-fallback to always use your machine"
+  fi
+  cat <<EOF
+
+  No token for the fallback, so jobs will always target your machine. To add the fallback:
+  create a fine-grained token at https://$GH_HOST_NAME/settings/personal-access-tokens/new
+  (only $REPO; $perm), then run:
+    RUNNER_STATUS_PAT=<token> ci-runner on --repo $REPO
+EOF
+  return 1
 }
 
 cmd_on() {
   need_gh
   require_repo
-  run gh variable set CI_RUNNER_LABEL --repo "$REPO" --body "$LABEL"
-  run sh -c 'gh variable delete CI_RUNNER_AUTO --repo "$1" >/dev/null 2>&1 || true' sh "$REPO"
-  echo "On: every job that uses select-runner.yml in $REPO now runs on '$LABEL'."
-  echo "If no runner with that label is online, those jobs wait in the queue. 'ci-runner auto' falls back instead."
-}
-
-cmd_auto() {
-  need_gh
-  require_repo
-  run gh variable set CI_RUNNER_AUTO --repo "$REPO" --body true
-  if [ "$LABEL" = "self-hosted" ]; then
-    run sh -c 'gh variable delete CI_RUNNER_LABEL --repo "$1" >/dev/null 2>&1 || true' sh "$REPO"
+  local fallback=true
+  $NO_FALLBACK && fallback=false
+  if $fallback; then
+    local have=0
+    has_status_token && have=0 || have=$?
+    if [ "$have" -eq 2 ]; then
+      # Cannot list secrets: do not guess. Store a token only when one was handed over.
+      if [ -n "${RUNNER_STATUS_PAT:-}" ]; then store_status_token || true
+      else echo "Could not check for the RUNNER_STATUS_PAT secret (needs admin rights); assuming it is set." >&2
+      fi
+    elif [ "$have" -eq 1 ]; then
+      store_status_token || fallback=false
+    fi
+  fi
+  if $ORG_RUNNER; then
+    run gh variable set CI_RUNNER_SCOPE --repo "$REPO" --body org
+  else
+    delete_var CI_RUNNER_SCOPE
+  fi
+  if $fallback; then
+    run gh variable set CI_RUNNER_AUTO --repo "$REPO" --body true
+    if [ "$LABEL" = "self-hosted" ]; then
+      delete_var CI_RUNNER_LABEL
+    else
+      run gh variable set CI_RUNNER_LABEL --repo "$REPO" --body "$LABEL"
+    fi
+    echo "On, with fallback: jobs in $REPO use your '$LABEL' runner when it is online, else GitHub-hosted."
   else
     run gh variable set CI_RUNNER_LABEL --repo "$REPO" --body "$LABEL"
+    delete_var CI_RUNNER_AUTO
+    echo "On, always '$LABEL': jobs in $REPO wait in the queue while no such runner is online."
   fi
-  echo "Auto: jobs in $REPO use an online '$LABEL' runner, else GitHub-hosted."
-  if ! gh secret list --repo "$REPO" 2>/dev/null | grep -q '^RUNNER_STATUS_PAT[[:space:]]'; then
-    cat <<EOF
-
-  One more step: auto needs a token that can list runners (GITHUB_TOKEN cannot).
-  Create a fine-grained token scoped to $REPO with "Administration: Read-only"
-  (for an org-level runner: the org permission "Self-hosted runners: Read-only",
-  and also run: gh variable set CI_RUNNER_SCOPE --repo $REPO --body org), then:
-    gh secret set RUNNER_STATUS_PAT --repo $REPO
-  Until then every run falls back to GitHub-hosted, with a warning.
-EOF
-  fi
+  echo "Check with: ci-runner status --repo $REPO     Turn off: ci-runner off --repo $REPO"
 }
 
 cmd_off() {
   need_gh
   require_repo
-  run sh -c 'gh variable delete CI_RUNNER_LABEL --repo "$1" >/dev/null 2>&1 || true' sh "$REPO"
-  run sh -c 'gh variable delete CI_RUNNER_AUTO --repo "$1" >/dev/null 2>&1 || true' sh "$REPO"
-  echo "Off: jobs in $REPO run on GitHub-hosted runners again. The runner service keeps running; 'ci-runner uninstall' removes it."
+  local name
+  for name in CI_RUNNER_LABEL CI_RUNNER_AUTO CI_RUNNER_SCOPE; do delete_var "$name"; done
+  echo "Off: jobs in $REPO run on GitHub-hosted runners again, from the next run."
+  echo "The runner service keeps idling (harmless); 'ci-runner uninstall --repo $REPO' removes it."
 }
 
 cmd_workflow() {
@@ -468,8 +606,7 @@ case "$command" in
   install) parse_opts "$@"; cmd_install ;;
   uninstall) parse_opts "$@"; cmd_uninstall ;;
   status) parse_opts "$@"; cmd_status ;;
-  on) parse_opts "$@"; cmd_on ;;
-  auto) parse_opts "$@"; cmd_auto ;;
+  on|auto) parse_opts "$@"; cmd_on ;;
   off) parse_opts "$@"; cmd_off ;;
   workflow) parse_opts "$@"; cmd_workflow ;;
   version|--version|-V) echo "ci-runner $VERSION" ;;

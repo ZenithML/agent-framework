@@ -8,13 +8,13 @@ name: Select CI runner
 #
 #   (nothing set)          GitHub-hosted (the `hosted` input, ubuntu-latest by default).
 #   CI_RUNNER_LABEL=L      Always the self-hosted runner labelled L. Jobs wait in the
-#                          queue while no such runner is online. (`ci-runner on`)
+#                          queue while no such runner is online. (`ci-runner on --no-fallback`)
 #   CI_RUNNER_AUTO=true    Live check on every run: a runner labelled
 #                          CI_RUNNER_LABEL (default self-hosted) that is online -> use
-#                          it, otherwise fall back to GitHub-hosted. (`ci-runner auto`)
+#                          it, otherwise fall back to GitHub-hosted. (`ci-runner on`)
 #                          Needs the RUNNER_STATUS_PAT secret, because listing runners
 #                          needs admin read access that GITHUB_TOKEN cannot be given.
-#                          Without it, every run falls back with a warning.
+#                          Without it, every run falls back with a warning. `ci-runner off` deletes all of these variables.
 #   CI_RUNNER_SCOPE=org    With auto: the runner is registered on the organization,
 #                          so look it up there (the PAT then needs the org permission
 #                          "Self-hosted runners: Read-only").
@@ -84,7 +84,7 @@ jobs:
 
           export LABEL="${LABEL:-self-hosted}"
           if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::CI_RUNNER_AUTO=true but the RUNNER_STATUS_PAT secret is not set; using $HOSTED. Run 'ci-runner auto' for setup steps."
+            echo "::warning::CI_RUNNER_AUTO=true but the RUNNER_STATUS_PAT secret is not set; using $HOSTED. Run 'ci-runner on' to add it."
             pick "$HOSTED" false
             exit 0
           fi

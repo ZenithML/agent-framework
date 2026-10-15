@@ -71,11 +71,12 @@ boundary tests: swap, transplant, and a grep for colour literals in the engine. 
 
 ## ci-runner: GitHub Actions on your own machine
 
-A shell command first and a plugin second, so it works without Claude Code: `ci-runner`
+A shell command first and a plugin second, so it works without Claude Code: `ci-runner install`
 registers a self-hosted runner for a repository (or an organization) as a systemd service on
-Linux or a launchd agent on macOS, writes a `select-runner.yml` reusable workflow, and flips
-repository variables to send jobs to the runner, back to GitHub-hosted, or to the runner only
-while it is online. Generalised from ZenithML/zenith's `self-hosted-runner/` scripts.
+Linux or a launchd agent on macOS, `ci-runner workflow` writes a `select-runner.yml` reusable
+workflow, and `ci-runner on` / `off` turn the runner on or off with repository variables. On sends
+jobs to your machine when it is online and to GitHub-hosted runners when it is not. Generalised
+from ZenithML/zenith's `self-hosted-runner/` scripts.
 
 ```
 plugins/ci-runner/
@@ -88,8 +89,8 @@ plugins/ci-runner/
 
 | Skill | Does |
 |---|---|
-| `/ci-runner:setup` | Install the runner under a dedicated account, wire the workflows, then switch |
+| `/ci-runner:setup` | Install the runner (dedicated account recommended), wire the workflows, then turn it on |
 
-Self-hosted runners are for private repositories only, and should run under a dedicated
-account. The plugin's [README](../plugins/ci-runner/README.md) covers both, the commands and
-how to make jobs safe to run there.
+Self-hosted runners are for private repositories only. The plugin's
+[README](../plugins/ci-runner/README.md) has the quick start, the on/off modes, choosing the
+account, how to make jobs runner-safe, and troubleshooting.
