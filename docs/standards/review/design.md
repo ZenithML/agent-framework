@@ -14,7 +14,7 @@ The author (human or agent) must complete all of the following:
 - [ ] Both version files updated if the change introduces new or changed plugin behaviour (see [release standard](../release/design.md))
 - [ ] `docs/INDEX.md` updated if a new standard or ADR was added
 - [ ] Config schema examples updated if `.claude/sdd/config.json` schema changed
-- [ ] PR body includes a Summary (what changed and why) and a Test Plan
+- [ ] PR body fills the sections of [`.github/pull_request_template.md`](../../../.github/pull_request_template.md), including a Summary (what changed and why) and Testing
 
 ---
 

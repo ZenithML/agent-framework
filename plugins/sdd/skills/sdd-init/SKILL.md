@@ -9,7 +9,7 @@ description: >
 
 **Usage:** `/sdd-init` (or `/sdd:sdd-init` when installed as a plugin)
 
-Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, `docs/decisions/`, `AGENTS.md`), and commits everything.
+Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, `docs/decisions/`, `AGENTS.md`) and a pull request template, and commits everything.
 
 ---
 
@@ -115,7 +115,7 @@ Compose the full config JSON from the values derived in Steps 3–5. Omit any ke
 
 Present the config and any open questions in a **single message** — do not make separate round trips.
 
-**If topology is Gitflow (detected):** show the config JSON and say: *"Here's what I detected. Confirm to write this, or tell me what to change. I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) unless those files already exist."*
+**If topology is Gitflow (detected):** show the config JSON and say: *"Here's what I detected. Confirm to write this, or tell me what to change. I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) and a pull request template (`.github/pull_request_template.md`) unless those files already exist."*
 
 **If topology is GitHub Flow (the default — single main branch or fresh repo):** show the config JSON and the default together in one message:
 
@@ -125,7 +125,7 @@ Present the config and any open questions in a **single message** — do not mak
 >
 > *No separate development branch exists, so I'll use **GitHub Flow** (the default): feature branches cut from `main`, merged via PR; `main` is always deployable and deploying on merge. If the team instead works **trunk-based** — very short-lived branches (hours to a couple of days), incomplete work behind feature flags — say so and I'll record that instead.*
 >
-> *I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) unless those files already exist."*
+> *I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) and a pull request template (`.github/pull_request_template.md`) unless those files already exist."*
 
 (Use `docs.root` from the proposed config for `<DOCS_ROOT>`; default to `docs`.)
 
@@ -413,6 +413,59 @@ Write `AGENTS.md` at the repo root. This file is a routing map only — no rules
 
 ---
 
+### 8f. Pull request template
+
+Skip this step if the repo already has a pull request template at any of `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `docs/pull_request_template.md` or `pull_request_template.md`; the existing one stays the source of truth.
+
+Otherwise write `.github/pull_request_template.md`. GitHub pre-fills it for people, and `/sdd:create-pr` and the publisher fill the same sections, so every PR in the repo has one shape.
+
+````markdown
+## Summary
+
+<!-- One or two sentences a reviewer can read on their own: what changes and why.
+     Lead with the outcome, not the files. Title: `type(scope): description`, written for a reader. -->
+
+**Before:** <!-- what a user or developer sees today -->
+
+**After:** <!-- what they see once this merges; screenshots go here for UI changes -->
+
+## Changes
+
+<!-- Grouped by area, a few bullets each; add task ids when there is a spec (e.g. "Data model (T1–T2)").
+     Delete this section for a small PR where the diff says it all. -->
+
+### Area
+
+-
+
+## Not in this PR
+
+<!-- Optional: what is deliberately left out or deferred, and where it goes next. Delete if nothing. -->
+
+## Testing
+
+<!-- What you ran and what happened. Leave a box unchecked only with a reason. -->
+
+- [ ] Unit tests:
+- [ ] Lint / typecheck:
+- [ ] Build:
+- [ ] Manual / QA:
+
+## Review notes
+
+<!-- Where to start reading, the risky parts, anything you are unsure about. -->
+
+## Deploy notes
+
+<!-- Optional: migrations, env or config changes, breaking changes, rollout order. Delete if nothing. -->
+
+## Related
+
+<!-- Closes #N, the spec or ADR, PRs this builds on or overlaps with (and how to resolve the overlap). -->
+````
+
+---
+
 ## Step 9: Commit
 
 Check whether the repo has any commits:
@@ -428,6 +481,7 @@ git status --short \
   .claude/sdd/config.json \
   .claude/settings.json \
   AGENTS.md \
+  .github/pull_request_template.md \
   <DOCS_ROOT>/INDEX.md \
   <DOCS_ROOT>/decisions/.gitkeep \
   <DOCS_ROOT>/standards/branching/design.md \

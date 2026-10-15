@@ -41,12 +41,65 @@ Example: `feature/add-cart-total` → `Add cart total`
 
 ## Step 4: Build PR body
 
-### Feature / hotfix PRs
+If a description was supplied, use it as the content and fit it to the structure below.
 
-Include:
-- **Summary**: 2–3 bullet points describing what changed and why
-- **Test plan**: checklist of steps to verify the change
-- **Related issues**: link any relevant GitHub issues (`Closes #N` if applicable)
+**Choose the structure.** Look for a pull request template in the repository, first match wins:
+
+1. `.github/pull_request_template.md`
+2. `.github/PULL_REQUEST_TEMPLATE.md`
+3. `docs/pull_request_template.md`
+4. `pull_request_template.md` at the repo root
+
+If one exists, its headings are the PR body's headings, in its order, and its comments say what goes in each. If none exists, use this default:
+
+```markdown
+## Summary
+
+<One or two sentences a reviewer can read on their own: what changes and why.>
+
+**Before:** <what a user or developer sees today>
+
+**After:** <what they see once this merges; screenshots go here for UI changes>
+
+## Changes
+
+### <Area> (<task ids, e.g. T1–T3, when there is a spec>)
+
+- <change>
+
+## Not in this PR
+
+- <deferred work and where it goes next>
+
+## Testing
+
+- [x] Unit tests: <command> — <result>
+- [x] Lint / typecheck: <command> — <result>
+- [ ] Build: <not run — reason>
+- [ ] Manual / QA: <scenarios run, or why not>
+
+## Review notes
+
+<Where to start reading, the risky parts, anything you are unsure about.>
+
+## Deploy notes
+
+<Migrations, env or config changes, breaking changes, rollout order.>
+
+## Related
+
+- Closes #N
+- Spec: `docs/specs/<domain>/`
+- <PRs this builds on or overlaps with, and how to resolve the overlap>
+```
+
+Rules for filling it, whichever source the sections came from:
+
+- Keep the sections in the template's order. Delete the guidance comments (`<!-- … -->`) once a section is filled.
+- Leave out an optional section that has nothing to say (in the default: Changes on a small PR, Not in this PR, Deploy notes) instead of writing "None".
+- Each Testing line names what was run and the result. A box stays unchecked only with a reason.
+- Put `Closes #N` for every linked issue in Related, never in a section of its own.
+- The PR body may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
 
 ## Step 5: Create or update PR
 
@@ -89,7 +142,7 @@ Do not end the session with a WIP or draft PR.
 
 Before you stop:
 
-1. Ensure the PR body is complete and real — summary, test plan, and `Closes #N` when applicable
+1. Ensure the PR body is complete and real — every section of the structure chosen in Step 4 filled or deliberately left out, and `Closes #N` in Related when applicable
 2. If the PR was created or left as draft, mark it ready for review after the screenshot requirement above is satisfied
 3. Remove any generic firewall/environment warning dump from the PR body and replace it with the project-specific screenshot state
 4. Confirm the branch is pushed and the PR reflects the final description, not a placeholder TODO body

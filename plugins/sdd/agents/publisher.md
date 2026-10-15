@@ -32,28 +32,83 @@ Do not proceed to step 2 if `/prepare-docs` surfaces blocking issues. Escalate t
 Read the following to prepare the PR description:
 - `<domain_path>/requirements.md` — the *why*: goals, user stories
 - `<domain_path>/tasks.md` — the *what*: completed tasks and linked issues
+- `<domain_path>/design.md` — the *how*: decisions a reviewer should check and the QA Scenarios
 
 Collect all issue numbers from tasks.md (`#N`) to include as `Closes #N` in the PR body.
 
 ### 3. Draft PR description
 
-Synthesise a description from the specs:
+**Choose the structure.** Look for a pull request template in the repository, first match wins:
 
-```
+1. `.github/pull_request_template.md`
+2. `.github/PULL_REQUEST_TEMPLATE.md`
+3. `docs/pull_request_template.md`
+4. `pull_request_template.md` at the repo root
+
+If one exists, its headings are the PR body's headings, in its order, and its comments say what goes in each. If none exists, use this default:
+
+```markdown
 ## Summary
-<2–3 bullets: what was built and why, from requirements.md goals>
+
+<One or two sentences a reviewer can read on their own: what changes and why.>
+
+**Before:** <what a user or developer sees today>
+
+**After:** <what they see once this merges; screenshots go here for UI changes>
 
 ## Changes
-<bullet list of completed tasks from tasks.md>
 
-## Closes
-Closes #N, Closes #M  ← one per linked issue in tasks.md (omit if no issues)
+### <Area> (<task ids, e.g. T1–T3, when there is a spec>)
 
-## Test plan
-<bullet checklist: key behaviors to verify manually, drawn from design.md QA Scenarios>
+- <change>
+
+## Not in this PR
+
+- <deferred work and where it goes next>
+
+## Testing
+
+- [x] Unit tests: <command> — <result>
+- [x] Lint / typecheck: <command> — <result>
+- [ ] Build: <not run — reason>
+- [ ] Manual / QA: <scenarios run, or why not>
+
+## Review notes
+
+<Where to start reading, the risky parts, anything you are unsure about.>
+
+## Deploy notes
+
+<Migrations, env or config changes, breaking changes, rollout order.>
+
+## Related
+
+- Closes #N
+- Spec: `docs/specs/<domain>/`
+- <PRs this builds on or overlaps with, and how to resolve the overlap>
 ```
 
-For UI changes: note that before/after screenshots should be attached via the GitHub web UI if not captured automatically.
+**Fill it from the specs.** Map each section to its source; for a repo template, put each source under the heading that asks for it:
+
+| Section | Source |
+|---|---|
+| Summary, Before / After | `requirements.md` goals and user stories |
+| Changes | completed tasks in `tasks.md`, grouped by area with their task ids |
+| Not in this PR | tasks in `tasks.md` that are not complete, if this PR delivers only part of the domain |
+| Testing | the test, lint, typecheck and build results from this run, and the QA Scenarios in `design.md` that were exercised |
+| Review notes | design decisions in `design.md` a reviewer should check first, and anything the critic flagged |
+| Deploy notes | migrations, config or env changes, and breaking changes in the diff |
+| Related | `Closes #N` for each issue in `tasks.md`, the spec path, and overlapping open PRs |
+
+Rules for filling it, whichever source the sections came from:
+
+- Keep the sections in the template's order. Delete the guidance comments (`<!-- … -->`) once a section is filled.
+- Leave out an optional section that has nothing to say (in the default: Changes on a small PR, Not in this PR, Deploy notes) instead of writing "None".
+- Each Testing line names what was run and the result. A box stays unchecked only with a reason.
+- Put `Closes #N` for every linked issue in Related, never in a section of its own.
+- The PR body may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
+
+For UI changes: put before/after screenshots under After, or note there that they should be attached via the GitHub web UI if not captured automatically.
 
 ### 4. Run `/create-pr` with the description
 
@@ -120,4 +175,4 @@ Wait for all checks to complete.
 - Only commit docs files (via `/prepare-docs`) — never touch source code
 - Never push to `<MAIN_BRANCH>` or `<DEV_BRANCH>` directly
 - Do not merge the PR — that is the human's responsibility
-- If no issues are linked in tasks.md, omit the `Closes` section from the PR description
+- If no issues are linked in tasks.md, leave `Closes #N` out of Related
