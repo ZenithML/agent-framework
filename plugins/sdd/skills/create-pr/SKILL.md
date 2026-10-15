@@ -114,7 +114,7 @@ Rules for filling it, whichever source the sections came from:
 
 ## Step 5: Create or update PR
 
-**First, check whether a PR already exists for this branch**: `gh pr view <branch> --json number,title,body`, the MCP `list_pull_requests` tool filtered by `head`, or `glab mr view <branch>` on GitLab. Someone may have opened one from the "Create PR" link that a push prints. If one exists, don't leave the title and body the host auto-filled (usually the first commit's subject): treat this run as an **update** and apply the title and body from Steps 3–4 to the existing PR.
+**First, check whether a PR already exists for this branch**: `gh pr list --head <branch> --json number,title,body`, the MCP `list_pull_requests` tool filtered by `head`, or `glab mr list --source-branch <branch>` on GitLab. These return an empty list, not an error, when there is none. Someone may have opened one from the "Create PR" link that a push prints. If one exists, don't leave the title and body the host auto-filled (usually the first commit's subject): treat this run as an **update** and apply the title and body from Steps 3–4 to the existing PR.
 
 Check which tool for the repo's code host is available and use the first that works:
 

@@ -61,9 +61,12 @@ fi
 # install` is a no-op when the matching build is present, so this costs
 # nothing when they agree and self-heals when they don't. Headless shell only:
 # smaller than full Chromium on a fixed per-session disk allowance.
-if [ -f "$PROJECT_DIR/package.json" ] && grep -q '"@playwright/test"' "$PROJECT_DIR/package.json"; then
+# Uses the repo's own installed binary (the install step above ran first), so
+# the browser matches the pinned version and npx never fetches another copy.
+PLAYWRIGHT_BIN="$PROJECT_DIR/node_modules/.bin/playwright"
+if [ -x "$PLAYWRIGHT_BIN" ] && grep -q '"@playwright/test"' "$PROJECT_DIR/package.json" 2>/dev/null; then
   echo "SDD: ensuring the Playwright browser matches the pinned version..."
-  npx --no-install playwright install chromium-headless-shell \
+  "$PLAYWRIGHT_BIN" install chromium-headless-shell \
     || echo "Warning: Playwright browser install failed — e2e runs may not work." >&2
 fi
 
