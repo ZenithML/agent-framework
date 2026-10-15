@@ -46,8 +46,8 @@
     {
       "name": "ci-runner",
       "source": "./plugins/ci-runner",
-      "description": "Run a repository's GitHub Actions jobs on your own Linux or macOS machine: a self-hosted runner installed as a service, a select-runner workflow, and a repository-variable switch with automatic fallback to GitHub-hosted runners.",
-      "version": "0.1.0",
+      "description": "Run a repository's GitHub Actions jobs on your own Linux or macOS machine: a self-hosted runner installed as a service, and one command to turn it on or off with automatic fallback to GitHub-hosted runners.",
+      "version": "0.2.0",
       "author": {
         "name": "zenithml"
       },

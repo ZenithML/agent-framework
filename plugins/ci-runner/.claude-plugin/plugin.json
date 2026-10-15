@@ -1,10 +1,15 @@
 {
   "name": "ci-runner",
-  "description": "Run a repository's GitHub Actions jobs on your own Linux or macOS machine: register a self-hosted runner as a service, and switch a repo between it and GitHub-hosted runners with repository variables, including an automatic fallback when the machine is off.",
-  "version": "0.1.0",
+  "description": "Run a repository's GitHub Actions jobs on your own Linux or macOS machine: install a self-hosted runner as a service, then turn it on or off with one command, with automatic fallback to GitHub-hosted runners when the machine is off.",
+  "version": "0.2.0",
   "author": {
     "name": "zenithml"
   },
   "homepage": "https://github.com/zenithml/agent-framework",
-  "keywords": ["ci", "github-actions", "self-hosted-runner", "runner"]
+  "keywords": [
+    "ci",
+    "github-actions",
+    "self-hosted-runner",
+    "runner"
+  ]
 }
