@@ -38,14 +38,12 @@ Collect all issue numbers from tasks.md (`#N`) to include as `Closes #N` in the 
 
 ### 3. Draft PR description
 
-**Choose the structure.** Look for a pull request template in the repository, first match wins:
+**Choose the structure.** The repo's description template is one file, found in this order (first match wins):
 
-1. `.github/pull_request_template.md`
-2. `.github/PULL_REQUEST_TEMPLATE.md`
-3. `docs/pull_request_template.md`
-4. `pull_request_template.md` at the repo root
+1. The path in `pullRequest.template` in `.claude/sdd/config.json`, relative to the repo root. This works on any code host.
+2. If that key is absent, the first of these that exists: `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md` (GitHub), `.gitlab/merge_request_templates/Default.md` (GitLab), `docs/pull_request_template.md`, `pull_request_template.md`.
 
-If one exists, its headings are the PR body's headings, in its order, and its comments say what goes in each. If none exists, use this default:
+If a template is found, its headings are the description's headings, in its order, and its comments say what goes in each. If none is found, use this default:
 
 ```markdown
 ## Summary
@@ -106,7 +104,7 @@ Rules for filling it, whichever source the sections came from:
 - Leave out an optional section that has nothing to say (in the default: Changes on a small PR, Not in this PR, Deploy notes) instead of writing "None".
 - Each Testing line names what was run and the result. A box stays unchecked only with a reason.
 - Put `Closes #N` for every linked issue in Related, never in a section of its own.
-- The PR body may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
+- The description may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
 
 For UI changes: put before/after screenshots under After, or note there that they should be attached via the GitHub web UI if not captured automatically.
 

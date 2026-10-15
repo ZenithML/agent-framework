@@ -21,5 +21,6 @@
     "devBranch": "development",
     "featurePrefix": "feature/"
   },
-  "docs": { "root": "docs" }
+  "docs": { "root": "docs" },
+  "pullRequest": { "template": ".github/pull_request_template.md" }
 }

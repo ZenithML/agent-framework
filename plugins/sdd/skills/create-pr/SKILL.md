@@ -43,14 +43,12 @@ Example: `feature/add-cart-total` → `Add cart total`
 
 If a description was supplied, use it as the content and fit it to the structure below.
 
-**Choose the structure.** Look for a pull request template in the repository, first match wins:
+**Choose the structure.** The repo's description template is one file, found in this order (first match wins):
 
-1. `.github/pull_request_template.md`
-2. `.github/PULL_REQUEST_TEMPLATE.md`
-3. `docs/pull_request_template.md`
-4. `pull_request_template.md` at the repo root
+1. The path in `pullRequest.template` in `.claude/sdd/config.json`, relative to the repo root. This works on any code host.
+2. If that key is absent, the first of these that exists: `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md` (GitHub), `.gitlab/merge_request_templates/Default.md` (GitLab), `docs/pull_request_template.md`, `pull_request_template.md`.
 
-If one exists, its headings are the PR body's headings, in its order, and its comments say what goes in each. If none exists, use this default:
+If a template is found, its headings are the description's headings, in its order, and its comments say what goes in each. If none is found, use this default:
 
 ```markdown
 ## Summary
@@ -99,7 +97,7 @@ Rules for filling it, whichever source the sections came from:
 - Leave out an optional section that has nothing to say (in the default: Changes on a small PR, Not in this PR, Deploy notes) instead of writing "None".
 - Each Testing line names what was run and the result. A box stays unchecked only with a reason.
 - Put `Closes #N` for every linked issue in Related, never in a section of its own.
-- The PR body may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
+- The description may start with lines the platform or tool adds (an attribution line, for example). Keep them where they are and put the sections below them.
 
 ## Step 5: Create or update PR
 
@@ -114,6 +112,13 @@ Check which GitHub tool is available and use the first that works:
      --body "<body>"
    ```
    > **Local Claude Code only**: if `gh` fails with auth errors, prepend `unset GH_TOKEN GITHUB_TOKEN;` — this clears a stale env var that may override keyring credentials. Do **not** do this in GitHub Actions or Copilot cloud agents where `GITHUB_TOKEN` is the valid runtime token.
+3. **glab CLI** — when `origin` is a GitLab remote, open a merge request instead:
+   ```bash
+   glab mr create \
+     --target-branch <base-branch> \
+     --title "<title>" \
+     --description "<body>"
+   ```
 
 ## Step 6: Screenshots (UI-changing PRs only)
 
@@ -150,7 +155,7 @@ Before you stop:
 ## Rules
 
 - Never push to `<MAIN_BRANCH>` or `<DEV_BRANCH>` directly.
-- If neither MCP nor `gh` is available, instruct the user to install `gh` or enable the GitHub MCP server.
+- If no tool for the repo's code host is available, instruct the user to install `gh` (GitHub) or `glab` (GitLab), or enable the GitHub MCP server.
 - **Never commit screenshot files to any git branch** (feature, hotfix, or otherwise).
 - **Never create a GitHub Release (draft, pre-release, or otherwise) to host PR screenshots.** Releases are reserved for versioned software artifacts.
 - Do not leave a PR in draft or WIP state at session end.

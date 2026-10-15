@@ -10,7 +10,7 @@ The `sdd-init` skill does four things:
    monorepo layouts
 2. shows you the resulting config for confirmation
 3. writes `.claude/sdd/config.json`
-4. commits the following docs scaffold:
+4. commits the following docs scaffold, plus a pull request template (see below):
 
 ```
 AGENTS.md                              — routing map: standards + skill routing table
@@ -63,6 +63,21 @@ Skills use placeholders that map to config keys:
 | `<SOURCE_DIR>` | `source.dir` |
 | `<MAIN_BRANCH>` · `<DEV_BRANCH>` | `branching.mainBranch` · `branching.devBranch` |
 | `<feature-branch>` | `branching.featurePrefix` + `<domain>` |
+
+## Pull request template
+
+`/sdd:create-pr` and the publisher fill one description template, so PRs opened by the pipeline
+look the same as PRs people open by hand. Point `pullRequest.template` at it:
+
+```json
+"pullRequest": { "template": ".gitlab/merge_request_templates/Default.md" }
+```
+
+Any path works, so this is not tied to one code host. Use the path your host pre-fills for
+people: `.github/pull_request_template.md` on GitHub, `.gitlab/merge_request_templates/Default.md`
+on GitLab, or anything (such as `docs/pull_request_template.md`) elsewhere. Without the key,
+skills look in those common locations, then fall back to a built-in default with the same
+sections. `sdd-init` writes the template at the path for your remote and records the key.
 
 ## SessionStart hook for web and CI
 
