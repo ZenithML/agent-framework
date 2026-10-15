@@ -43,7 +43,7 @@ Until step 4, nothing changes: jobs keep running on GitHub-hosted runners.
 
 ## Turning it on and off
 
-The switch is two repository variables, so neither needs a commit and both take effect on the
+The switch is a few repository variables, so flipping it needs no commit and takes effect on the
 next run. Jobs already running finish where they started.
 
 | Command | What happens | Jobs while your machine is off |
