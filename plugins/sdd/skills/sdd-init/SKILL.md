@@ -9,7 +9,7 @@ description: >
 
 **Usage:** `/sdd-init` (or `/sdd:sdd-init` when installed as a plugin)
 
-Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, `docs/decisions/`, `AGENTS.md`), and commits everything.
+Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, `docs/decisions/`, `AGENTS.md`) and a pull request template, and commits everything.
 
 ---
 
@@ -109,13 +109,27 @@ Apply this logic:
 - Remote has `development`, `develop`, or `dev` → **Gitflow** resolved: set `devBranch` to the first one found in this preference order: `development` > `develop` > `dev`; set `mainBranch` to `main` if present, otherwise `master` if present, otherwise ask the user which production branch to use. Record topology as `gitflow`.
 - Remote has only `main` or `master`, or no remote branches found → **GitHub Flow** (the default): record `mainBranch` (and `devBranch` equal to it) and topology `github-flow`. Step 6 offers trunk-based as the alternative; do not ask an open question.
 
+## Step 5a: Pick the pull request template path
+
+If the repo already has a description template at any of `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.gitlab/merge_request_templates/Default.md`, `docs/pull_request_template.md` or `pull_request_template.md`, use the first one found.
+
+Otherwise pick the path from the code host of `git remote get-url origin`:
+
+| Remote host | Template path |
+|---|---|
+| `github.com` or a GitHub Enterprise host | `.github/pull_request_template.md` |
+| `gitlab.com` or a self-managed GitLab host | `.gitlab/merge_request_templates/Default.md` |
+| anything else, or no remote | `<DOCS_ROOT>/pull_request_template.md` |
+
+Put the path in the proposed config as `pullRequest.template`, so the user confirms or changes it in Step 6 like any other value.
+
 ## Step 6: Confirm with the user
 
-Compose the full config JSON from the values derived in Steps 3–5. Omit any key whose value matches the schema default and was not explicitly overridden by the user — keep the file minimal. Always include `"$schema": "https://raw.githubusercontent.com/zenithml/agent-framework/main/plugins/sdd/config/config.schema.json"`.
+Compose the full config JSON from the values derived in Steps 3–5a. Omit any key whose value matches the schema default and was not explicitly overridden by the user — keep the file minimal. Always include `"$schema": "https://raw.githubusercontent.com/zenithml/agent-framework/main/plugins/sdd/config/config.schema.json"`.
 
 Present the config and any open questions in a **single message** — do not make separate round trips.
 
-**If topology is Gitflow (detected):** show the config JSON and say: *"Here's what I detected. Confirm to write this, or tell me what to change. I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) unless those files already exist."*
+**If topology is Gitflow (detected):** show the config JSON and say: *"Here's what I detected. Confirm to write this, or tell me what to change. I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) and the pull request template at `pullRequest.template` unless those files already exist."*
 
 **If topology is GitHub Flow (the default — single main branch or fresh repo):** show the config JSON and the default together in one message:
 
@@ -125,7 +139,7 @@ Present the config and any open questions in a **single message** — do not mak
 >
 > *No separate development branch exists, so I'll use **GitHub Flow** (the default): feature branches cut from `main`, merged via PR; `main` is always deployable and deploying on merge. If the team instead works **trunk-based** — very short-lived branches (hours to a couple of days), incomplete work behind feature flags — say so and I'll record that instead.*
 >
-> *I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) unless those files already exist."*
+> *I'll also create the docs scaffold (`<DOCS_ROOT>/INDEX.md`, `<DOCS_ROOT>/standards/`, `<DOCS_ROOT>/decisions/`, `AGENTS.md`) and the pull request template at `pullRequest.template` unless those files already exist."*
 
 (Use `docs.root` from the proposed config for `<DOCS_ROOT>`; default to `docs`.)
 
@@ -413,6 +427,59 @@ Write `AGENTS.md` at the repo root. This file is a routing map only — no rules
 
 ---
 
+### 8f. Pull request template
+
+If a file already exists at `pullRequest.template` (the path confirmed in Step 6), leave it as it is: the existing template stays the source of truth.
+
+Otherwise write the template below to that path. The host pre-fills the GitHub and GitLab paths for people, and `/sdd:create-pr` and the publisher read the configured path, so every PR or MR in the repo has one shape.
+
+````markdown
+## Summary
+
+<!-- One or two sentences a reviewer can read on their own: what changes and why.
+     Lead with the outcome, not the files. Title: `type(scope): description`, written for a reader. -->
+
+**Before:** <!-- what a user or developer sees today -->
+
+**After:** <!-- what they see once this merges; screenshots go here for UI changes -->
+
+## Changes
+
+<!-- Grouped by area, a few bullets each; add task ids when there is a spec (e.g. "Data model (T1–T2)").
+     Delete this section for a small PR where the diff says it all. -->
+
+### Area
+
+-
+
+## Not in this PR
+
+<!-- Optional: what is deliberately left out or deferred, and where it goes next. Delete if nothing. -->
+
+## Testing
+
+<!-- What you ran and what happened. Leave a box unchecked only with a reason. -->
+
+- [ ] Unit tests:
+- [ ] Lint / typecheck:
+- [ ] Build:
+- [ ] Manual / QA:
+
+## Review notes
+
+<!-- Where to start reading, the risky parts, anything you are unsure about. -->
+
+## Deploy notes
+
+<!-- Optional: migrations, env or config changes, breaking changes, rollout order. Delete if nothing. -->
+
+## Related
+
+<!-- Closes #N, the spec or ADR, PRs this builds on or overlaps with (and how to resolve the overlap). -->
+````
+
+---
+
 ## Step 9: Commit
 
 Check whether the repo has any commits:
@@ -421,13 +488,14 @@ Check whether the repo has any commits:
 git log --oneline -1 2>/dev/null || echo NO_COMMITS
 ```
 
-Determine which sdd-related files exist and are untracked or modified. Substitute `<DOCS_ROOT>` with the actual resolved path (from `docs.root` in the confirmed config, defaulting to `docs`) before running:
+Determine which sdd-related files exist and are untracked or modified. Substitute `<DOCS_ROOT>` with the actual resolved path (from `docs.root` in the confirmed config, defaulting to `docs`) and `<PR_TEMPLATE_PATH>` with `pullRequest.template` from the confirmed config before running:
 
 ```bash
 git status --short \
   .claude/sdd/config.json \
   .claude/settings.json \
   AGENTS.md \
+  <PR_TEMPLATE_PATH> \
   <DOCS_ROOT>/INDEX.md \
   <DOCS_ROOT>/decisions/.gitkeep \
   <DOCS_ROOT>/standards/branching/design.md \

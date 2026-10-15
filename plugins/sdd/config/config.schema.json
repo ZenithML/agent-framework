@@ -121,6 +121,17 @@
       },
       "additionalProperties": false
     },
+    "pullRequest": {
+      "type": "object",
+      "description": "Pull request (merge request) descriptions.",
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "Path, relative to the repo root, of the description template that the create-pr skill and the publisher agent fill. Works on any code host, e.g. .github/pull_request_template.md or .gitlab/merge_request_templates/Default.md. When absent, the common GitHub and GitLab locations are searched, then a built-in default is used."
+        }
+      },
+      "additionalProperties": false
+    },
     "render": {
       "type": "object",
       "description": "Perceptual-verification layout, read by the render plugin. Omit entirely for projects with no visual output.",
