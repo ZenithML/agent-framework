@@ -224,6 +224,25 @@ instance_dirs() {
   return 0
 }
 
+# 1 for the bare slug, N for slug-N.
+instance_index() {
+  case "$1" in
+    */"$(target_slug)") echo 1 ;;
+    *) echo "${1##*-}" ;;
+  esac
+}
+
+# Where this target's instances are: --dir / --run-as when given, else the first runner
+# base that holds some (yours, then the 'ci-runner' account's), else yours.
+find_base() {
+  local b
+  if [ -n "$DIR_BASE" ] || [ -n "$RUN_AS" ]; then default_dir_base; return 0; fi
+  for b in $(runner_bases); do
+    if [ -n "$(instance_dirs "$b")" ]; then echo "$b"; return 0; fi
+  done
+  echo "$HOME/actions-runner"
+}
+
 # Run a command as the runner's account: plain when that is us, sudo -u otherwise.
 as_runner() {
   if [ -n "$RUN_AS" ] && [ "$RUN_AS" != "$(id -un)" ]; then sudo -u "$RUN_AS" -H "$@"; else "$@"; fi
@@ -619,6 +638,115 @@ remove_instance() {
   fi
 }
 
+# The runner list as name=busy=custom-labels lines; status 1 when it cannot be read.
+runner_list() {
+  gh api "$(api_scope)/actions/runners?per_page=100" \
+    --jq '.runners[] | "\(.name)=\(.busy)=\([.labels[] | select(.type == "custom") | .name] | join(","))"' 2>/dev/null
+}
+
+# Field 2 (busy) or 3 (custom labels) of one runner in that list.
+runner_field() { printf '%s\n' "$1" | awk -F= -v n="$2" -v f="$3" '$1 == n { print $f; exit }'; }
+
+cmd_scale() {
+  local n="$POSITIONAL" plat base entries idx dir ref="" owner list="" listed=false busy kept=false
+  local changed=false run_as missing="" i version lbl prepared=false warned=false
+  case "$n" in
+    '') die "scale needs the number of instances: ci-runner scale N [--repo OWNER/NAME | --org ORG]" ;;
+    *[!0-9]*) die "scale N needs a positive whole number (got '$n')" ;;
+  esac
+  n=$((10#$n))
+  [ "$n" -gt 0 ] || die "scale 0 would remove every instance; to do that, run: ci-runner uninstall"
+  need_gh
+  resolve_repo
+  plat="$(platform)"
+  base="$(find_base)"
+  entries="$(for dir in $(instance_dirs "$base"); do echo "$(instance_index "$dir") $dir"; done | sort -n)"
+  for dir in $(printf '%s\n' "$entries" | cut -d' ' -f2-); do
+    if [ -x "$dir/config.sh" ]; then ref="$dir"; break; fi
+  done
+
+  # The account was chosen at install: new instances run as the one that owns the existing ones.
+  if [ -n "$ref" ]; then
+    if [ -z "$RUN_AS" ] && ! $CREATE_USER; then
+      # shellcheck disable=SC2012  # stat's flags differ between BSD and GNU; ls -ld does not
+      owner="$(ls -ld "$ref" | awk '{print $3}')"
+      if [ "$owner" != "$(id -un)" ]; then RUN_AS="$owner"; fi
+    fi
+    if [ "$RUN_AS" = root ] || { [ "$(id -u)" -eq 0 ] && [ -z "$RUN_AS" ]; }; then
+      die "do not run CI jobs as root; add --create-user (or --run-as USER) for a dedicated account"
+    fi
+    case "$plat" in linux-*) if [ -n "$RUN_AS" ]; then ensure_runner_user; fi ;; esac
+  else
+    confirm_account "$plat"
+  fi
+  run_as="$RUN_AS"
+  if list="$(runner_list)"; then listed=true; fi
+
+  # Shrink: every instance numbered above N, highest first.
+  while read -r idx dir <&3; do
+    [ -n "$dir" ] || continue
+    [ "$idx" -gt "$n" ] || continue
+    if $listed; then
+      busy="$(runner_field "$list" "$(instance_name "$idx")" 2)"
+      if [ "$busy" = true ] && ! $FORCE; then
+        echo "ci-runner: $(instance_name "$idx") is busy running a job; left in place. Retry when it is idle, or pass --force to remove it anyway." >&2
+        kept=true
+        continue
+      fi
+    elif ! $warned; then
+      echo "   warning: could not check which runners are busy (listing them needs admin rights on $(api_scope)); removing anyway" >&2
+      warned=true
+    fi
+    if [ -x "$dir/config.sh" ]; then
+      remove_instance "$dir" "$run_as"
+      RUN_AS="$run_as"
+    else
+      say "Removing the partial runner directory $dir"
+      run as_root rm -rf "$dir"
+    fi
+    changed=true
+  done 3<<EOF
+$(printf '%s\n' "$entries" | sort -rn)
+EOF
+
+  # Grow: whatever of 1..N is missing, the way install adds it.
+  i=1
+  while [ "$i" -le "$n" ]; do
+    dir="$(instance_dir "$base" "$i")"
+    if [ ! -x "$dir/config.sh" ] || [ ! -f "$dir/.runner" ]; then missing="$missing $i"; fi
+    i=$((i + 1))
+  done
+  if [ -n "$missing" ]; then
+    if ! $LABEL_GIVEN && [ -n "$ref" ] && $listed; then
+      lbl="$(runner_field "$list" "$(instance_name "$(instance_index "$ref")")" 3)"
+      lbl="${lbl%%,*}"
+      case "$lbl" in ''|*[!A-Za-z0-9._-]*) ;; *) LABEL="$lbl" ;; esac
+    fi
+    version="$RUNNER_VERSION"
+    if [ -z "$version" ]; then
+      version="$(gh api repos/actions/runner/releases/latest --jq .tag_name)" || die "could not look up the latest actions/runner release"
+      version="${version#v}"
+    fi
+    say "Adding instance(s)$missing for $(target_url) under $base: label '$LABEL', account '${RUN_AS:-$(id -un)}', actions/runner $version"
+    prepare_caps "$plat"
+    prepared=true
+    COUNT="$n"
+    for i in $missing; do install_one "$i" "$base" "$plat" "$version"; done
+    changed=true
+  fi
+  if caps_given; then
+    $prepared || prepare_caps "$plat"
+    case "$plat" in linux-*) join_existing ;; esac
+    changed=true
+  fi
+  if ! $changed && ! $kept; then
+    echo "$(target_slug) already has instances 1..$n on this machine; nothing to change."
+  fi
+  if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
+  if $kept; then exit 1; fi
+  return 0
+}
+
 cmd_uninstall() {
   need_gh
   resolve_repo
@@ -843,6 +971,7 @@ case "$command" in
   off) parse_opts "$@"; cmd_off ;;
   workflow) parse_opts "$@"; cmd_workflow ;;
   limits) parse_opts "$@"; cmd_limits ;;
+  scale) ALLOW_POS=true; parse_opts "$@"; cmd_scale ;;
   version|--version|-V) echo "ci-runner $VERSION" ;;
   help|--help|-h) usage ;;
   *) echo "ci-runner: unknown command '$command'" >&2; usage >&2; exit 1 ;;

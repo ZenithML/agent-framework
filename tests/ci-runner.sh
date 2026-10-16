@@ -34,6 +34,8 @@ case "$*" in
   "secret list"*) [ -z "${FAKE_SECRET_FAIL:-}" ] || exit 1; [ -n "${FAKE_NO_SECRET:-}" ] || printf 'RUNNER_STATUS_PAT\t2026-01-01\n' ;;
   "secret set"*) cat > "$GH_LOG.secret" ;;
   *"| length"*) echo "${FAKE_ONLINE:-1}" ;;
+  *'=\(.busy)='*) [ -z "${FAKE_RUNNERS_FAIL:-}" ] || exit 1; [ -z "${FAKE_RUNNERS:-}" ] || printf '%s\n' $FAKE_RUNNERS ;;
+  "api -X POST"*remove-token*) echo "tok-remove" ;;
   "api repos/"*"/actions/runners"*) printf '  host-widget\tonline\tself-hosted,Linux\n' ;;
 esac
 exit 0
@@ -230,6 +232,69 @@ check "uninstall deletes the runner directory" test ! -e "$WORK/uninst/widget"
 check "uninstall removes the instance's drop-in" test ! -e "$SYSD/$UNIT.d"
 check "...and keeps the slice" test -e "$SLICE"
 rm -f "$SLICE"
+
+echo "== scale"
+SC="$WORK/sc"
+HOST="$(hostname -s 2>/dev/null || hostname)"
+# Own the instance directories, so the tests do not depend on who runs them.
+# shellcheck disable=SC2012  # the same owner lookup ci-runner does
+FAKE_USER="$(ls -ld "$WORK" | awk '{print $3}')"
+export FAKE_USER
+mkinst() {
+  local d="$SC/widget"
+  [ "$1" -eq 1 ] || d="$SC/widget-$1"
+  mkdir -p "$d"
+  printf '#!/bin/sh\nexit 0\n' > "$d/config.sh"
+  chmod +x "$d/config.sh"
+  touch "$d/.runner"
+}
+sc() { ci scale "$@" --repo acme/widget --dir "$SC"; }
+check "scale without N is refused" sh -c "! '$BASH_BIN' '$CLI' scale --repo acme/widget --dry-run"
+out="$("$BASH_BIN" "$CLI" scale 0 --repo acme/widget --dry-run 2>&1)" && rc=0 || rc=$?
+check "scale 0 is refused and points at uninstall" sh -c "[ $rc -ne 0 ] && echo \"\$0\" | grep -q 'ci-runner uninstall'" "$out"
+check "scale abc is refused" sh -c "! '$BASH_BIN' '$CLI' scale abc --repo acme/widget --dry-run"
+check "scale takes one number only" sh -c "! '$BASH_BIN' '$CLI' scale 2 3 --repo acme/widget --dry-run"
+for i in 1 2 3 4; do mkinst "$i"; done
+mkdir -p "$SC/widget-tools" && cp "$SC/widget/config.sh" "$SC/widget-tools/"
+out="$(sc 2 --dry-run 2>&1)"
+check "scale down removes the highest first" sh -c "echo \"\$0\" | awk '/Removing the runner at .*widget-4\$/ { a = NR } /Removing the runner at .*widget-3\$/ { b = NR } END { exit !(a && b && a < b) }'" "$out"
+check "...and keeps 1 and 2" sh -c "! echo \"\$0\" | grep -q 'Removing the runner at .*/widget\$' && ! echo \"\$0\" | grep -q 'Removing the runner at .*widget-2\$'" "$out"
+check "scale --dry-run deletes nothing" test -d "$SC/widget-4"
+check "scale --dry-run asks for no remove token" sh -c "! grep -q remove-token '$GH_LOG'"
+sc 2 >/dev/null 2>&1 && rc=0 || rc=$?
+check "scale down succeeds" test "$rc" -eq 0
+check "scale down deletes 3 and 4" sh -c "[ ! -e '$SC/widget-3' ] && [ ! -e '$SC/widget-4' ]"
+check "...keeps 1 and 2" sh -c "[ -d '$SC/widget' ] && [ -d '$SC/widget-2' ]"
+check "...deregisters with a remove token" logged "remove-token"
+check "scale leaves another repo's runner alone" test -d "$SC/widget-tools"
+out="$(sc 2 2>&1)"
+check "scale to the current count changes nothing" sh -c "echo \"\$0\" | grep -q 'nothing to change'" "$out"
+rm -rf "$SC/widget-2"; mkinst 3
+out="$(sc 2 --dry-run 2>&1)"
+check "with 1 and 3, scale 2 removes 3" sh -c "echo \"\$0\" | grep -q 'Removing the runner at .*widget-3\$'" "$out"
+check "...and adds 2" sh -c "echo \"\$0\" | grep -q 'into $SC/widget-2\$'" "$out"
+out="$(sc 3 --dry-run 2>&1)"
+check "with 1 and 3, scale 3 adds only 2" sh -c "echo \"\$0\" | grep -q 'into $SC/widget-2\$' && ! echo \"\$0\" | grep -q 'Removing' && ! echo \"\$0\" | grep -q 'into $SC/widget-3\$'" "$out"
+rm -rf "$SC/widget-3"; mkinst 2
+out="$(FAKE_RUNNERS="$HOST-widget=false=gpu" sc 4 --dry-run 2>&1)"
+check "scale up adds 3 and 4 only" sh -c "echo \"\$0\" | grep -q 'into $SC/widget-3\$' && echo \"\$0\" | grep -q 'into $SC/widget-4\$' && ! echo \"\$0\" | grep -q 'into $SC/widget\$'" "$out"
+check "...with the existing instances' label" sh -c "echo \"\$0\" | grep -q 'label: gpu'" "$out"
+out="$(FAKE_RUNNERS="$HOST-widget=false=gpu" sc 3 --label cpu --dry-run 2>&1)"
+check "--label overrides the existing label" sh -c "echo \"\$0\" | grep -q 'label: cpu'" "$out"
+out="$(sc 3 --dry-run --cpu 40 2>&1)"
+check "scale --cpu sets the cap too" sh -c "echo \"\$0\" | grep -q 'CPUQuota=320%'" "$out"
+mkinst 3
+out="$(FAKE_RUNNERS="$HOST-widget-3=true=" sc 2 2>&1)" && rc=0 || rc=$?
+check "a busy instance is kept" test -d "$SC/widget-3"
+check "...says so and exits non-zero" sh -c "[ $rc -ne 0 ] && echo \"\$0\" | grep -q 'busy'" "$out"
+FAKE_RUNNERS="$HOST-widget-3=true=" sc 2 --force >/dev/null 2>&1
+check "--force removes a busy instance" test ! -e "$SC/widget-3"
+mkinst 3
+out="$(FAKE_RUNNERS_FAIL=1 sc 2 2>&1)"
+check "an unreadable runner list warns and proceeds" sh -c "[ ! -e '$SC/widget-3' ] && echo \"\$0\" | grep -q 'could not check'" "$out"
+out="$(ci scale 2 --repo acme/widget --dir "$WORK/sc-empty" --yes --dry-run 2>&1)"
+check "scale with no instances installs like install" sh -c "echo \"\$0\" | grep -q 'into $WORK/sc-empty/widget\$' && echo \"\$0\" | grep -q 'into $WORK/sc-empty/widget-2\$'" "$out"
+unset FAKE_USER
 
 echo "== workflow"
 mkdir -p "$WORK/repo" && cd "$WORK/repo" || exit 1
