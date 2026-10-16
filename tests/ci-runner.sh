@@ -296,6 +296,24 @@ out="$(ci scale 2 --repo acme/widget --dir "$WORK/sc-empty" --yes --dry-run 2>&1
 check "scale with no instances installs like install" sh -c "echo \"\$0\" | grep -q 'into $WORK/sc-empty/widget\$' && echo \"\$0\" | grep -q 'into $WORK/sc-empty/widget-2\$'" "$out"
 unset FAKE_USER
 
+echo "== next steps / status"
+out="$(ci install --dry-run --repo acme/widget --yes --dir "$WORK/ns" --count 2 --cpu 50 2>&1)"
+check "install ends with next steps" sh -c "echo \"\$0\" | grep -q '^Next steps'" "$out"
+check "...with the count and caps it leaves" sh -c "echo \"\$0\" | grep -q '2 runner instance(s) for acme/widget' && echo \"\$0\" | grep -q 'CPU 50% (4 of 8 cores)'" "$out"
+check "...how to scale and cap later" sh -c "echo \"\$0\" | grep -q 'ci-runner scale N --repo acme/widget' && echo \"\$0\" | grep -q 'ci-runner limits --cpu PCT --memory PCT'" "$out"
+check "...how to turn it on and check the workflows" sh -c "echo \"\$0\" | grep -q 'ci-runner on --repo acme/widget' && echo \"\$0\" | grep -q 'ci-runner check'" "$out"
+out="$(ci install --dry-run --org acme --yes --dir "$WORK/ns" 2>&1)"
+check "org install: on names --org-runner" sh -c "echo \"\$0\" | grep -q 'ci-runner on --org-runner --repo acme/<repo>' && echo \"\$0\" | grep -q 'ci-runner scale N --org acme'" "$out"
+out="$(ci scale 3 --dry-run --repo acme/widget --yes --dir "$WORK/ns" 2>&1)"
+check "scale ends with next steps and the new count" sh -c "echo \"\$0\" | grep -q '^Next steps' && echo \"\$0\" | grep -q '3 runner instance(s)'" "$out"
+out="$(ci limits --memory 70 --dry-run 2>&1)"
+check "limits ends with next steps and the caps" sh -c "echo \"\$0\" | grep -q '^Next steps' && echo \"\$0\" | grep -q 'memory 70%' && echo \"\$0\" | grep -q 'ci-runner check'" "$out"
+out="$(ci status --repo acme/widget 2>&1)"
+check "status shows the instance count" sh -c "echo \"\$0\" | grep -q 'Instances on this machine: 2'" "$out"
+check "status shows the caps" sh -c "echo \"\$0\" | grep -q 'Resource caps (all ci-runner instances on this machine): none'" "$out"
+out="$(FAKE_OS=Darwin ci status --repo acme/widget 2>&1)"
+check "status on macOS says caps are unsupported" sh -c "echo \"\$0\" | grep -q 'not supported on macOS'" "$out"
+
 echo "== workflow"
 mkdir -p "$WORK/repo" && cd "$WORK/repo" || exit 1
 check "writes select-runner.yml" sh -c "'$BASH_BIN' '$CLI' workflow && cmp -s '$ROOT/plugins/ci-runner/templates/select-runner.yml' .github/workflows/select-runner.yml"

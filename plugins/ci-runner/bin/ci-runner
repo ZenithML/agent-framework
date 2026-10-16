@@ -564,6 +564,50 @@ install_one() {
   esac
 }
 
+# Instances installed (with config.sh) for the target under a base.
+count_instances() {
+  local dir c=0
+  for dir in $(instance_dirs "$1"); do
+    if [ -x "$dir/config.sh" ]; then c=$((c + 1)); fi
+  done
+  echo "$c"
+}
+
+# Instances numbered above N, for the count a dry run would leave.
+count_above() {
+  local dir c=0
+  for dir in $(instance_dirs "$1"); do
+    if [ -x "$dir/config.sh" ] && [ "$(instance_index "$dir")" -gt "$2" ]; then c=$((c + 1)); fi
+  done
+  echo "$c"
+}
+
+# The closing block of install, scale and limits: where things stand and what to do next.
+# $1: instance count (empty for limits), $2: "workflow" to include that step.
+next_steps() {
+  local flag on
+  if [ -n "$ORG" ]; then flag="--org $ORG"; on="ci-runner on --org-runner --repo $ORG/<repo>"
+  elif [ -n "$REPO" ]; then flag="--repo $REPO"; on="ci-runner on --repo $REPO"
+  else flag="--repo OWNER/NAME"; on="ci-runner on --repo OWNER/NAME"
+  fi
+  echo
+  echo "Next steps:"
+  if [ -n "$1" ]; then
+    echo "  Now:      $1 runner instance(s) for ${REPO:-$ORG} on this machine; caps: $(caps_summary)"
+  else
+    echo "  Now:      caps for all ci-runner instances on this machine: $(caps_summary)"
+  fi
+  echo "  Change:   ci-runner scale N $flag   (more or fewer instances)"
+  if ! is_macos; then
+    echo "            ci-runner limits --cpu PCT --memory PCT   (shared caps, percent of the machine; 'none' removes one)"
+  fi
+  if [ "${2:-}" = workflow ]; then
+    echo "  Wire up:  ci-runner workflow   (once per repo: writes .github/workflows/select-runner.yml; commit it)"
+  fi
+  echo "  Turn on:  $on"
+  echo "  Check:    ci-runner check   (in a checkout of the repo: what its workflows still need)"
+}
+
 # Before adding instances: the slice they join, capped when --cpu/--memory were given.
 prepare_caps() {
   case "$1" in
@@ -593,17 +637,14 @@ cmd_install() {
   done
   case "$plat" in linux-*) if caps_given; then join_existing; fi ;; esac
 
-  echo
-  if $DRY_RUN; then echo "Dry run: nothing was changed."; return 0; fi
-  echo "Installed. Jobs still run on GitHub-hosted runners until you turn it on:"
-  if [ -n "$ORG" ]; then
-    echo "  ci-runner workflow                                   (once per repo; commit the file)"
-    echo "  ci-runner on --org-runner --repo $ORG/<repo>          (per repo that should use it)"
-  else
-    echo "  ci-runner workflow         (once: writes .github/workflows/select-runner.yml; commit it and point jobs at it)"
-    echo "  ci-runner on --repo $REPO"
+  if $DRY_RUN; then
+    next_steps "$((COUNT + $(count_above "$base" "$COUNT")))" workflow
+    echo; echo "Dry run: nothing was changed."
+    return 0
   fi
-  echo "Jobs should not count on passwordless sudo: preinstall what they would apt-get or brew install."
+  echo
+  echo "Installed. Jobs still run on GitHub-hosted runners until you turn it on."
+  next_steps "$(count_instances "$base")" workflow
 }
 
 # Stop, deregister and delete one runner directory, and take its service out of the slice.
@@ -649,7 +690,7 @@ runner_field() { printf '%s\n' "$1" | awk -F= -v n="$2" -v f="$3" '$1 == n { pri
 
 cmd_scale() {
   local n="$POSITIONAL" plat base entries idx dir ref="" owner list="" listed=false busy kept=false
-  local changed=false run_as missing="" i version lbl prepared=false warned=false
+  local changed=false run_as missing="" i version lbl prepared=false warned=false kept_count=0
   case "$n" in
     '') die "scale needs the number of instances: ci-runner scale N [--repo OWNER/NAME | --org ORG]" ;;
     *[!0-9]*) die "scale N needs a positive whole number (got '$n')" ;;
@@ -691,6 +732,7 @@ cmd_scale() {
       if [ "$busy" = true ] && ! $FORCE; then
         echo "ci-runner: $(instance_name "$idx") is busy running a job; left in place. Retry when it is idle, or pass --force to remove it anyway." >&2
         kept=true
+        kept_count=$((kept_count + 1))
         continue
       fi
     elif ! $warned; then
@@ -742,7 +784,12 @@ EOF
   if ! $changed && ! $kept; then
     echo "$(target_slug) already has instances 1..$n on this machine; nothing to change."
   fi
-  if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
+  if $DRY_RUN; then
+    next_steps "$((n + kept_count))"
+    echo; echo "Dry run: nothing was changed."
+  else
+    next_steps "$(count_instances "$base")"
+  fi
   if $kept; then exit 1; fi
   return 0
 }
@@ -819,13 +866,15 @@ cmd_status() {
   else
     echo "  (could not list them; that needs admin rights on ${listing%/actions/runners})"
   fi
-  base="$(default_dir_base)"
+  base="$(find_base)"
   echo "Runner directories on this machine, under $base:"
   for dir in $(instance_dirs "$base"); do
     found=true
     echo "  $dir"
   done
   $found || echo "  (none)"
+  echo "Instances on this machine: $(count_instances "$base")   (change: ci-runner scale N)"
+  echo "Resource caps (all ci-runner instances on this machine): $(caps_summary)"
 }
 
 # The fallback needs a token that can list runners (GITHUB_TOKEN cannot). Store it as the
@@ -932,6 +981,7 @@ cmd_limits() {
   fi
   apply_caps
   join_existing
+  next_steps ""
   if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
 }
 
