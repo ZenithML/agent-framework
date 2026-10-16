@@ -4,8 +4,9 @@
 # Registers this machine as a self-hosted runner for one repository (or an
 # organization), runs it as a service, and flips the repository variables that
 # a select-runner workflow (`ci-runner workflow`) reads to choose between the
-# self-hosted runner and a GitHub-hosted one. Generalised from ZenithML/zenith's
-# self-hosted-runner/ scripts.
+# self-hosted runner and a GitHub-hosted one. `scale` sets how many instances run,
+# `limits` (Linux) caps them together in one systemd slice, and `check` reports what a
+# repo's workflows still need. Generalised from ZenithML/zenith's self-hosted-runner/ scripts.
 #
 # The runner only makes outbound HTTPS calls (it long-polls GitHub for jobs),
 # so no static IP, port forwarding or inbound firewall rule is needed.
@@ -15,7 +16,7 @@
 # and no empty-array expansions under `set -u`.
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 # ── locate our own files through any symlink (no readlink -f on macOS) ──────
 self="${BASH_SOURCE[0]}"
@@ -48,7 +49,9 @@ Everyday:
   on          Turn it on: jobs go to your machine when it is online, else to GitHub-hosted
               runners (needs a token for that fallback; see below). --no-fallback: always your machine.
   off         Turn it off: the next run is back on GitHub-hosted runners.
-  status      Is it on? Which mode? Is the runner online? What is missing?
+  status      Is it on? Which mode? Is the runner online? Instances and caps on this machine?
+  check [DIR] What do the repo's workflows still need for a self-hosted runner? Prints
+              file:line findings; exit 1 on warnings, 0 when clean (or info only), 2 if no workflows.
 
 One-time setup:
   install     Register this machine as a runner and start it as a service
@@ -56,11 +59,17 @@ One-time setup:
   uninstall   Stop, deregister and delete the runners installed for a repo or org
   version     Print the version
 
-Options (on, off, status, install, uninstall):
+Capacity:
+  scale N     Keep exactly N instances for the repo/org on this machine: removes the highest-
+              numbered (stop, deregister, delete), adds missing ones the way install does
+  limits      Linux: show or change the CPU and memory cap shared by every ci-runner instance
+              on this machine (one systemd slice, ci-runner.slice). macOS: not supported.
+
+Options (on, off, status, install, uninstall, scale):
   --repo OWNER/NAME   The repository (default: the current directory's, via gh)
   --org ORG           install/uninstall/status: register at organization level instead.
                       The runner then serves every repo the org's Default runner group allows.
-  --dry-run           Print what would happen, change nothing
+  --dry-run           Print what would happen, change nothing (every command that writes)
 
 install:
   --create-user       Linux: run jobs as a dedicated account 'ci-runner', created if missing
@@ -72,6 +81,22 @@ install:
                       architecture labels (Linux/macOS, X64/ARM64) automatically.
   --dir DIR           Where runners live (default: ~/actions-runner, in the job account's home)
   --runner-version V  actions/runner version (default: latest release)
+  --cpu PCT           Linux: cap all instances together at PCT% of the machine's CPU (PCT x cores
+                      in systemd's CPUQuota). 'none' removes the cap. Also for scale and limits.
+  --memory PCT        Linux: cap all instances together at PCT% of the machine's memory (MemoryMax).
+                      'none' removes the cap. Also for scale and limits.
+
+scale N:
+  N                   Instances to keep (1 or more; to remove all, use uninstall)
+  --force             Also remove an instance that is busy running a job (interrupts the job)
+  --label, --run-as   For added instances (default: the label and account of the existing ones)
+  --cpu, --memory     Change the shared caps too (as limits does)
+
+limits:
+  (no flags)          Show the current caps
+  --cpu PCT|none      Change or remove the CPU cap; the other cap is kept
+  --memory PCT|none   Change or remove the memory cap; the other cap is kept
+  Instances not in the slice yet are moved in, which restarts them.
 
 on:
   --no-fallback       Always use your machine; jobs wait in the queue while it is off
@@ -350,10 +375,12 @@ dropin_content() {
   echo "Slice=$SLICE"
 }
 
-# A systemd unit name as svc.sh records it in the runner's .service file.
+# A runner unit name as svc.sh records it in the runner's .service file. That file sits in a
+# directory jobs can write to, so accept runner units only: never a path, never another service.
 valid_unit() {
-  case "$1" in ''|*/*|*' '*|*..*) return 1 ;; esac
-  return 0
+  case "$1" in */*|*' '*|*..*) return 1 ;; esac
+  case "$1" in actions.runner.?*.service) return 0 ;; esac
+  return 1
 }
 
 write_dropin() {
@@ -1052,7 +1079,9 @@ BEGIN {
   if (ind <= job_ind) { flush_job(); job = keyof(line); next }
   if (jk_ind < 0) jk_ind = ind
 
-  if (ind == jk_ind) {
+  # A list may sit at the same indent as its key (steps:\n- run: ...).
+  if (inrunson && ind >= jk_ind && line ~ /^ *- /) { v = line; sub(/^ *- */, "", v); runs_on(v, NR); next }
+  if (ind == jk_ind && !(insteps && line ~ /^ *- /)) {
     if (insteps) { flush_step(); insteps = 0 }
     inrunson = 0
     k = keyof(line); v = valof(line)
@@ -1063,7 +1092,7 @@ BEGIN {
     else if (k == "steps") { insteps = 1; st_ind = -1 }
     next
   }
-  if (inrunson) { if (line ~ /^ *- /) { v = line; sub(/^ *- */, "", v); runs_on(v, NR) } next }
+  if (inrunson) next
   if (!insteps) next
 
   if (line ~ /^ *- / && (st_ind < 0 || ind == st_ind)) {

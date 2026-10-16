@@ -61,3 +61,11 @@ jobs:
       - ubuntu-latest
     steps:
       - run: echo ok
+  compact:
+    runs-on:
+    - ubuntu-24.04
+    steps:
+    - uses: actions/cache@v4
+      with: {path: x, key: y}
+    - run: |
+        sudo systemctl restart compact-service
