@@ -193,3 +193,8 @@ Behaviour checked through the command, with stubs on `PATH` (`gh`, `id`, `sudo`,
 - `check` on files with CRLF line endings: `\r` is stripped first.
 - `check` block-list `runs-on:` (`- ubuntu-latest` lines below it) is handled; flow lists `[a, b]` too; expressions other than select-runner/CI_RUNNER_LABEL are not reported (cannot be judged).
 - `cp`/`mv`/`ln` count as home writes only when a home path is the last argument.
+- `.service` sits in a directory the runner account (and so any job) can write. Drop-ins are written,
+  restarted and removed only for names matching `actions.runner.*.service`, so a job cannot get
+  another service moved or restarted by a later `limits` run as root.
+- `check` also reads lists written at the same indent as their key (`steps:` then `- run:` directly
+  below, or `runs-on:` then `- label`).
