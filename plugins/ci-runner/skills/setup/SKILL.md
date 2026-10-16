@@ -1,9 +1,9 @@
 ---
 name: setup
-description: Move a repository's GitHub Actions jobs onto a self-hosted runner on this machine, or back to GitHub-hosted runners, with the ci-runner command. Does not trigger for writing or debugging ordinary workflow steps, and does not trigger for GitHub-hosted runner sizing or billing questions.
+description: Move a repository's GitHub Actions jobs onto a self-hosted runner on this machine, or back to GitHub-hosted runners, with the ci-runner command, including how many runner instances run, their shared CPU and memory caps, and whether the repo's workflows are ready for it. Does not trigger for writing or debugging ordinary workflow steps, and does not trigger for GitHub-hosted runner sizing or billing questions.
 ---
 
-**Usage:** `/ci-runner:setup [on | off | status | uninstall]`
+**Usage:** `/ci-runner:setup [on | off | status | check | scale | uninstall]`
 
 Everything is done by the `ci-runner` command; this skill is the order to run it in and the
 checks to make between steps. Reference: the plugin's [README](../../README.md).
@@ -45,7 +45,14 @@ on the runner:
   preinstall those tools on the machine and guard the step with `command -v`;
 - avoid fixed paths outside the workspace, since the machine persists between jobs.
 
-Land the workflow change through a pull request before turning it on.
+Then run `ci-runner check` in the checkout and fix each warning it prints (file:line; the README's
+"Making jobs runner-safe" table has the fix for each). Info lines (hardcoded `macos-*` or
+`windows-*` jobs) can stay. Repeat until it exits 0. Land the workflow change through a pull
+request before turning it on.
+
+If the user wants several jobs at once, `ci-runner scale N --repo OWNER/NAME` sets the instance
+count. On Linux, cap them together so the machine stays usable, e.g. `--cpu 50 --memory 60` on
+`install` or `scale`, or `ci-runner limits` later; ask for the percentages rather than picking them.
 
 ## Step 4: Turn it on or off
 

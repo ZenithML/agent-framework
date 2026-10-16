@@ -1,7 +1,7 @@
 {
   "name": "ci-runner",
   "description": "Run a repository's GitHub Actions jobs on your own Linux or macOS machine: install a self-hosted runner as a service, then turn it on or off with one command, with automatic fallback to GitHub-hosted runners when the machine is off.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "zenithml"
   },
