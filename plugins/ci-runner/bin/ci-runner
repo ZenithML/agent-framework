@@ -30,6 +30,10 @@ PLUGIN_DIR="$(cd "$(dirname "$self")/.." && pwd)"
 TEMPLATE="$PLUGIN_DIR/templates/select-runner.yml"
 
 GH_HOST_NAME="${GH_HOST:-github.com}"
+# Linux resource caps: every instance joins one slice, so the cap is shared by all of them.
+SYSTEMD_DIR="${CI_RUNNER_SYSTEMD_DIR:-/etc/systemd/system}"
+SLICE="ci-runner.slice"
+DROPIN="ci-runner-slice.conf"
 
 die() { echo "ci-runner: $*" >&2; exit 1; }
 say() { echo "==> $*"; }
@@ -110,13 +114,28 @@ ASSUME_YES=false
 DRY_RUN=false
 OUT=".github/workflows/select-runner.yml"
 FORCE=false
+CPU_CAP=""
+MEM_CAP=""
+LABEL_GIVEN=false
+ALLOW_POS=false
+POSITIONAL=""
+
+# A cap is a whole percentage of the machine, 1-100, or 'none' to remove it.
+valid_pct() {
+  case "$2" in
+    none|[1-9]|[1-9][0-9]|100) return 0 ;;
+  esac
+  die "$1 must be a whole percentage from 1 to 100, or 'none' (got '$2')"
+}
 
 parse_opts() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --repo) [ $# -ge 2 ] || die "--repo needs OWNER/NAME"; REPO="$2"; shift 2 ;;
       --org) [ $# -ge 2 ] || die "--org needs a name"; ORG="$2"; shift 2 ;;
-      --label) [ $# -ge 2 ] || die "--label needs a value"; LABEL="$2"; shift 2 ;;
+      --label) [ $# -ge 2 ] || die "--label needs a value"; LABEL="$2"; LABEL_GIVEN=true; shift 2 ;;
+      --cpu) [ $# -ge 2 ] || die "--cpu needs a percentage or 'none'"; valid_pct --cpu "$2"; CPU_CAP="$2"; shift 2 ;;
+      --memory) [ $# -ge 2 ] || die "--memory needs a percentage or 'none'"; valid_pct --memory "$2"; MEM_CAP="$2"; shift 2 ;;
       --count) [ $# -ge 2 ] || die "--count needs a number"; COUNT="$2"; shift 2 ;;
       --dir) [ $# -ge 2 ] || die "--dir needs a path"; DIR_BASE="$2"; shift 2 ;;
       --run-as) [ $# -ge 2 ] || die "--run-as needs a user"; RUN_AS="$2"
@@ -131,7 +150,11 @@ parse_opts() {
       --dry-run|-n) DRY_RUN=true; shift ;;
       --force|-f) FORCE=true; shift ;;
       --help|-h) usage; exit 0 ;;
-      *) die "unknown option '$1' (see ci-runner --help)" ;;
+      -*) die "unknown option '$1' (see ci-runner --help)" ;;
+      *)
+        if $ALLOW_POS && [ -z "$POSITIONAL" ]; then POSITIONAL="$1"; shift
+        else die "unexpected argument '$1' (see ci-runner --help)"
+        fi ;;
     esac
   done
   case "$COUNT" in ''|*[!0-9]*|0) die "--count must be a positive integer (got '$COUNT')" ;; esac
@@ -208,6 +231,105 @@ as_runner() {
 
 run() {
   if $DRY_RUN; then echo "   [dry-run] $*"; else "$@"; fi
+}
+
+# Root for system files: directly when we are root, else through sudo.
+as_root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
+
+# Write a root-owned file; a dry run prints the content instead.
+write_root_file() {
+  if $DRY_RUN; then
+    echo "   [dry-run] write $1:"
+    printf '%s\n' "$2" | sed 's/^/      | /'
+  else
+    printf '%s\n' "$2" | as_root tee "$1" >/dev/null
+  fi
+}
+
+# ── resource caps (Linux, systemd) ───────────────────────────────────────────
+is_macos() { [ "$(uname -s)" = Darwin ]; }
+caps_given() { [ -n "$CPU_CAP" ] || [ -n "$MEM_CAP" ]; }
+macos_caps_notice() {
+  echo "Note: resource caps (--cpu, --memory, limits) are not supported on macOS; carrying on without them."
+}
+
+cpu_cores() {
+  local n
+  n="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+  case "$n" in ''|*[!0-9]*|0) n=1 ;; esac
+  echo "$n"
+}
+
+# The percentages the user chose live on the slice's '# ci-runner:' comment line.
+read_caps() {
+  local line kv
+  CUR_CPU=none; CUR_MEM=none
+  [ -f "$SYSTEMD_DIR/$SLICE" ] || return 0
+  line="$(sed -n 's/^# ci-runner: //p' "$SYSTEMD_DIR/$SLICE" | head -1)"
+  for kv in $line; do
+    case "$kv" in
+      cpu=*) CUR_CPU="${kv#cpu=}" ;;
+      memory=*) CUR_MEM="${kv#memory=}" ;;
+    esac
+  done
+  case "$CUR_CPU" in none|[1-9]|[1-9][0-9]|100) ;; *) CUR_CPU=none ;; esac
+  case "$CUR_MEM" in none|[1-9]|[1-9][0-9]|100) ;; *) CUR_MEM=none ;; esac
+}
+
+# What this run leaves in place: the flags given, else what is already set.
+effective_caps() {
+  read_caps
+  EFF_CPU="${CPU_CAP:-$CUR_CPU}"
+  EFF_MEM="${MEM_CAP:-$CUR_MEM}"
+}
+
+caps_summary() {
+  local cores text
+  if is_macos; then echo "not supported on macOS"; return 0; fi
+  effective_caps
+  if [ "$EFF_CPU" = none ] && [ "$EFF_MEM" = none ]; then echo "none"; return 0; fi
+  cores="$(cpu_cores)"
+  if [ "$EFF_CPU" = none ]; then text="CPU uncapped"
+  else text="CPU $EFF_CPU% ($(awk -v p="$EFF_CPU" -v c="$cores" 'BEGIN { printf "%g", p * c / 100 }') of $cores cores)"
+  fi
+  if [ "$EFF_MEM" = none ]; then text="$text, memory uncapped"; else text="$text, memory $EFF_MEM%"; fi
+  echo "$text"
+}
+
+slice_content() {
+  local cores
+  cores="$(cpu_cores)"
+  echo "# Written by ci-runner (agent-framework, plugins/ci-runner). Change with: ci-runner limits"
+  echo "# ci-runner: cpu=$1 memory=$2"
+  echo "[Unit]"
+  echo "Description=ci-runner: self-hosted GitHub Actions runners (shared resource cap)"
+  echo
+  echo "[Slice]"
+  echo "CPUAccounting=yes"
+  echo "MemoryAccounting=yes"
+  if [ "$1" != none ]; then echo "CPUQuota=$(($1 * cores))%"; fi
+  if [ "$2" != none ]; then echo "MemoryMax=$2%"; fi
+}
+
+# Write the slice with the effective caps and apply them to the running slice too.
+apply_caps() {
+  local cores cpuprop memprop
+  effective_caps
+  cores="$(cpu_cores)"
+  say "Resource caps for all ci-runner instances on this machine: $(caps_summary)"
+  write_root_file "$SYSTEMD_DIR/$SLICE" "$(slice_content "$EFF_CPU" "$EFF_MEM")"
+  run as_root systemctl daemon-reload
+  if [ "$EFF_CPU" = none ]; then cpuprop="CPUQuota="; else cpuprop="CPUQuota=$((EFF_CPU * cores))%"; fi
+  if [ "$EFF_MEM" = none ]; then memprop="MemoryMax=infinity"; else memprop="MemoryMax=$EFF_MEM%"; fi
+  run as_root systemctl set-property --runtime "$SLICE" "$cpuprop" "$memprop" \
+    || echo "   warning: could not apply the caps to the running slice; they apply when its runners next start" >&2
+}
+
+# An uncapped slice, so instances can join it now and 'limits' later needs no restart.
+ensure_slice() {
+  [ -f "$SYSTEMD_DIR/$SLICE" ] && return 0
+  write_root_file "$SYSTEMD_DIR/$SLICE" "$(slice_content none none)"
+  run as_root systemctl daemon-reload
 }
 
 platform() {
@@ -574,6 +696,18 @@ cmd_off() {
   echo "The runner service keeps idling (harmless); 'ci-runner uninstall --repo $REPO' removes it."
 }
 
+cmd_limits() {
+  if is_macos; then macos_caps_notice; return 0; fi
+  if ! caps_given; then
+    echo "Resource caps (all ci-runner instances on this machine): $(caps_summary)"
+    if [ -f "$SYSTEMD_DIR/$SLICE" ]; then echo "  Set in $SYSTEMD_DIR/$SLICE"; fi
+    echo "Change: ci-runner limits --cpu PCT --memory PCT   (percent of the machine; 'none' removes one)"
+    return 0
+  fi
+  apply_caps
+  if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
+}
+
 cmd_workflow() {
   [ -f "$TEMPLATE" ] || die "template not found at $TEMPLATE"
   if [ -e "$OUT" ] && ! $FORCE; then
@@ -609,6 +743,7 @@ case "$command" in
   on|auto) parse_opts "$@"; cmd_on ;;
   off) parse_opts "$@"; cmd_off ;;
   workflow) parse_opts "$@"; cmd_workflow ;;
+  limits) parse_opts "$@"; cmd_limits ;;
   version|--version|-V) echo "ci-runner $VERSION" ;;
   help|--help|-h) usage ;;
   *) echo "ci-runner: unknown command '$command'" >&2; usage >&2; exit 1 ;;

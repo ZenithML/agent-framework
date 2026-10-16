@@ -49,7 +49,35 @@ case "$1" in
 esac
 ID
 chmod +x "$WORK/bin/id"
-export PATH="$WORK/bin:$PATH" HOME="$WORK/home" GH_LOG="$WORK/gh.log"
+# sudo runs the command as us (dropping -u USER -H); systemctl only records; fixed cores and OS.
+cat > "$WORK/bin/sudo" <<'SUDO'
+#!/bin/sh
+echo "sudo $*" >> "$SUDO_LOG"
+while [ $# -gt 0 ]; do case "$1" in -u) shift 2 ;; -H) shift ;; *) break ;; esac; done
+exec "$@"
+SUDO
+cat > "$WORK/bin/systemctl" <<'SYSTEMCTL'
+#!/bin/sh
+echo "systemctl $*" >> "$SYSTEMCTL_LOG"
+SYSTEMCTL
+cat > "$WORK/bin/nproc" <<'NPROC'
+#!/bin/sh
+echo "${FAKE_CORES:-8}"
+NPROC
+REAL_UNAME="$(command -v uname)"
+cat > "$WORK/bin/uname" <<UNAME
+#!/bin/sh
+case "\$1" in
+  -s) echo "\${FAKE_OS:-Linux}" ;;
+  -m) echo x86_64 ;;
+  *) exec "$REAL_UNAME" "\$@" ;;
+esac
+UNAME
+chmod +x "$WORK/bin/sudo" "$WORK/bin/systemctl" "$WORK/bin/nproc" "$WORK/bin/uname"
+SYSD="$WORK/systemd"
+mkdir -p "$SYSD"
+export PATH="$WORK/bin:$PATH" HOME="$WORK/home" GH_LOG="$WORK/gh.log" SUDO_LOG="$WORK/sudo.log" \
+  SYSTEMCTL_LOG="$WORK/systemctl.log" CI_RUNNER_SYSTEMD_DIR="$SYSD"
 ci() { : > "$GH_LOG"; "$BASH_BIN" "$CLI" "$@"; }
 # shellcheck disable=SC2317,SC2329  # called through check
 logged() { grep -qF -- "$1" "$GH_LOG"; }
@@ -141,6 +169,36 @@ check "status shows the online runner" sh -c "echo \"\$0\" | grep -q 'host-widge
 out="$(ci uninstall --dry-run --repo acme/widget 2>&1)"
 check "uninstall --dry-run keeps the directories" test -d "$HOME/actions-runner/widget-2"
 check "uninstall leaves another repo's runner alone" sh -c "! echo \"\$0\" | grep -q 'widget-tools'" "$out"
+
+echo "== caps / limits"
+SLICE="$SYSD/ci-runner.slice"
+for bad in 0 101 abc -5 50%; do
+  check "--cpu $bad is refused" sh -c "! '$BASH_BIN' '$CLI' limits --cpu '$bad' --dry-run"
+done
+check "--memory 0 is refused" sh -c "! '$BASH_BIN' '$CLI' limits --memory 0 --dry-run"
+check "--cpu 100 and --memory none are accepted" "$BASH_BIN" "$CLI" limits --cpu 100 --memory none --dry-run
+out="$(ci limits --cpu 50 --memory 60 --dry-run 2>&1)"
+check "limits --dry-run prints the slice" sh -c "echo \"\$0\" | grep -q 'CPUQuota=400%' && echo \"\$0\" | grep -q 'MemoryMax=60%'" "$out"
+check "limits --dry-run writes no slice" test ! -e "$SLICE"
+: > "$SYSTEMCTL_LOG"
+out="$(ci limits --cpu 50 --memory 60 2>&1)"
+check "limits writes CPUQuota as PCT x cores" grep -qx 'CPUQuota=400%' "$SLICE"
+check "limits writes MemoryMax as a percentage" grep -qx 'MemoryMax=60%' "$SLICE"
+check "limits reloads systemd" grep -q 'systemctl daemon-reload' "$SYSTEMCTL_LOG"
+check "limits applies the caps live" grep -q 'set-property --runtime ci-runner.slice CPUQuota=400% MemoryMax=60%' "$SYSTEMCTL_LOG"
+ci limits --cpu 75 >/dev/null 2>&1
+check "limits --cpu keeps the memory cap" sh -c "grep -qx 'CPUQuota=600%' '$SLICE' && grep -qx 'MemoryMax=60%' '$SLICE'"
+out="$(ci limits 2>&1)"
+check "limits alone shows the caps" sh -c "echo \"\$0\" | grep -q 'CPU 75% (6 of 8 cores), memory 60%'" "$out"
+ci limits --cpu none >/dev/null 2>&1
+check "limits --cpu none drops the CPU cap" sh -c "! grep -q CPUQuota '$SLICE' && grep -qx 'MemoryMax=60%' '$SLICE'"
+: > "$SYSTEMCTL_LOG"
+ci limits --memory none >/dev/null 2>&1
+check "removing both leaves an uncapped slice" sh -c "test -e '$SLICE' && ! grep -q 'CPUQuota=[0-9]' '$SLICE' && ! grep -q 'MemoryMax=' '$SLICE'"
+check "...and resets the live caps" grep -q 'CPUQuota= MemoryMax=infinity' "$SYSTEMCTL_LOG"
+out="$(FAKE_OS=Darwin ci limits --cpu 50 2>&1)" && rc=0 || rc=$?
+check "macOS: limits prints a notice and succeeds" sh -c "[ $rc -eq 0 ] && echo \"\$0\" | grep -q 'not supported on macOS'" "$out"
+rm -f "$SLICE"
 
 echo "== workflow"
 mkdir -p "$WORK/repo" && cd "$WORK/repo" || exit 1
