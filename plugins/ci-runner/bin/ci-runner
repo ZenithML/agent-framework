@@ -325,6 +325,79 @@ apply_caps() {
     || echo "   warning: could not apply the caps to the running slice; they apply when its runners next start" >&2
 }
 
+dropin_content() {
+  echo "# Written by ci-runner: run this runner in the shared, capped $SLICE"
+  echo "[Service]"
+  echo "Slice=$SLICE"
+}
+
+# A systemd unit name as svc.sh records it in the runner's .service file.
+valid_unit() {
+  case "$1" in ''|*/*|*' '*|*..*) return 1 ;; esac
+  return 0
+}
+
+write_dropin() {
+  run as_root mkdir -p "$SYSTEMD_DIR/$1.d"
+  write_root_file "$SYSTEMD_DIR/$1.d/$DROPIN" "$(dropin_content)"
+}
+
+# Put one new instance's service in the slice, before its first start.
+join_slice() {
+  local dir="$1" unit
+  unit="$(cat "$dir/.service" 2>/dev/null || true)"
+  if ! valid_unit "$unit"; then
+    if ! $DRY_RUN; then echo "   note: no service name in $dir/.service, so it cannot join $SLICE" >&2; return 0; fi
+    unit="<unit named in $dir/.service>"
+  fi
+  write_dropin "$unit"
+  run as_root systemctl daemon-reload
+}
+
+# A home directory, or nothing when the account does not exist.
+home_or_empty() {
+  local h=""
+  if command -v getent >/dev/null 2>&1; then h="$(getent passwd "$1" 2>/dev/null | cut -d: -f6)"; fi
+  [ -n "$h" ] || h="$(eval echo "~$1" 2>/dev/null)"
+  case "$h" in "~"*) h="" ;; esac
+  echo "$h"
+}
+
+# Where runner directories may be: --dir / --run-as when given, else ours and the
+# dedicated 'ci-runner' account's.
+runner_bases() {
+  local h
+  if [ -n "$DIR_BASE" ] || [ -n "$RUN_AS" ]; then default_dir_base; return 0; fi
+  echo "$HOME/actions-runner"
+  h="$(home_or_empty ci-runner)"
+  if [ -n "$h" ] && [ "$h/actions-runner" != "$HOME/actions-runner" ]; then echo "$h/actions-runner"; fi
+  return 0
+}
+
+# Move every runner under the runner bases that is not in the slice yet into it. Moving a
+# running service needs a restart, which interrupts a job running there; say so.
+join_existing() {
+  local base svcfile unit joined=""
+  for base in $(runner_bases); do
+    for svcfile in "$base"/*/.service; do
+      [ -f "$svcfile" ] || continue
+      unit="$(cat "$svcfile" 2>/dev/null || true)"
+      valid_unit "$unit" || continue
+      [ -f "$SYSTEMD_DIR/$unit.d/$DROPIN" ] && continue
+      say "Moving $unit into $SLICE"
+      write_dropin "$unit"
+      joined="$joined $unit"
+    done
+  done
+  [ -n "$joined" ] || return 0
+  run as_root systemctl daemon-reload
+  echo "   warning: restarting these runners so they join $SLICE; a job running on one of them is interrupted" >&2
+  for unit in $joined; do
+    echo "   Restarting $unit"
+    run as_root systemctl restart "$unit"
+  done
+}
+
 # An uncapped slice, so instances can join it now and 'limits' later needs no restart.
 ensure_slice() {
   [ -f "$SYSTEMD_DIR/$SLICE" ] && return 0
@@ -460,13 +533,23 @@ install_one() {
 
   case "$plat" in
     linux-*)
-      say "[$i/$COUNT] Installing the systemd service (sudo)"
-      run sh -c 'cd "$1" && sudo ./svc.sh install "$2" && sudo ./svc.sh start' sh "$dir" "${RUN_AS:-$(id -un)}"
+      say "[$i/$COUNT] Installing the systemd service in $SLICE (sudo)"
+      run sh -c 'cd "$1" && sudo ./svc.sh install "$2"' sh "$dir" "${RUN_AS:-$(id -un)}"
+      join_slice "$dir"
+      run sh -c 'cd "$1" && sudo ./svc.sh start' sh "$dir"
       ;;
     osx-*)
       say "[$i/$COUNT] Installing the launchd agent (runs while $(id -un) is signed in)"
       run sh -c 'cd "$1" && ./svc.sh install && ./svc.sh start' sh "$dir"
       ;;
+  esac
+}
+
+# Before adding instances: the slice they join, capped when --cpu/--memory were given.
+prepare_caps() {
+  case "$1" in
+    linux-*) if caps_given; then apply_caps; else ensure_slice; fi ;;
+    *) if caps_given; then macos_caps_notice; fi ;;
   esac
 }
 
@@ -483,11 +566,13 @@ cmd_install() {
     version="${version#v}"
   fi
   say "Installing $COUNT runner(s) for $(target_url), actions/runner $version ($plat), under $base"
+  prepare_caps "$plat"
   i=1
   while [ "$i" -le "$COUNT" ]; do
     install_one "$i" "$base" "$plat" "$version"
     i=$((i + 1))
   done
+  case "$plat" in linux-*) if caps_given; then join_existing; fi ;; esac
 
   echo
   if $DRY_RUN; then echo "Dry run: nothing was changed."; return 0; fi
@@ -502,36 +587,49 @@ cmd_install() {
   echo "Jobs should not count on passwordless sudo: preinstall what they would apt-get or brew install."
 }
 
+# Stop, deregister and delete one runner directory, and take its service out of the slice.
+# RUN_AS is decided per directory (from its owner), starting from the account given.
+remove_instance() {
+  local dir="$1" token user unit
+  RUN_AS="$2"
+  say "Removing the runner at $dir"
+  unit="$(cat "$dir/.service" 2>/dev/null || true)"
+  if [ -x "$dir/svc.sh" ]; then
+    case "$(platform)" in
+      linux-*) run sh -c 'cd "$1" && { sudo ./svc.sh stop; sudo ./svc.sh uninstall; } || true' sh "$dir" ;;
+      osx-*) run sh -c 'cd "$1" && { ./svc.sh stop; ./svc.sh uninstall; } || true' sh "$dir" ;;
+    esac
+  fi
+  if $DRY_RUN; then
+    token="<remove-token>"
+  else
+    token="$(gh api -X POST "$(api_scope)/actions/runners/remove-token" --jq .token)" \
+      || die "could not get a removal token for $(api_scope)"
+  fi
+  # The runner's own files belong to its account; remove as that account.
+  # shellcheck disable=SC2012  # stat's flags differ between BSD and GNU; ls -ld does not
+  user="$(ls -ld "$dir" | awk '{print $3}')"
+  if [ "$user" != "$(id -un)" ]; then RUN_AS="$user"; fi
+  # shellcheck disable=SC2016
+  run as_runner sh -c 'cd "$1" && ./config.sh remove --token "$2"' sh "$dir" "$token"
+  if [ -n "$RUN_AS" ] && [ "$RUN_AS" != "$(id -un)" ]; then run sudo rm -rf "$dir"; else run rm -rf "$dir"; fi
+  if valid_unit "$unit" && [ -f "$SYSTEMD_DIR/$unit.d/$DROPIN" ]; then
+    # shellcheck disable=SC2016
+    run as_root sh -c 'rm -f "$1/$2"; rmdir "$1" 2>/dev/null || true' sh "$SYSTEMD_DIR/$unit.d" "$DROPIN"
+  fi
+}
+
 cmd_uninstall() {
   need_gh
   resolve_repo
-  local base dir found=false token user run_as_given="$RUN_AS"
+  local base dir found=false run_as_given="$RUN_AS"
   base="$(default_dir_base)"
   for dir in $(instance_dirs "$base"); do
     [ -x "$dir/config.sh" ] || continue
-    RUN_AS="$run_as_given"  # decided per directory below, never carried over from the last one
     found=true
-    say "Removing the runner at $dir"
-    if [ -x "$dir/svc.sh" ]; then
-      case "$(platform)" in
-        linux-*) run sh -c 'cd "$1" && { sudo ./svc.sh stop; sudo ./svc.sh uninstall; } || true' sh "$dir" ;;
-        osx-*) run sh -c 'cd "$1" && { ./svc.sh stop; ./svc.sh uninstall; } || true' sh "$dir" ;;
-      esac
-    fi
-    if $DRY_RUN; then
-      token="<remove-token>"
-    else
-      token="$(gh api -X POST "$(api_scope)/actions/runners/remove-token" --jq .token)" \
-        || die "could not get a removal token for $(api_scope)"
-    fi
-    # The runner's own files belong to its account; remove as that account.
-    # shellcheck disable=SC2012  # stat's flags differ between BSD and GNU; ls -ld does not
-    user="$(ls -ld "$dir" | awk '{print $3}')"
-    if [ "$user" != "$(id -un)" ]; then RUN_AS="$user"; fi
-    # shellcheck disable=SC2016
-    run as_runner sh -c 'cd "$1" && ./config.sh remove --token "$2"' sh "$dir" "$token"
-    if [ -n "$RUN_AS" ] && [ "$RUN_AS" != "$(id -un)" ]; then run sudo rm -rf "$dir"; else run rm -rf "$dir"; fi
+    remove_instance "$dir" "$run_as_given"
   done
+  RUN_AS="$run_as_given"
   if ! $found; then
     echo "No runners for $(target_slug) under $base; nothing to remove."
     return 0
@@ -705,6 +803,7 @@ cmd_limits() {
     return 0
   fi
   apply_caps
+  join_existing
   if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
 }
 

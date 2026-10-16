@@ -200,6 +200,37 @@ out="$(FAKE_OS=Darwin ci limits --cpu 50 2>&1)" && rc=0 || rc=$?
 check "macOS: limits prints a notice and succeeds" sh -c "[ $rc -eq 0 ] && echo \"\$0\" | grep -q 'not supported on macOS'" "$out"
 rm -f "$SLICE"
 
+echo "== slice membership"
+out="$(ci install --dry-run --repo acme/widget --yes --dir "$WORK/capinst" --cpu 50 2>&1)"
+check "install --cpu prints the capped slice" sh -c "echo \"\$0\" | grep -q 'CPUQuota=400%'" "$out"
+check "install adds the drop-in" sh -c "echo \"\$0\" | grep -q 'Slice=ci-runner.slice'" "$out"
+check "...after svc.sh install and before svc.sh start" sh -c "echo \"\$0\" | awk '/svc.sh install/ { i = NR } /Slice=ci-runner.slice/ { d = NR } /svc.sh start/ { s = NR } END { exit !(i && d && s && i < d && d < s) }'" "$out"
+check "install --dry-run writes no slice" test ! -e "$SLICE"
+out="$(ci install --dry-run --repo acme/widget --yes --dir "$WORK/capinst" 2>&1)"
+check "install without caps still joins an (uncapped) slice" sh -c "echo \"\$0\" | grep -q 'Slice=ci-runner.slice' && ! echo \"\$0\" | grep -q 'CPUQuota=[0-9]'" "$out"
+out="$(FAKE_OS=Darwin ci install --dry-run --repo acme/widget --yes --dir "$WORK/capinst" --cpu 50 2>&1)" && rc=0 || rc=$?
+check "macOS: install --cpu prints the notice and still installs" sh -c "[ $rc -eq 0 ] && echo \"\$0\" | grep -q 'not supported on macOS' && echo \"\$0\" | grep -q 'svc.sh install' && ! echo \"\$0\" | grep -q 'Slice='" "$out"
+UNIT="actions.runner.acme-widget.host-a.service"
+mkdir -p "$WORK/joinbase/widget"
+echo "$UNIT" > "$WORK/joinbase/widget/.service"
+: > "$SYSTEMCTL_LOG"
+out="$(ci limits --cpu 50 --dir "$WORK/joinbase" 2>&1)"
+check "limits gives an existing instance the drop-in" grep -qx 'Slice=ci-runner.slice' "$SYSD/$UNIT.d/ci-runner-slice.conf"
+check "...restarts it so it joins" grep -q "systemctl restart $UNIT" "$SYSTEMCTL_LOG"
+check "...and warns that a running job is interrupted" sh -c "echo \"\$0\" | grep -q 'interrupted'" "$out"
+: > "$SYSTEMCTL_LOG"
+ci limits --cpu 60 --dir "$WORK/joinbase" >/dev/null 2>&1
+check "an instance already in the slice is not restarted" sh -c "! grep -q restart '$SYSTEMCTL_LOG'"
+mkdir -p "$WORK/uninst/widget"
+printf '#!/bin/sh\nexit 0\n' > "$WORK/uninst/widget/config.sh"
+chmod +x "$WORK/uninst/widget/config.sh"
+echo "$UNIT" > "$WORK/uninst/widget/.service"
+ci uninstall --repo acme/widget --dir "$WORK/uninst" >/dev/null 2>&1
+check "uninstall deletes the runner directory" test ! -e "$WORK/uninst/widget"
+check "uninstall removes the instance's drop-in" test ! -e "$SYSD/$UNIT.d"
+check "...and keeps the slice" test -e "$SLICE"
+rm -f "$SLICE"
+
 echo "== workflow"
 mkdir -p "$WORK/repo" && cd "$WORK/repo" || exit 1
 check "writes select-runner.yml" sh -c "'$BASH_BIN' '$CLI' workflow && cmp -s '$ROOT/plugins/ci-runner/templates/select-runner.yml' .github/workflows/select-runner.yml"
