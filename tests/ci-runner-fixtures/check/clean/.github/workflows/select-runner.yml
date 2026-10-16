@@ -1,0 +1,9 @@
+# Stand-in for the select-runner.yml template; check never reports this file's own content.
+name: Select CI runner
+on:
+  workflow_call:
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo true

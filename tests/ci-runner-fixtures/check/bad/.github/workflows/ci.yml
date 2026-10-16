@@ -1,0 +1,63 @@
+# Every readiness problem ci-runner check knows, plus look-alikes it must not report.
+name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: node:20
+    services:
+      redis:
+        image: redis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install jq without sudo where possible
+        run: sudo apt-get install -y jq
+      - run: |
+          git config --global user.name ci
+          echo hi > ~/.ci-marker
+          mkdir -p "$HOME/.cache/x"
+          cp build.log /tmp/build.log
+          curl -fsSL https://example.com/install.sh | bash
+          # sudo rm -rf /tmp/in-a-comment
+          sudo make install # ci-runner: ignore
+          cp ~/.config/x ./x
+          tmp=$(mktemp -d /tmp/x.XXXX)
+      - uses: docker://alpine:3.20
+  lint:
+    runs-on: [ubuntu-22.04]
+    steps:
+      - run: wget -qO- https://example.com/x | sh
+  mac:
+    runs-on: macos-14
+    steps:
+      - run: echo mac
+  guarded:
+    needs: select-runner
+    runs-on: ${{ needs.select-runner.outputs.target }}
+    steps:
+      - uses: actions/cache@v4
+        if: needs.select-runner.outputs.self-hosted != 'true'
+        with: {path: x, key: y}
+  jobguard:
+    if: needs.select-runner.outputs.self-hosted != 'true'
+    runs-on: ${{ needs.select-runner.outputs.target }}
+    steps:
+      - uses: actions/cache@v4
+        with: {path: x, key: y}
+  matrix:
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: echo matrix
+  block:
+    runs-on:
+      - ubuntu-latest
+    steps:
+      - run: echo ok

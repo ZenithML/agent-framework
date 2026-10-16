@@ -985,6 +985,152 @@ cmd_limits() {
   if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
 }
 
+# ── check: is a repo's workflow set ready for a self-hosted runner? ───────────
+# Line-based on purpose (no YAML parser, no yq): it follows indentation to know the job,
+# the step and whether a line is shell script, which is enough for these rules. Prints
+# "file:line: level: message" lines; the caller sorts and counts them.
+# shellcheck disable=SC2016  # awk program, not shell
+CHECK_AWK='
+function indent(s) { match(s, /^ */); return RLENGTH }
+function report(nr, level, msg) { if (!(nr in ign)) print f ":" nr ": " level ": " msg }
+function keyof(s) { sub(/^ *(- *)?/, "", s); sub(/:.*/, "", s); return s }
+function valof(s) { sub(/^ *(- *)?[^:]*:[ \t]*/, "", s); return s }
+function flush_step() {
+  if (st_line && (st_cache || (st_setup && st_hascache)) && !st_guard) pend[++np] = st_line
+  st_line = 0; st_cache = 0; st_setup = 0; st_hascache = 0; st_guard = 0; inrun = 0
+}
+function flush_job(   i) {
+  flush_step()
+  for (i = 1; i <= np; i++)
+    if (!job_guard) report(pend[i], "warning", "caching (actions/cache, or cache: on a setup action) is slow on the self-hosted runner and not needed there (its disk persists); add if: needs.select-runner.outputs.self-hosted != \"true\" to the step or job")
+  np = 0; job_guard = 0; insteps = 0; inrunson = 0; jk_ind = -1; st_ind = -1
+}
+function runs_on(v, nr,   n, t, i) {
+  if (v ~ /\$\{\{/) return
+  gsub(/[][",]/, " ", v); gsub("\047", " ", v)
+  n = split(v, t, " ")
+  for (i = 1; i <= n; i++) {
+    if (t[i] ~ /^ubuntu-/) {
+      report(nr, "warning", "job \047" job "\047 runs on GitHub-hosted \047" t[i] "\047; to let ci-runner route it, use runs-on: ${{ needs.select-runner.outputs.target }} with needs: select-runner")
+      return
+    }
+    if (t[i] ~ /^(macos|windows)-/) {
+      report(nr, "info", "job \047" job "\047 runs on \047" t[i] "\047, which stays GitHub-hosted (fine if intended)")
+      return
+    }
+  }
+}
+function script(s, nr) {
+  if (s ~ /(^|[^A-Za-z0-9_-])sudo([^A-Za-z0-9_-]|$)/)
+    report(nr, "warning", "sudo: the runner has no passwordless sudo; preinstall the tool on the machine and guard the step (command -v tool || ...)")
+  if (s ~ /git[ \t]+config[ \t]+(.*[ \t])?--global/)
+    report(nr, "warning", "git config --global changes the runner account for every later job; use repo-local git config or GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig")
+  else if (s ~ (">[ \t]*" home) || s ~ ("(^|[;&|( \t])(tee|mkdir|touch)[ \t][^;&|]*" home) || s ~ ("(^|[;&|( \t])(cp|mv|ln)[ \t][^;&|]*[ \t]" home "[^ \t;&|]*[ \t]*([;&|]|$)"))
+    report(nr, "warning", "writes to the runner account home, which persists between jobs and is shared by every instance; use $RUNNER_TEMP or the workspace")
+  if (s ~ /(curl|wget)[^|]*\|[ \t]*(sudo[ \t]+)?(ba|z|da)?sh([ \t]|$)/)
+    report(nr, "warning", "curl/wget | sh installs on every run and often needs root; preinstall the tool on the runner machine")
+}
+BEGIN {
+  home = "\"?(~|[$]HOME|[$][{]HOME[}])/"
+  tmp = "(^|[^A-Za-z0-9_.$}/-])/tmp(/|[ \t\"]|$)"
+  job_ind = -1; jk_ind = -1; st_ind = -1
+}
+{
+  sub(/\r$/, "")
+  line = $0
+  if (line ~ /#[ \t]*ci-runner:[ \t]*ignore[ \t]*$/) ign[NR] = 1
+  if (line ~ /^[ \t]*(#|$)/) next
+  ind = indent(line)
+  if (line !~ /mktemp/ && line ~ tmp)
+    report(NR, "warning", "fixed /tmp path: it survives between jobs and collides between instances; use $RUNNER_TEMP")
+
+  if (inrun) { if (ind > run_ind) { script(line, NR); next } inrun = 0 }
+
+  if (ind == 0) { if (injobs) flush_job(); injobs = (line ~ /^jobs:/); job_ind = -1; next }
+  if (!injobs) next
+  if (job_ind < 0) job_ind = ind
+  if (ind <= job_ind) { flush_job(); job = keyof(line); next }
+  if (jk_ind < 0) jk_ind = ind
+
+  if (ind == jk_ind) {
+    if (insteps) { flush_step(); insteps = 0 }
+    inrunson = 0
+    k = keyof(line); v = valof(line)
+    if (k == "runs-on") { if (v == "") inrunson = 1; else runs_on(v, NR) }
+    else if (k == "container" || k == "services")
+      report(NR, "warning", k ": needs Docker on the runner machine; keep job \047" job "\047 GitHub-hosted if it has none")
+    else if (k == "if" && v ~ /self-hosted/) job_guard = 1
+    else if (k == "steps") { insteps = 1; st_ind = -1 }
+    next
+  }
+  if (inrunson) { if (line ~ /^ *- /) { v = line; sub(/^ *- */, "", v); runs_on(v, NR) } next }
+  if (!insteps) next
+
+  if (line ~ /^ *- / && (st_ind < 0 || ind == st_ind)) {
+    flush_step()
+    st_ind = ind
+    match(line, /^ *- */); st_kind = RLENGTH
+    line = substr(line, st_kind + 1); ind = st_kind
+    line = sprintf("%" st_kind "s", "") line
+  }
+  if (st_ind < 0 || ind <= st_ind) next
+  if (ind == st_kind) {
+    k = keyof(line); v = valof(line)
+    if (k == "uses") {
+      st_line = NR
+      if (v ~ /^actions\/cache(\/(save|restore))?@/) st_cache = 1
+      if (v ~ /^actions\/setup-/) st_setup = 1
+      if (v ~ /^docker:\/\//) report(NR, "warning", "a docker:// step needs Docker on the runner machine; keep this job GitHub-hosted if it has none")
+    }
+    else if (k == "if" && v ~ /self-hosted/) st_guard = 1
+    else if (k == "with" && v ~ /cache:/) st_hascache = 1
+    else if (k == "run") { if (v ~ /^[|>]/) { inrun = 1; run_ind = st_kind } else script(v, NR) }
+    next
+  }
+  if (line ~ /^ *cache:[ \t]*[^ \t]/) st_hascache = 1
+}
+END { flush_job() }
+'
+
+cmd_check() {
+  local dir="." wf f out="" findings warn info files=0 have_select=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --help|-h) usage; exit 0 ;;
+      -*) die "unknown option '$1' for check (usage: ci-runner check [DIR])" ;;
+      *) [ "$dir" = . ] || die "check takes one directory"; dir="$1" ;;
+    esac
+    shift
+  done
+  wf="$dir/.github/workflows"
+  if [ ! -d "$wf" ]; then echo "ci-runner: no .github/workflows directory in $dir; nothing to check" >&2; exit 2; fi
+  for f in "$wf"/*.yml "$wf"/*.yaml; do
+    [ -f "$f" ] || continue
+    files=$((files + 1))
+    case "${f##*/}" in select-runner.yml|select-runner.yaml) have_select=true; continue ;; esac
+    out="$out$(awk -v f=".github/workflows/${f##*/}" "$CHECK_AWK" "$f")
+"
+  done
+  if [ "$files" -eq 0 ]; then echo "ci-runner: no workflow files (*.yml, *.yaml) in $wf; nothing to check" >&2; exit 2; fi
+  findings="$(printf '%s' "$out" | grep -v '^$' | sort -t: -k1,1 -k2,2n || true)"
+  if ! $have_select; then
+    findings="$(printf '%s\n%s' ".github/workflows/select-runner.yml: warning: missing, so jobs cannot switch between your runner and GitHub-hosted; run: ci-runner workflow" "$findings")"
+  fi
+  findings="$(printf '%s\n' "$findings" | grep -v '^$' || true)"
+  if [ -z "$findings" ]; then
+    echo "No problems found in $files workflow file(s) under $wf."
+    return 0
+  fi
+  printf '%s\n' "$findings"
+  warn="$(printf '%s\n' "$findings" | grep -c ': warning: ' || true)"
+  info="$(printf '%s\n' "$findings" | grep -c ': info: ' || true)"
+  echo
+  echo "$warn warning(s), $info info, in $files workflow file(s)."
+  echo "How to fix each: \"Making jobs runner-safe\" in $PLUGIN_DIR/README.md"
+  echo "A false positive: end that line with '# ci-runner: ignore'."
+  [ "$warn" -eq 0 ]
+}
+
 cmd_workflow() {
   [ -f "$TEMPLATE" ] || die "template not found at $TEMPLATE"
   if [ -e "$OUT" ] && ! $FORCE; then
@@ -1022,6 +1168,7 @@ case "$command" in
   workflow) parse_opts "$@"; cmd_workflow ;;
   limits) parse_opts "$@"; cmd_limits ;;
   scale) ALLOW_POS=true; parse_opts "$@"; cmd_scale ;;
+  check) cmd_check "$@" || exit 1 ;;
   version|--version|-V) echo "ci-runner $VERSION" ;;
   help|--help|-h) usage ;;
   *) echo "ci-runner: unknown command '$command'" >&2; usage >&2; exit 1 ;;

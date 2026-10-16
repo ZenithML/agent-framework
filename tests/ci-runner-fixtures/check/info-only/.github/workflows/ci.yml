@@ -1,0 +1,11 @@
+name: CI
+on: [push]
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - run: echo mac
+  win:
+    runs-on: windows-latest
+    steps:
+      - run: echo win

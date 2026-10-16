@@ -314,6 +314,56 @@ check "status shows the caps" sh -c "echo \"\$0\" | grep -q 'Resource caps (all 
 out="$(FAKE_OS=Darwin ci status --repo acme/widget 2>&1)"
 check "status on macOS says caps are unsupported" sh -c "echo \"\$0\" | grep -q 'not supported on macOS'" "$out"
 
+echo "== check"
+FX="$ROOT/tests/ci-runner-fixtures/check"
+BAD_CI="$FX/bad/.github/workflows/ci.yml"
+# The line number of the first fixture line containing $1 (so tests survive fixture edits).
+line_of() { grep -nF -- "$1" "${2:-$BAD_CI}" | head -1 | cut -d: -f1; }
+out="$("$BASH_BIN" "$CLI" check "$FX/bad" 2>&1)" && rc=0 || rc=$?
+# shellcheck disable=SC2317,SC2329  # called through check
+has() { printf '%s\n' "$out" | grep -qF -- "$1"; }
+check "check exits 1 on warnings" test "$rc" -eq 1
+check "R1 missing select-runner.yml" has ".github/workflows/select-runner.yml: warning:"
+check "R2 hardcoded ubuntu-latest" has ".github/workflows/ci.yml:$(line_of 'runs-on: ubuntu-latest'): warning: job 'build'"
+check "R2 in a flow list" has ".github/workflows/ci.yml:$(line_of 'runs-on: [ubuntu-22.04]'): warning:"
+check "R2 in a block list" has ".github/workflows/ci.yml:$(line_of '      - ubuntu-latest'): warning: job 'block'"
+check "R3 macos is info" has ".github/workflows/ci.yml:$(line_of 'runs-on: macos-14'): info:"
+check "R4 sudo" has ".github/workflows/ci.yml:$(line_of 'run: sudo apt-get'): warning:"
+check "R5 unguarded actions/cache" has ".github/workflows/ci.yml:$(line_of 'uses: actions/cache@v4'): warning:"
+check "R5 setup-node with cache:" has ".github/workflows/ci.yml:$(line_of 'uses: actions/setup-node@v4'): warning:"
+check "R6 container:" has ".github/workflows/ci.yml:$(line_of 'container: node:20'): warning:"
+check "R6 services:" has ".github/workflows/ci.yml:$(line_of 'services:'): warning:"
+check "R6 docker://" has ".github/workflows/ci.yml:$(line_of 'docker://alpine'): warning:"
+check "R7 git config --global" has ".github/workflows/ci.yml:$(line_of 'git config --global'): warning:"
+check "R7 redirect into ~/" has ".github/workflows/ci.yml:$(line_of 'echo hi > ~/'): warning:"
+check "R7 mkdir under \$HOME" has ".github/workflows/ci.yml:$(line_of 'mkdir -p'): warning:"
+check "R8 fixed /tmp path" has ".github/workflows/ci.yml:$(line_of 'cp build.log /tmp/'): warning:"
+check "R8 in a .yaml file's env" has ".github/workflows/release.yaml:$(line_of 'OUT: /tmp' "$FX/bad/.github/workflows/release.yaml"): warning:"
+check "R9 curl | bash" has ".github/workflows/ci.yml:$(line_of 'curl -fsSL'): warning:"
+check "R9 wget | sh" has ".github/workflows/ci.yml:$(line_of 'wget -qO-'): warning:"
+check "a step name mentioning sudo is not reported" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(line_of 'name: Install jq'):'" "$out"
+check "comment lines are not reported" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(line_of 'in-a-comment'):'" "$out"
+check "'# ci-runner: ignore' silences a line" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(line_of 'ci-runner: ignore'):'" "$out"
+check "reading from ~/ is not a home write" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(line_of 'cp ~/.config'):'" "$out"
+check "mktemp under /tmp is fine" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(line_of 'mktemp'):'" "$out"
+check "a cache step guarded by its if: is fine" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(($(line_of "if: needs.select-runner.outputs.self-hosted != 'true'") - 1)):'" "$out"
+check "a cache step in a guarded job is fine" sh -c "! printf '%s\n' \"\$0\" | grep -q 'ci.yml:$(grep -nF 'uses: actions/cache@v4' "$BAD_CI" | tail -1 | cut -d: -f1):'" "$out"
+check "an expression runs-on is not judged" sh -c "! printf '%s\n' \"\$0\" | grep -q \"job 'matrix'\"" "$out"
+check "findings are sorted by file and line" sh -c "printf '%s\n' \"\$0\" | grep '^\.github/workflows/ci\.yml:' | cut -d: -f2 | sort -nc" "$out"
+check "the summary points at the README" has "Making jobs runner-safe"
+out="$("$BASH_BIN" "$CLI" check "$FX/clean" 2>&1)" && rc=0 || rc=$?
+check "a clean repo exits 0" test "$rc" -eq 0
+check "...says so, and skips select-runner.yml itself" sh -c "printf '%s\n' \"\$0\" | grep -q 'No problems found' && ! printf '%s\n' \"\$0\" | grep -q 'select-runner.yml:'" "$out"
+out="$("$BASH_BIN" "$CLI" check "$FX/info-only" 2>&1)" && rc=0 || rc=$?
+check "info-only findings exit 0" sh -c "[ $rc -eq 0 ] && [ \$(printf '%s\n' \"\$0\" | grep -c ': info: ') -eq 2 ]" "$out"
+mkdir -p "$WORK/noflows"
+"$BASH_BIN" "$CLI" check "$WORK/noflows" >/dev/null 2>&1; rc=$?
+check "no .github/workflows exits 2" test "$rc" -eq 2
+mkdir -p "$WORK/noflows/.github/workflows"
+"$BASH_BIN" "$CLI" check "$WORK/noflows" >/dev/null 2>&1; rc=$?
+check "no workflow files exits 2" test "$rc" -eq 2
+check "check uses the current directory by default" sh -c "cd '$FX/clean' && '$BASH_BIN' '$CLI' check"
+
 echo "== workflow"
 mkdir -p "$WORK/repo" && cd "$WORK/repo" || exit 1
 check "writes select-runner.yml" sh -c "'$BASH_BIN' '$CLI' workflow && cmp -s '$ROOT/plugins/ci-runner/templates/select-runner.yml' .github/workflows/select-runner.yml"
