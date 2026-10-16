@@ -75,7 +75,10 @@ A shell command first and a plugin second, so it works without Claude Code: `ci-
 registers a self-hosted runner for a repository (or an organization) as a systemd service on
 Linux or a launchd agent on macOS, `ci-runner workflow` writes a `select-runner.yml` reusable
 workflow, and `ci-runner on` / `off` turn the runner on or off with repository variables. On sends
-jobs to your machine when it is online and to GitHub-hosted runners when it is not. Generalised
+jobs to your machine when it is online and to GitHub-hosted runners when it is not.
+`ci-runner scale N` sets how many instances (parallel jobs) the machine runs, `--cpu`/`--memory`
+and `ci-runner limits` cap all of them together on Linux (one systemd slice), and
+`ci-runner check` lists what a repo's workflows still need before they can run there. Generalised
 from ZenithML/zenith's `self-hosted-runner/` scripts.
 
 ```
@@ -93,4 +96,5 @@ plugins/ci-runner/
 
 Self-hosted runners are for private repositories only. The plugin's
 [README](../plugins/ci-runner/README.md) has the quick start, the on/off modes, choosing the
-account, how to make jobs runner-safe, and troubleshooting.
+account, scaling, resource caps, the workflow check, how to make jobs runner-safe, and
+troubleshooting.

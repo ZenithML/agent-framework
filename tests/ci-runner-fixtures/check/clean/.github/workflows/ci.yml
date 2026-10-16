@@ -1,0 +1,25 @@
+name: CI
+on: [push]
+jobs:
+  select-runner:
+    uses: ./.github/workflows/select-runner.yml
+    secrets: inherit
+  build:
+    needs: select-runner
+    runs-on: ${{ needs.select-runner.outputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        if: needs.select-runner.outputs.self-hosted != 'true'
+        with:
+          path: node_modules
+          key: deps
+      - run: |
+          # no sudo here, and no /tmp/ either
+          out="$RUNNER_TEMP/out"
+          make test > "$out"
+  static:
+    needs: select-runner
+    runs-on: ${{ vars.CI_RUNNER_LABEL }}
+    steps:
+      - run: echo hi

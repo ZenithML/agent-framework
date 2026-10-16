@@ -1,0 +1,9 @@
+name: Release
+on: [push]
+env:
+  OUT: /tmp/release-out
+jobs:
+  publish:
+    runs-on: ${{ vars.CI_RUNNER_LABEL }}
+    steps:
+      - run: echo publish

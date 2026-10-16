@@ -4,8 +4,9 @@
 # Registers this machine as a self-hosted runner for one repository (or an
 # organization), runs it as a service, and flips the repository variables that
 # a select-runner workflow (`ci-runner workflow`) reads to choose between the
-# self-hosted runner and a GitHub-hosted one. Generalised from ZenithML/zenith's
-# self-hosted-runner/ scripts.
+# self-hosted runner and a GitHub-hosted one. `scale` sets how many instances run,
+# `limits` (Linux) caps them together in one systemd slice, and `check` reports what a
+# repo's workflows still need. Generalised from ZenithML/zenith's self-hosted-runner/ scripts.
 #
 # The runner only makes outbound HTTPS calls (it long-polls GitHub for jobs),
 # so no static IP, port forwarding or inbound firewall rule is needed.
@@ -15,7 +16,7 @@
 # and no empty-array expansions under `set -u`.
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 # ── locate our own files through any symlink (no readlink -f on macOS) ──────
 self="${BASH_SOURCE[0]}"
@@ -30,6 +31,10 @@ PLUGIN_DIR="$(cd "$(dirname "$self")/.." && pwd)"
 TEMPLATE="$PLUGIN_DIR/templates/select-runner.yml"
 
 GH_HOST_NAME="${GH_HOST:-github.com}"
+# Linux resource caps: every instance joins one slice, so the cap is shared by all of them.
+SYSTEMD_DIR="${CI_RUNNER_SYSTEMD_DIR:-/etc/systemd/system}"
+SLICE="ci-runner.slice"
+DROPIN="ci-runner-slice.conf"
 
 die() { echo "ci-runner: $*" >&2; exit 1; }
 say() { echo "==> $*"; }
@@ -44,7 +49,9 @@ Everyday:
   on          Turn it on: jobs go to your machine when it is online, else to GitHub-hosted
               runners (needs a token for that fallback; see below). --no-fallback: always your machine.
   off         Turn it off: the next run is back on GitHub-hosted runners.
-  status      Is it on? Which mode? Is the runner online? What is missing?
+  status      Is it on? Which mode? Is the runner online? Instances and caps on this machine?
+  check [DIR] What do the repo's workflows still need for a self-hosted runner? Prints
+              file:line findings; exit 1 on warnings, 0 when clean (or info only), 2 if no workflows.
 
 One-time setup:
   install     Register this machine as a runner and start it as a service
@@ -52,11 +59,17 @@ One-time setup:
   uninstall   Stop, deregister and delete the runners installed for a repo or org
   version     Print the version
 
-Options (on, off, status, install, uninstall):
+Capacity:
+  scale N     Keep exactly N instances for the repo/org on this machine: removes the highest-
+              numbered (stop, deregister, delete), adds missing ones the way install does
+  limits      Linux: show or change the CPU and memory cap shared by every ci-runner instance
+              on this machine (one systemd slice, ci-runner.slice). macOS: not supported.
+
+Options (on, off, status, install, uninstall, scale):
   --repo OWNER/NAME   The repository (default: the current directory's, via gh)
   --org ORG           install/uninstall/status: register at organization level instead.
                       The runner then serves every repo the org's Default runner group allows.
-  --dry-run           Print what would happen, change nothing
+  --dry-run           Print what would happen, change nothing (every command that writes)
 
 install:
   --create-user       Linux: run jobs as a dedicated account 'ci-runner', created if missing
@@ -68,6 +81,22 @@ install:
                       architecture labels (Linux/macOS, X64/ARM64) automatically.
   --dir DIR           Where runners live (default: ~/actions-runner, in the job account's home)
   --runner-version V  actions/runner version (default: latest release)
+  --cpu PCT           Linux: cap all instances together at PCT% of the machine's CPU (PCT x cores
+                      in systemd's CPUQuota). 'none' removes the cap. Also for scale and limits.
+  --memory PCT        Linux: cap all instances together at PCT% of the machine's memory (MemoryMax).
+                      'none' removes the cap. Also for scale and limits.
+
+scale N:
+  N                   Instances to keep (1 or more; to remove all, use uninstall)
+  --force             Also remove an instance that is busy running a job (interrupts the job)
+  --label, --run-as   For added instances (default: the label and account of the existing ones)
+  --cpu, --memory     Change the shared caps too (as limits does)
+
+limits:
+  (no flags)          Show the current caps
+  --cpu PCT|none      Change or remove the CPU cap; the other cap is kept
+  --memory PCT|none   Change or remove the memory cap; the other cap is kept
+  Instances not in the slice yet are moved in, which restarts them.
 
 on:
   --no-fallback       Always use your machine; jobs wait in the queue while it is off
@@ -110,13 +139,28 @@ ASSUME_YES=false
 DRY_RUN=false
 OUT=".github/workflows/select-runner.yml"
 FORCE=false
+CPU_CAP=""
+MEM_CAP=""
+LABEL_GIVEN=false
+ALLOW_POS=false
+POSITIONAL=""
+
+# A cap is a whole percentage of the machine, 1-100, or 'none' to remove it.
+valid_pct() {
+  case "$2" in
+    none|[1-9]|[1-9][0-9]|100) return 0 ;;
+  esac
+  die "$1 must be a whole percentage from 1 to 100, or 'none' (got '$2')"
+}
 
 parse_opts() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --repo) [ $# -ge 2 ] || die "--repo needs OWNER/NAME"; REPO="$2"; shift 2 ;;
       --org) [ $# -ge 2 ] || die "--org needs a name"; ORG="$2"; shift 2 ;;
-      --label) [ $# -ge 2 ] || die "--label needs a value"; LABEL="$2"; shift 2 ;;
+      --label) [ $# -ge 2 ] || die "--label needs a value"; LABEL="$2"; LABEL_GIVEN=true; shift 2 ;;
+      --cpu) [ $# -ge 2 ] || die "--cpu needs a percentage or 'none'"; valid_pct --cpu "$2"; CPU_CAP="$2"; shift 2 ;;
+      --memory) [ $# -ge 2 ] || die "--memory needs a percentage or 'none'"; valid_pct --memory "$2"; MEM_CAP="$2"; shift 2 ;;
       --count) [ $# -ge 2 ] || die "--count needs a number"; COUNT="$2"; shift 2 ;;
       --dir) [ $# -ge 2 ] || die "--dir needs a path"; DIR_BASE="$2"; shift 2 ;;
       --run-as) [ $# -ge 2 ] || die "--run-as needs a user"; RUN_AS="$2"
@@ -131,7 +175,11 @@ parse_opts() {
       --dry-run|-n) DRY_RUN=true; shift ;;
       --force|-f) FORCE=true; shift ;;
       --help|-h) usage; exit 0 ;;
-      *) die "unknown option '$1' (see ci-runner --help)" ;;
+      -*) die "unknown option '$1' (see ci-runner --help)" ;;
+      *)
+        if $ALLOW_POS && [ -z "$POSITIONAL" ]; then POSITIONAL="$1"; shift
+        else die "unexpected argument '$1' (see ci-runner --help)"
+        fi ;;
     esac
   done
   case "$COUNT" in ''|*[!0-9]*|0) die "--count must be a positive integer (got '$COUNT')" ;; esac
@@ -201,6 +249,25 @@ instance_dirs() {
   return 0
 }
 
+# 1 for the bare slug, N for slug-N.
+instance_index() {
+  case "$1" in
+    */"$(target_slug)") echo 1 ;;
+    *) echo "${1##*-}" ;;
+  esac
+}
+
+# Where this target's instances are: --dir / --run-as when given, else the first runner
+# base that holds some (yours, then the 'ci-runner' account's), else yours.
+find_base() {
+  local b
+  if [ -n "$DIR_BASE" ] || [ -n "$RUN_AS" ]; then default_dir_base; return 0; fi
+  for b in $(runner_bases); do
+    if [ -n "$(instance_dirs "$b")" ]; then echo "$b"; return 0; fi
+  done
+  echo "$HOME/actions-runner"
+}
+
 # Run a command as the runner's account: plain when that is us, sudo -u otherwise.
 as_runner() {
   if [ -n "$RUN_AS" ] && [ "$RUN_AS" != "$(id -un)" ]; then sudo -u "$RUN_AS" -H "$@"; else "$@"; fi
@@ -208,6 +275,180 @@ as_runner() {
 
 run() {
   if $DRY_RUN; then echo "   [dry-run] $*"; else "$@"; fi
+}
+
+# Root for system files: directly when we are root, else through sudo.
+as_root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
+
+# Write a root-owned file; a dry run prints the content instead.
+write_root_file() {
+  if $DRY_RUN; then
+    echo "   [dry-run] write $1:"
+    printf '%s\n' "$2" | sed 's/^/      | /'
+  else
+    printf '%s\n' "$2" | as_root tee "$1" >/dev/null
+  fi
+}
+
+# ── resource caps (Linux, systemd) ───────────────────────────────────────────
+is_macos() { [ "$(uname -s)" = Darwin ]; }
+caps_given() { [ -n "$CPU_CAP" ] || [ -n "$MEM_CAP" ]; }
+macos_caps_notice() {
+  echo "Note: resource caps (--cpu, --memory, limits) are not supported on macOS; carrying on without them."
+}
+
+cpu_cores() {
+  local n
+  n="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+  case "$n" in ''|*[!0-9]*|0) n=1 ;; esac
+  echo "$n"
+}
+
+# The percentages the user chose live on the slice's '# ci-runner:' comment line.
+read_caps() {
+  local line kv
+  CUR_CPU=none; CUR_MEM=none
+  [ -f "$SYSTEMD_DIR/$SLICE" ] || return 0
+  line="$(sed -n 's/^# ci-runner: //p' "$SYSTEMD_DIR/$SLICE" | head -1)"
+  for kv in $line; do
+    case "$kv" in
+      cpu=*) CUR_CPU="${kv#cpu=}" ;;
+      memory=*) CUR_MEM="${kv#memory=}" ;;
+    esac
+  done
+  case "$CUR_CPU" in none|[1-9]|[1-9][0-9]|100) ;; *) CUR_CPU=none ;; esac
+  case "$CUR_MEM" in none|[1-9]|[1-9][0-9]|100) ;; *) CUR_MEM=none ;; esac
+}
+
+# What this run leaves in place: the flags given, else what is already set.
+effective_caps() {
+  read_caps
+  EFF_CPU="${CPU_CAP:-$CUR_CPU}"
+  EFF_MEM="${MEM_CAP:-$CUR_MEM}"
+}
+
+caps_summary() {
+  local cores text
+  if is_macos; then echo "not supported on macOS"; return 0; fi
+  effective_caps
+  if [ "$EFF_CPU" = none ] && [ "$EFF_MEM" = none ]; then echo "none"; return 0; fi
+  cores="$(cpu_cores)"
+  if [ "$EFF_CPU" = none ]; then text="CPU uncapped"
+  else text="CPU $EFF_CPU% ($(awk -v p="$EFF_CPU" -v c="$cores" 'BEGIN { printf "%g", p * c / 100 }') of $cores cores)"
+  fi
+  if [ "$EFF_MEM" = none ]; then text="$text, memory uncapped"; else text="$text, memory $EFF_MEM%"; fi
+  echo "$text"
+}
+
+slice_content() {
+  local cores
+  cores="$(cpu_cores)"
+  echo "# Written by ci-runner (agent-framework, plugins/ci-runner). Change with: ci-runner limits"
+  echo "# ci-runner: cpu=$1 memory=$2"
+  echo "[Unit]"
+  echo "Description=ci-runner: self-hosted GitHub Actions runners (shared resource cap)"
+  echo
+  echo "[Slice]"
+  echo "CPUAccounting=yes"
+  echo "MemoryAccounting=yes"
+  if [ "$1" != none ]; then echo "CPUQuota=$(($1 * cores))%"; fi
+  if [ "$2" != none ]; then echo "MemoryMax=$2%"; fi
+}
+
+# Write the slice with the effective caps and apply them to the running slice too.
+apply_caps() {
+  local cores cpuprop memprop
+  effective_caps
+  cores="$(cpu_cores)"
+  say "Resource caps for all ci-runner instances on this machine: $(caps_summary)"
+  write_root_file "$SYSTEMD_DIR/$SLICE" "$(slice_content "$EFF_CPU" "$EFF_MEM")"
+  run as_root systemctl daemon-reload
+  if [ "$EFF_CPU" = none ]; then cpuprop="CPUQuota="; else cpuprop="CPUQuota=$((EFF_CPU * cores))%"; fi
+  if [ "$EFF_MEM" = none ]; then memprop="MemoryMax=infinity"; else memprop="MemoryMax=$EFF_MEM%"; fi
+  run as_root systemctl set-property --runtime "$SLICE" "$cpuprop" "$memprop" \
+    || echo "   warning: could not apply the caps to the running slice; they apply when its runners next start" >&2
+}
+
+dropin_content() {
+  echo "# Written by ci-runner: run this runner in the shared, capped $SLICE"
+  echo "[Service]"
+  echo "Slice=$SLICE"
+}
+
+# A runner unit name as svc.sh records it in the runner's .service file. That file sits in a
+# directory jobs can write to, so accept runner units only: never a path, never another service.
+valid_unit() {
+  case "$1" in */*|*' '*|*..*) return 1 ;; esac
+  case "$1" in actions.runner.?*.service) return 0 ;; esac
+  return 1
+}
+
+write_dropin() {
+  run as_root mkdir -p "$SYSTEMD_DIR/$1.d"
+  write_root_file "$SYSTEMD_DIR/$1.d/$DROPIN" "$(dropin_content)"
+}
+
+# Put one new instance's service in the slice, before its first start.
+join_slice() {
+  local dir="$1" unit
+  unit="$(cat "$dir/.service" 2>/dev/null || true)"
+  if ! valid_unit "$unit"; then
+    if ! $DRY_RUN; then echo "   note: no service name in $dir/.service, so it cannot join $SLICE" >&2; return 0; fi
+    unit="<unit named in $dir/.service>"
+  fi
+  write_dropin "$unit"
+  run as_root systemctl daemon-reload
+}
+
+# A home directory, or nothing when the account does not exist.
+home_or_empty() {
+  local h=""
+  if command -v getent >/dev/null 2>&1; then h="$(getent passwd "$1" 2>/dev/null | cut -d: -f6)"; fi
+  [ -n "$h" ] || h="$(eval echo "~$1" 2>/dev/null)"
+  case "$h" in "~"*) h="" ;; esac
+  echo "$h"
+}
+
+# Where runner directories may be: --dir / --run-as when given, else ours and the
+# dedicated 'ci-runner' account's.
+runner_bases() {
+  local h
+  if [ -n "$DIR_BASE" ] || [ -n "$RUN_AS" ]; then default_dir_base; return 0; fi
+  echo "$HOME/actions-runner"
+  h="$(home_or_empty ci-runner)"
+  if [ -n "$h" ] && [ "$h/actions-runner" != "$HOME/actions-runner" ]; then echo "$h/actions-runner"; fi
+  return 0
+}
+
+# Move every runner under the runner bases that is not in the slice yet into it. Moving a
+# running service needs a restart, which interrupts a job running there; say so.
+join_existing() {
+  local base svcfile unit joined=""
+  for base in $(runner_bases); do
+    for svcfile in "$base"/*/.service; do
+      [ -f "$svcfile" ] || continue
+      unit="$(cat "$svcfile" 2>/dev/null || true)"
+      valid_unit "$unit" || continue
+      [ -f "$SYSTEMD_DIR/$unit.d/$DROPIN" ] && continue
+      say "Moving $unit into $SLICE"
+      write_dropin "$unit"
+      joined="$joined $unit"
+    done
+  done
+  [ -n "$joined" ] || return 0
+  run as_root systemctl daemon-reload
+  echo "   warning: restarting these runners so they join $SLICE; a job running on one of them is interrupted" >&2
+  for unit in $joined; do
+    echo "   Restarting $unit"
+    run as_root systemctl restart "$unit"
+  done
+}
+
+# An uncapped slice, so instances can join it now and 'limits' later needs no restart.
+ensure_slice() {
+  [ -f "$SYSTEMD_DIR/$SLICE" ] && return 0
+  write_root_file "$SYSTEMD_DIR/$SLICE" "$(slice_content none none)"
+  run as_root systemctl daemon-reload
 }
 
 platform() {
@@ -338,13 +579,67 @@ install_one() {
 
   case "$plat" in
     linux-*)
-      say "[$i/$COUNT] Installing the systemd service (sudo)"
-      run sh -c 'cd "$1" && sudo ./svc.sh install "$2" && sudo ./svc.sh start' sh "$dir" "${RUN_AS:-$(id -un)}"
+      say "[$i/$COUNT] Installing the systemd service in $SLICE (sudo)"
+      run sh -c 'cd "$1" && sudo ./svc.sh install "$2"' sh "$dir" "${RUN_AS:-$(id -un)}"
+      join_slice "$dir"
+      run sh -c 'cd "$1" && sudo ./svc.sh start' sh "$dir"
       ;;
     osx-*)
       say "[$i/$COUNT] Installing the launchd agent (runs while $(id -un) is signed in)"
       run sh -c 'cd "$1" && ./svc.sh install && ./svc.sh start' sh "$dir"
       ;;
+  esac
+}
+
+# Instances installed (with config.sh) for the target under a base.
+count_instances() {
+  local dir c=0
+  for dir in $(instance_dirs "$1"); do
+    if [ -x "$dir/config.sh" ]; then c=$((c + 1)); fi
+  done
+  echo "$c"
+}
+
+# Instances numbered above N, for the count a dry run would leave.
+count_above() {
+  local dir c=0
+  for dir in $(instance_dirs "$1"); do
+    if [ -x "$dir/config.sh" ] && [ "$(instance_index "$dir")" -gt "$2" ]; then c=$((c + 1)); fi
+  done
+  echo "$c"
+}
+
+# The closing block of install, scale and limits: where things stand and what to do next.
+# $1: instance count (empty for limits), $2: "workflow" to include that step.
+next_steps() {
+  local flag on
+  if [ -n "$ORG" ]; then flag="--org $ORG"; on="ci-runner on --org-runner --repo $ORG/<repo>"
+  elif [ -n "$REPO" ]; then flag="--repo $REPO"; on="ci-runner on --repo $REPO"
+  else flag="--repo OWNER/NAME"; on="ci-runner on --repo OWNER/NAME"
+  fi
+  echo
+  echo "Next steps:"
+  if [ -n "$1" ]; then
+    echo "  Now:      $1 runner instance(s) for ${REPO:-$ORG} on this machine; caps: $(caps_summary)"
+  else
+    echo "  Now:      caps for all ci-runner instances on this machine: $(caps_summary)"
+  fi
+  echo "  Change:   ci-runner scale N $flag   (more or fewer instances)"
+  if ! is_macos; then
+    echo "            ci-runner limits --cpu PCT --memory PCT   (shared caps, percent of the machine; 'none' removes one)"
+  fi
+  if [ "${2:-}" = workflow ]; then
+    echo "  Wire up:  ci-runner workflow   (once per repo: writes .github/workflows/select-runner.yml; commit it)"
+  fi
+  echo "  Turn on:  $on"
+  echo "  Check:    ci-runner check   (in a checkout of the repo: what its workflows still need)"
+}
+
+# Before adding instances: the slice they join, capped when --cpu/--memory were given.
+prepare_caps() {
+  case "$1" in
+    linux-*) if caps_given; then apply_caps; else ensure_slice; fi ;;
+    *) if caps_given; then macos_caps_notice; fi ;;
   esac
 }
 
@@ -361,55 +656,182 @@ cmd_install() {
     version="${version#v}"
   fi
   say "Installing $COUNT runner(s) for $(target_url), actions/runner $version ($plat), under $base"
+  prepare_caps "$plat"
   i=1
   while [ "$i" -le "$COUNT" ]; do
     install_one "$i" "$base" "$plat" "$version"
     i=$((i + 1))
   done
+  case "$plat" in linux-*) if caps_given; then join_existing; fi ;; esac
 
-  echo
-  if $DRY_RUN; then echo "Dry run: nothing was changed."; return 0; fi
-  echo "Installed. Jobs still run on GitHub-hosted runners until you turn it on:"
-  if [ -n "$ORG" ]; then
-    echo "  ci-runner workflow                                   (once per repo; commit the file)"
-    echo "  ci-runner on --org-runner --repo $ORG/<repo>          (per repo that should use it)"
-  else
-    echo "  ci-runner workflow         (once: writes .github/workflows/select-runner.yml; commit it and point jobs at it)"
-    echo "  ci-runner on --repo $REPO"
+  if $DRY_RUN; then
+    next_steps "$((COUNT + $(count_above "$base" "$COUNT")))" workflow
+    echo; echo "Dry run: nothing was changed."
+    return 0
   fi
-  echo "Jobs should not count on passwordless sudo: preinstall what they would apt-get or brew install."
+  echo
+  echo "Installed. Jobs still run on GitHub-hosted runners until you turn it on."
+  next_steps "$(count_instances "$base")" workflow
+}
+
+# Stop, deregister and delete one runner directory, and take its service out of the slice.
+# RUN_AS is decided per directory (from its owner), starting from the account given.
+remove_instance() {
+  local dir="$1" token user unit
+  RUN_AS="$2"
+  say "Removing the runner at $dir"
+  unit="$(cat "$dir/.service" 2>/dev/null || true)"
+  if [ -x "$dir/svc.sh" ]; then
+    case "$(platform)" in
+      linux-*) run sh -c 'cd "$1" && { sudo ./svc.sh stop; sudo ./svc.sh uninstall; } || true' sh "$dir" ;;
+      osx-*) run sh -c 'cd "$1" && { ./svc.sh stop; ./svc.sh uninstall; } || true' sh "$dir" ;;
+    esac
+  fi
+  if $DRY_RUN; then
+    token="<remove-token>"
+  else
+    token="$(gh api -X POST "$(api_scope)/actions/runners/remove-token" --jq .token)" \
+      || die "could not get a removal token for $(api_scope)"
+  fi
+  # The runner's own files belong to its account; remove as that account.
+  # shellcheck disable=SC2012  # stat's flags differ between BSD and GNU; ls -ld does not
+  user="$(ls -ld "$dir" | awk '{print $3}')"
+  if [ "$user" != "$(id -un)" ]; then RUN_AS="$user"; fi
+  # shellcheck disable=SC2016
+  run as_runner sh -c 'cd "$1" && ./config.sh remove --token "$2"' sh "$dir" "$token"
+  if [ -n "$RUN_AS" ] && [ "$RUN_AS" != "$(id -un)" ]; then run sudo rm -rf "$dir"; else run rm -rf "$dir"; fi
+  if valid_unit "$unit" && [ -f "$SYSTEMD_DIR/$unit.d/$DROPIN" ]; then
+    # shellcheck disable=SC2016
+    run as_root sh -c 'rm -f "$1/$2"; rmdir "$1" 2>/dev/null || true' sh "$SYSTEMD_DIR/$unit.d" "$DROPIN"
+  fi
+}
+
+# The runner list as name=busy=custom-labels lines; status 1 when it cannot be read.
+runner_list() {
+  gh api "$(api_scope)/actions/runners?per_page=100" \
+    --jq '.runners[] | "\(.name)=\(.busy)=\([.labels[] | select(.type == "custom") | .name] | join(","))"' 2>/dev/null
+}
+
+# Field 2 (busy) or 3 (custom labels) of one runner in that list.
+runner_field() { printf '%s\n' "$1" | awk -F= -v n="$2" -v f="$3" '$1 == n { print $f; exit }'; }
+
+cmd_scale() {
+  local n="$POSITIONAL" plat base entries idx dir ref="" owner list="" listed=false busy kept=false
+  local changed=false run_as missing="" i version lbl prepared=false warned=false kept_count=0
+  case "$n" in
+    '') die "scale needs the number of instances: ci-runner scale N [--repo OWNER/NAME | --org ORG]" ;;
+    *[!0-9]*) die "scale N needs a positive whole number (got '$n')" ;;
+  esac
+  n=$((10#$n))
+  [ "$n" -gt 0 ] || die "scale 0 would remove every instance; to do that, run: ci-runner uninstall"
+  need_gh
+  resolve_repo
+  plat="$(platform)"
+  base="$(find_base)"
+  entries="$(for dir in $(instance_dirs "$base"); do echo "$(instance_index "$dir") $dir"; done | sort -n)"
+  for dir in $(printf '%s\n' "$entries" | cut -d' ' -f2-); do
+    if [ -x "$dir/config.sh" ]; then ref="$dir"; break; fi
+  done
+
+  # The account was chosen at install: new instances run as the one that owns the existing ones.
+  if [ -n "$ref" ]; then
+    if [ -z "$RUN_AS" ] && ! $CREATE_USER; then
+      # shellcheck disable=SC2012  # stat's flags differ between BSD and GNU; ls -ld does not
+      owner="$(ls -ld "$ref" | awk '{print $3}')"
+      if [ "$owner" != "$(id -un)" ]; then RUN_AS="$owner"; fi
+    fi
+    if [ "$RUN_AS" = root ] || { [ "$(id -u)" -eq 0 ] && [ -z "$RUN_AS" ]; }; then
+      die "do not run CI jobs as root; add --create-user (or --run-as USER) for a dedicated account"
+    fi
+    case "$plat" in linux-*) if [ -n "$RUN_AS" ]; then ensure_runner_user; fi ;; esac
+  else
+    confirm_account "$plat"
+  fi
+  run_as="$RUN_AS"
+  if list="$(runner_list)"; then listed=true; fi
+
+  # Shrink: every instance numbered above N, highest first.
+  while read -r idx dir <&3; do
+    [ -n "$dir" ] || continue
+    [ "$idx" -gt "$n" ] || continue
+    if $listed; then
+      busy="$(runner_field "$list" "$(instance_name "$idx")" 2)"
+      if [ "$busy" = true ] && ! $FORCE; then
+        echo "ci-runner: $(instance_name "$idx") is busy running a job; left in place. Retry when it is idle, or pass --force to remove it anyway." >&2
+        kept=true
+        kept_count=$((kept_count + 1))
+        continue
+      fi
+    elif ! $warned; then
+      echo "   warning: could not check which runners are busy (listing them needs admin rights on $(api_scope)); removing anyway" >&2
+      warned=true
+    fi
+    if [ -x "$dir/config.sh" ]; then
+      remove_instance "$dir" "$run_as"
+      RUN_AS="$run_as"
+    else
+      say "Removing the partial runner directory $dir"
+      run as_root rm -rf "$dir"
+    fi
+    changed=true
+  done 3<<EOF
+$(printf '%s\n' "$entries" | sort -rn)
+EOF
+
+  # Grow: whatever of 1..N is missing, the way install adds it.
+  i=1
+  while [ "$i" -le "$n" ]; do
+    dir="$(instance_dir "$base" "$i")"
+    if [ ! -x "$dir/config.sh" ] || [ ! -f "$dir/.runner" ]; then missing="$missing $i"; fi
+    i=$((i + 1))
+  done
+  if [ -n "$missing" ]; then
+    if ! $LABEL_GIVEN && [ -n "$ref" ] && $listed; then
+      lbl="$(runner_field "$list" "$(instance_name "$(instance_index "$ref")")" 3)"
+      lbl="${lbl%%,*}"
+      case "$lbl" in ''|*[!A-Za-z0-9._-]*) ;; *) LABEL="$lbl" ;; esac
+    fi
+    version="$RUNNER_VERSION"
+    if [ -z "$version" ]; then
+      version="$(gh api repos/actions/runner/releases/latest --jq .tag_name)" || die "could not look up the latest actions/runner release"
+      version="${version#v}"
+    fi
+    say "Adding instance(s)$missing for $(target_url) under $base: label '$LABEL', account '${RUN_AS:-$(id -un)}', actions/runner $version"
+    prepare_caps "$plat"
+    prepared=true
+    COUNT="$n"
+    for i in $missing; do install_one "$i" "$base" "$plat" "$version"; done
+    changed=true
+  fi
+  if caps_given; then
+    $prepared || prepare_caps "$plat"
+    case "$plat" in linux-*) join_existing ;; esac
+    changed=true
+  fi
+  if ! $changed && ! $kept; then
+    echo "$(target_slug) already has instances 1..$n on this machine; nothing to change."
+  fi
+  if $DRY_RUN; then
+    next_steps "$((n + kept_count))"
+    echo; echo "Dry run: nothing was changed."
+  else
+    next_steps "$(count_instances "$base")"
+  fi
+  if $kept; then exit 1; fi
+  return 0
 }
 
 cmd_uninstall() {
   need_gh
   resolve_repo
-  local base dir found=false token user run_as_given="$RUN_AS"
+  local base dir found=false run_as_given="$RUN_AS"
   base="$(default_dir_base)"
   for dir in $(instance_dirs "$base"); do
     [ -x "$dir/config.sh" ] || continue
-    RUN_AS="$run_as_given"  # decided per directory below, never carried over from the last one
     found=true
-    say "Removing the runner at $dir"
-    if [ -x "$dir/svc.sh" ]; then
-      case "$(platform)" in
-        linux-*) run sh -c 'cd "$1" && { sudo ./svc.sh stop; sudo ./svc.sh uninstall; } || true' sh "$dir" ;;
-        osx-*) run sh -c 'cd "$1" && { ./svc.sh stop; ./svc.sh uninstall; } || true' sh "$dir" ;;
-      esac
-    fi
-    if $DRY_RUN; then
-      token="<remove-token>"
-    else
-      token="$(gh api -X POST "$(api_scope)/actions/runners/remove-token" --jq .token)" \
-        || die "could not get a removal token for $(api_scope)"
-    fi
-    # The runner's own files belong to its account; remove as that account.
-    # shellcheck disable=SC2012  # stat's flags differ between BSD and GNU; ls -ld does not
-    user="$(ls -ld "$dir" | awk '{print $3}')"
-    if [ "$user" != "$(id -un)" ]; then RUN_AS="$user"; fi
-    # shellcheck disable=SC2016
-    run as_runner sh -c 'cd "$1" && ./config.sh remove --token "$2"' sh "$dir" "$token"
-    if [ -n "$RUN_AS" ] && [ "$RUN_AS" != "$(id -un)" ]; then run sudo rm -rf "$dir"; else run rm -rf "$dir"; fi
+    remove_instance "$dir" "$run_as_given"
   done
+  RUN_AS="$run_as_given"
   if ! $found; then
     echo "No runners for $(target_slug) under $base; nothing to remove."
     return 0
@@ -471,13 +893,15 @@ cmd_status() {
   else
     echo "  (could not list them; that needs admin rights on ${listing%/actions/runners})"
   fi
-  base="$(default_dir_base)"
+  base="$(find_base)"
   echo "Runner directories on this machine, under $base:"
   for dir in $(instance_dirs "$base"); do
     found=true
     echo "  $dir"
   done
   $found || echo "  (none)"
+  echo "Instances on this machine: $(count_instances "$base")   (change: ci-runner scale N)"
+  echo "Resource caps (all ci-runner instances on this machine): $(caps_summary)"
 }
 
 # The fallback needs a token that can list runners (GITHUB_TOKEN cannot). Store it as the
@@ -574,6 +998,168 @@ cmd_off() {
   echo "The runner service keeps idling (harmless); 'ci-runner uninstall --repo $REPO' removes it."
 }
 
+cmd_limits() {
+  if is_macos; then macos_caps_notice; return 0; fi
+  if ! caps_given; then
+    echo "Resource caps (all ci-runner instances on this machine): $(caps_summary)"
+    if [ -f "$SYSTEMD_DIR/$SLICE" ]; then echo "  Set in $SYSTEMD_DIR/$SLICE"; fi
+    echo "Change: ci-runner limits --cpu PCT --memory PCT   (percent of the machine; 'none' removes one)"
+    return 0
+  fi
+  apply_caps
+  join_existing
+  next_steps ""
+  if $DRY_RUN; then echo; echo "Dry run: nothing was changed."; fi
+}
+
+# ── check: is a repo's workflow set ready for a self-hosted runner? ───────────
+# Line-based on purpose (no YAML parser, no yq): it follows indentation to know the job,
+# the step and whether a line is shell script, which is enough for these rules. Prints
+# "file:line: level: message" lines; the caller sorts and counts them.
+# shellcheck disable=SC2016  # awk program, not shell
+CHECK_AWK='
+function indent(s) { match(s, /^ */); return RLENGTH }
+function report(nr, level, msg) { if (!(nr in ign)) print f ":" nr ": " level ": " msg }
+function keyof(s) { sub(/^ *(- *)?/, "", s); sub(/:.*/, "", s); return s }
+function valof(s) { sub(/^ *(- *)?[^:]*:[ \t]*/, "", s); return s }
+function flush_step() {
+  if (st_line && (st_cache || (st_setup && st_hascache)) && !st_guard) pend[++np] = st_line
+  st_line = 0; st_cache = 0; st_setup = 0; st_hascache = 0; st_guard = 0; inrun = 0
+}
+function flush_job(   i) {
+  flush_step()
+  for (i = 1; i <= np; i++)
+    if (!job_guard) report(pend[i], "warning", "caching (actions/cache, or cache: on a setup action) is slow on the self-hosted runner and not needed there (its disk persists); add if: needs.select-runner.outputs.self-hosted != \"true\" to the step or job")
+  np = 0; job_guard = 0; insteps = 0; inrunson = 0; jk_ind = -1; st_ind = -1
+}
+function runs_on(v, nr,   n, t, i) {
+  if (v ~ /\$\{\{/) return
+  gsub(/[][",]/, " ", v); gsub("\047", " ", v)
+  n = split(v, t, " ")
+  for (i = 1; i <= n; i++) {
+    if (t[i] ~ /^ubuntu-/) {
+      report(nr, "warning", "job \047" job "\047 runs on GitHub-hosted \047" t[i] "\047; to let ci-runner route it, use runs-on: ${{ needs.select-runner.outputs.target }} with needs: select-runner")
+      return
+    }
+    if (t[i] ~ /^(macos|windows)-/) {
+      report(nr, "info", "job \047" job "\047 runs on \047" t[i] "\047, which stays GitHub-hosted (fine if intended)")
+      return
+    }
+  }
+}
+function script(s, nr) {
+  if (s ~ /(^|[^A-Za-z0-9_-])sudo([^A-Za-z0-9_-]|$)/)
+    report(nr, "warning", "sudo: the runner has no passwordless sudo; preinstall the tool on the machine and guard the step (command -v tool || ...)")
+  if (s ~ /git[ \t]+config[ \t]+(.*[ \t])?--global/)
+    report(nr, "warning", "git config --global changes the runner account for every later job; use repo-local git config or GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig")
+  else if (s ~ (">[ \t]*" home) || s ~ ("(^|[;&|( \t])(tee|mkdir|touch)[ \t][^;&|]*" home) || s ~ ("(^|[;&|( \t])(cp|mv|ln)[ \t][^;&|]*[ \t]" home "[^ \t;&|]*[ \t]*([;&|]|$)"))
+    report(nr, "warning", "writes to the runner account home, which persists between jobs and is shared by every instance; use $RUNNER_TEMP or the workspace")
+  if (s ~ /(curl|wget)[^|]*\|[ \t]*(sudo[ \t]+)?(ba|z|da)?sh([ \t]|$)/)
+    report(nr, "warning", "curl/wget | sh installs on every run and often needs root; preinstall the tool on the runner machine")
+}
+BEGIN {
+  home = "\"?(~|[$]HOME|[$][{]HOME[}])/"
+  tmp = "(^|[^A-Za-z0-9_.$}/-])/tmp(/|[ \t\"]|$)"
+  job_ind = -1; jk_ind = -1; st_ind = -1
+}
+{
+  sub(/\r$/, "")
+  line = $0
+  if (line ~ /#[ \t]*ci-runner:[ \t]*ignore[ \t]*$/) ign[NR] = 1
+  if (line ~ /^[ \t]*(#|$)/) next
+  ind = indent(line)
+  if (line !~ /mktemp/ && line ~ tmp)
+    report(NR, "warning", "fixed /tmp path: it survives between jobs and collides between instances; use $RUNNER_TEMP")
+
+  if (inrun) { if (ind > run_ind) { script(line, NR); next } inrun = 0 }
+
+  if (ind == 0) { if (injobs) flush_job(); injobs = (line ~ /^jobs:/); job_ind = -1; next }
+  if (!injobs) next
+  if (job_ind < 0) job_ind = ind
+  if (ind <= job_ind) { flush_job(); job = keyof(line); next }
+  if (jk_ind < 0) jk_ind = ind
+
+  # A list may sit at the same indent as its key (steps:\n- run: ...).
+  if (inrunson && ind >= jk_ind && line ~ /^ *- /) { v = line; sub(/^ *- */, "", v); runs_on(v, NR); next }
+  if (ind == jk_ind && !(insteps && line ~ /^ *- /)) {
+    if (insteps) { flush_step(); insteps = 0 }
+    inrunson = 0
+    k = keyof(line); v = valof(line)
+    if (k == "runs-on") { if (v == "") inrunson = 1; else runs_on(v, NR) }
+    else if (k == "container" || k == "services")
+      report(NR, "warning", k ": needs Docker on the runner machine; keep job \047" job "\047 GitHub-hosted if it has none")
+    else if (k == "if" && v ~ /self-hosted/) job_guard = 1
+    else if (k == "steps") { insteps = 1; st_ind = -1 }
+    next
+  }
+  if (inrunson) next
+  if (!insteps) next
+
+  if (line ~ /^ *- / && (st_ind < 0 || ind == st_ind)) {
+    flush_step()
+    st_ind = ind
+    match(line, /^ *- */); st_kind = RLENGTH
+    line = substr(line, st_kind + 1); ind = st_kind
+    line = sprintf("%" st_kind "s", "") line
+  }
+  if (st_ind < 0 || ind <= st_ind) next
+  if (ind == st_kind) {
+    k = keyof(line); v = valof(line)
+    if (k == "uses") {
+      st_line = NR
+      if (v ~ /^actions\/cache(\/(save|restore))?@/) st_cache = 1
+      if (v ~ /^actions\/setup-/) st_setup = 1
+      if (v ~ /^docker:\/\//) report(NR, "warning", "a docker:// step needs Docker on the runner machine; keep this job GitHub-hosted if it has none")
+    }
+    else if (k == "if" && v ~ /self-hosted/) st_guard = 1
+    else if (k == "with" && v ~ /cache:/) st_hascache = 1
+    else if (k == "run") { if (v ~ /^[|>]/) { inrun = 1; run_ind = st_kind } else script(v, NR) }
+    next
+  }
+  if (line ~ /^ *cache:[ \t]*[^ \t]/) st_hascache = 1
+}
+END { flush_job() }
+'
+
+cmd_check() {
+  local dir="." wf f out="" findings warn info files=0 have_select=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --help|-h) usage; exit 0 ;;
+      -*) die "unknown option '$1' for check (usage: ci-runner check [DIR])" ;;
+      *) [ "$dir" = . ] || die "check takes one directory"; dir="$1" ;;
+    esac
+    shift
+  done
+  wf="$dir/.github/workflows"
+  if [ ! -d "$wf" ]; then echo "ci-runner: no .github/workflows directory in $dir; nothing to check" >&2; exit 2; fi
+  for f in "$wf"/*.yml "$wf"/*.yaml; do
+    [ -f "$f" ] || continue
+    files=$((files + 1))
+    case "${f##*/}" in select-runner.yml|select-runner.yaml) have_select=true; continue ;; esac
+    out="$out$(awk -v f=".github/workflows/${f##*/}" "$CHECK_AWK" "$f")
+"
+  done
+  if [ "$files" -eq 0 ]; then echo "ci-runner: no workflow files (*.yml, *.yaml) in $wf; nothing to check" >&2; exit 2; fi
+  findings="$(printf '%s' "$out" | grep -v '^$' | sort -t: -k1,1 -k2,2n || true)"
+  if ! $have_select; then
+    findings="$(printf '%s\n%s' ".github/workflows/select-runner.yml: warning: missing, so jobs cannot switch between your runner and GitHub-hosted; run: ci-runner workflow" "$findings")"
+  fi
+  findings="$(printf '%s\n' "$findings" | grep -v '^$' || true)"
+  if [ -z "$findings" ]; then
+    echo "No problems found in $files workflow file(s) under $wf."
+    return 0
+  fi
+  printf '%s\n' "$findings"
+  warn="$(printf '%s\n' "$findings" | grep -c ': warning: ' || true)"
+  info="$(printf '%s\n' "$findings" | grep -c ': info: ' || true)"
+  echo
+  echo "$warn warning(s), $info info, in $files workflow file(s)."
+  echo "How to fix each: \"Making jobs runner-safe\" in $PLUGIN_DIR/README.md"
+  echo "A false positive: end that line with '# ci-runner: ignore'."
+  [ "$warn" -eq 0 ]
+}
+
 cmd_workflow() {
   [ -f "$TEMPLATE" ] || die "template not found at $TEMPLATE"
   if [ -e "$OUT" ] && ! $FORCE; then
@@ -609,6 +1195,9 @@ case "$command" in
   on|auto) parse_opts "$@"; cmd_on ;;
   off) parse_opts "$@"; cmd_off ;;
   workflow) parse_opts "$@"; cmd_workflow ;;
+  limits) parse_opts "$@"; cmd_limits ;;
+  scale) ALLOW_POS=true; parse_opts "$@"; cmd_scale ;;
+  check) cmd_check "$@" || exit 1 ;;
   version|--version|-V) echo "ci-runner $VERSION" ;;
   help|--help|-h) usage ;;
   *) echo "ci-runner: unknown command '$command'" >&2; usage >&2; exit 1 ;;

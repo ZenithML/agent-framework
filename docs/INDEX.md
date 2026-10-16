@@ -19,7 +19,9 @@
 
 ## Specs
 
-_None yet._ `/sdd:ship` creates `specs/<domain>/` as features are developed.
+| Domain | Document | Status |
+|---|---|---|
+| ci-runner: scale, resource caps, workflow readiness check (0.3.0) | [`requirements.md`](specs/ci-runner/requirements.md), [`design.md`](specs/ci-runner/design.md), [`tasks.md`](specs/ci-runner/tasks.md) | Approved |
 
 ## Research
 
