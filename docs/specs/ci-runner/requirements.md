@@ -1,6 +1,6 @@
 # ci-runner: scale, resource caps and workflow readiness — Requirements
 
-**Status:** Review
+**Status:** Approved
 **Last Updated:** 2026-10-16
 
 Scope: `plugins/ci-runner` 0.3.0. The 0.2.0 behaviour (install, uninstall, on, off, status,
@@ -52,6 +52,14 @@ Today:
   covers scale and caps with dry-run and stubbed commands, and `check` with fixture workflows.
 - **G9 Release.** The plugin version is 0.3.0 in `bin/ci-runner`, `.claude-plugin/plugin.json`
   and its `marketplace.json` entry.
+- **G10 Clear manual.** `plugins/ci-runner/README.md` has a section for each new command
+  (`scale`, `limits` and the caps flags, `check`) that says what it does, when to use it, and gives
+  an example, and its repo-side checklist ("Making jobs runner-safe") lists every rule `check`
+  reports, with the fix for each.
+- **G11 Next steps.** When `install`, `scale` or `limits` finishes, it prints short next steps:
+  the current instance count and caps, how to change them later (`ci-runner scale N`,
+  `ci-runner limits --cpu/--memory`), `ci-runner on` for the repo, and `ci-runner check` to see
+  what the repo's workflows still need.
 
 ### Readiness check rules
 
@@ -69,6 +77,8 @@ Today:
 
 ## Out of Scope
 
+- Autoscaling. There is no autoscaler: a maximum instance count (`scale`) plus collective caps
+  is the model; nothing adds or removes instances based on queue length or load.
 - Per-instance or per-repo caps. The cap is one budget for every ci-runner instance on the
   machine.
 - Caps on macOS (launchd has no collective equivalent of a systemd slice). Notice only.
@@ -221,7 +231,7 @@ does, and exits 0.
 **Given** a repo whose workflows trigger every rule R1 to R9
 **When** I run `ci-runner check` in it
 **Then** it prints one finding per occurrence as `<path>:<line>: <warning|info>: <message>`, paths
-relative to DIR, sorted by file then line, followed by a summary count and a pointer to the
+relative to DIR (R1, a missing file, has no line: `.github/workflows/select-runner.yml: warning: ...`), sorted by file then line, followed by a summary count and a pointer to the
 README's "Making jobs runner-safe" section, and exits 1.
 
 **Given** a repo whose workflows have `select-runner.yml`, every job on
@@ -254,7 +264,17 @@ README's "Making jobs runner-safe" section, and exits 1.
 **When** it runs
 **Then** it needs no `gh`, network, `yq` or other non-POSIX tool, and writes nothing.
 
-### Story 10: Dry run
+### Story 10: Next steps after install, scale and limits
+
+**Given** `ci-runner install --repo acme/widget --count 2 --cpu 50` (or `scale`, or `limits`) has finished
+**When** it prints its closing lines
+**Then** they show the instance count for the target (not for `limits`, which has no target) and the
+caps, the commands to change them (`ci-runner scale N --repo acme/widget`,
+`ci-runner limits --cpu PCT --memory PCT`), `ci-runner on --repo acme/widget` (for an org runner:
+`ci-runner on --org-runner --repo ORG/<repo>`), and `ci-runner check` to run in a checkout of the
+repo. With `--dry-run` the count and caps are the ones the run would produce.
+
+### Story 11: Dry run
 
 **Given** any of `scale`, `limits`, or `install` with `--cpu`/`--memory`
 **When** I add `--dry-run`

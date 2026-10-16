@@ -21,7 +21,7 @@
 
 | Domain | Document | Status |
 |---|---|---|
-| ci-runner: scale, resource caps, workflow readiness check (0.3.0) | [`specs/ci-runner/requirements.md`](specs/ci-runner/requirements.md) | Review |
+| ci-runner: scale, resource caps, workflow readiness check (0.3.0) | [`requirements.md`](specs/ci-runner/requirements.md), [`design.md`](specs/ci-runner/design.md), [`tasks.md`](specs/ci-runner/tasks.md) | Approved |
 
 ## Research
 
