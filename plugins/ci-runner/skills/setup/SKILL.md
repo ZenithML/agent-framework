@@ -58,9 +58,13 @@ count. On Linux, cap them together so the machine stays usable, e.g. `--cpu 50 -
 
 - `ci-runner on --repo OWNER/NAME`: the user's machine when online, else GitHub-hosted. It asks for
   the fallback token (a fine-grained token with Administration: Read-only on that repo, hidden
-  input); the user can skip it, and `on` then always targets the machine, which it says.
-- `ci-runner on --no-fallback`: always the machine; jobs wait in the queue while it is off.
+  input); the user can skip it, and `on` then always targets the machine, which it says. Note: auto
+  mode consumes at least 1 GitHub-hosted minute per run in private repos for the decision check.
+- `ci-runner on --no-fallback`: always the machine; jobs wait in the queue while it is off. This is
+  Static Mode ($0 GitHub Actions charges; no token required). For org runners, pass `--org-runner`.
+  To set an organization default, set `CI_RUNNER_LABEL=self-hosted` in GitHub Org Variables.
 - `ci-runner off`: back to GitHub-hosted from the next run.
 
 Confirm with `ci-runner status` and by reading the next run's **Decide runner** job log. For
-anything not working, use the README's troubleshooting table.
+anything not working, use the README's troubleshooting table. Note that on GitHub Free organizations,
+`RUNNER_STATUS_PAT` must be set per private repo if using auto-fallback.
