@@ -17,6 +17,11 @@ ci-runner scale 4 --cpu 75 --memory 75   # 4 jobs at once, together using at mos
 You need: the [GitHub CLI](https://cli.github.com) signed in with admin rights on the repo
 (`gh auth login`), `curl`, `tar`, and bash 3.2 or later (the macOS default is fine).
 
+> [!NOTE]
+> **Run `ci-runner` as your regular user, never with `sudo`:** `ci-runner` needs your user's `gh` login
+> to request registration and status tokens from GitHub. It calls `sudo` internally when writing
+> systemd units or configuring cgroups.
+
 ```bash
 # 1. Get the command (once per machine)
 git clone https://github.com/zenithml/agent-framework.git

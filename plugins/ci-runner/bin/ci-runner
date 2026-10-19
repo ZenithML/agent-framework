@@ -120,7 +120,12 @@ EOF
 
 need_gh() {
   command -v gh >/dev/null 2>&1 || die "the GitHub CLI (gh) is required: https://cli.github.com"
-  gh auth status >/dev/null 2>&1 || die "gh is not signed in; run 'gh auth login' first"
+  if ! gh auth status >/dev/null 2>&1; then
+    if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+      die "gh is not signed in for root. Do not run ci-runner with sudo; run it as '$SUDO_USER' instead (ci-runner invokes sudo internally when needed)"
+    fi
+    die "gh is not signed in; run 'gh auth login' first"
+  fi
 }
 
 # ── option parsing (shared by every command) ─────────────────────────────────
@@ -240,9 +245,9 @@ instance_name() {
 # (a numeric suffix only, so repo "agent" never matches "agent-anywhere").
 instance_dirs() {
   local base="$1" dir
-  [ -d "$base/$(target_slug)" ] && echo "$base/$(target_slug)"
+  [ -d "$base/$(target_slug)" ] && [ -e "$base/$(target_slug)/config.sh" ] && echo "$base/$(target_slug)"
   for dir in "$base/$(target_slug)"-*; do
-    [ -d "$dir" ] || continue
+    [ -d "$dir" ] && [ -e "$dir/config.sh" ] || continue
     case "${dir##*-}" in ''|*[!0-9]*) continue ;; esac
     echo "$dir"
   done

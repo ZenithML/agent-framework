@@ -19,7 +19,8 @@ which is the parent of this skill's `skills/` folder:
 
 Without the plugin on disk: `git clone https://github.com/zenithml/agent-framework` and run
 `agent-framework/plugins/ci-runner/install.sh`. `ci-runner` needs `gh` signed in with admin
-rights on the repository.
+rights on the repository. Always run `ci-runner` commands as the regular user (never prefix with
+`sudo`); it invokes `sudo` internally only when writing systemd files.
 
 ## Step 2: Check the repository is a fit
 
