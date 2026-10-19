@@ -245,9 +245,12 @@ instance_name() {
 # (a numeric suffix only, so repo "agent" never matches "agent-anywhere").
 instance_dirs() {
   local base="$1" dir
-  [ -d "$base/$(target_slug)" ] && [ -e "$base/$(target_slug)/config.sh" ] && echo "$base/$(target_slug)"
+  if [ -d "$base/$(target_slug)" ] && [ -e "$base/$(target_slug)/config.sh" ]; then
+    echo "$base/$(target_slug)"
+  fi
   for dir in "$base/$(target_slug)"-*; do
-    [ -d "$dir" ] && [ -e "$dir/config.sh" ] || continue
+    [ -d "$dir" ] || continue
+    [ -e "$dir/config.sh" ] || continue
     case "${dir##*-}" in ''|*[!0-9]*) continue ;; esac
     echo "$dir"
   done
