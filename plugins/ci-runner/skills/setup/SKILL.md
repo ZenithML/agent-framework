@@ -50,9 +50,24 @@ Then run `ci-runner check` in the checkout and fix each warning it prints (file:
 `windows-*` jobs) can stay. Repeat until it exits 0. Land the workflow change through a pull
 request before turning it on.
 
-If the user wants several jobs at once, `ci-runner scale N --repo OWNER/NAME` sets the instance
-count. On Linux, cap them together so the machine stays usable, e.g. `--cpu 50 --memory 60` on
-`install` or `scale`, or `ci-runner limits` later; ask for the percentages rather than picking them.
+If the user wants several jobs at once, `ci-runner scale N --repo OWNER/NAME` (or `--org ORG`) sets
+the instance count.
+
+### Determining optimal runner count and caps
+
+Inspect the machine before suggesting an instance count:
+- **Linux:** `lscpu | grep -E "Model name|CPU\(s\):|Thread\(s\) per core"`, `free -h`
+- **macOS:** `sysctl -n hw.ncpu`, `sysctl -n hw.memsize`
+
+**Sizing formula:**
+1. **Instances:** 0.5× to 1× the physical CPU cores (or up to 0.5× logical threads). Beyond 1× physical cores, concurrent compilation/tests cause CPU context-switching thrashing and slow down all jobs.
+2. **RAM:** Ensure at least 4–8 GB RAM per runner instance, plus 4–8 GB reserved for OS and desktop usage.
+3. **Reference sizing:**
+   - 4 cores / 8 threads, 16 GB RAM: 2–3 runners, caps: `--cpu 75 --memory 75`
+   - 6 cores / 12 threads, 32–64 GB RAM: 4–6 runners, caps: `--cpu 85 --memory 80`
+   - 8 cores / 16 threads, 32–64 GB RAM: 6–8 runners, caps: `--cpu 85 --memory 80`
+4. **Capping on Linux:** Always cap instances together so background CI cannot freeze the machine:
+   e.g. `--cpu 85 --memory 80` during `install` or `scale`, or via `ci-runner limits --cpu 85 --memory 80`.
 
 ## Step 4: Turn it on or off
 
