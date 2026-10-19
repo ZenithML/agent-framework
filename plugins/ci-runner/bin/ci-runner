@@ -16,7 +16,7 @@
 # and no empty-array expansions under `set -u`.
 set -euo pipefail
 
-VERSION="0.3.0"
+VERSION="0.3.1"
 
 # ── locate our own files through any symlink (no readlink -f on macOS) ──────
 self="${BASH_SOURCE[0]}"
@@ -243,14 +243,13 @@ instance_name() {
 
 # Every instance directory for the target: the bare slug, then slug-2, slug-3...
 # (a numeric suffix only, so repo "agent" never matches "agent-anywhere").
+# Partial directories (no config.sh) are listed too, so scale can remove them;
+# callers that need an installed instance check for config.sh themselves.
 instance_dirs() {
   local base="$1" dir
-  if [ -d "$base/$(target_slug)" ] && [ -e "$base/$(target_slug)/config.sh" ]; then
-    echo "$base/$(target_slug)"
-  fi
+  if [ -d "$base/$(target_slug)" ]; then echo "$base/$(target_slug)"; fi
   for dir in "$base/$(target_slug)"-*; do
     [ -d "$dir" ] || continue
-    [ -e "$dir/config.sh" ] || continue
     case "${dir##*-}" in ''|*[!0-9]*) continue ;; esac
     echo "$dir"
   done
@@ -266,12 +265,13 @@ instance_index() {
 }
 
 # Where this target's instances are: --dir / --run-as when given, else the first runner
-# base that holds some (yours, then the 'ci-runner' account's), else yours.
+# base that holds an installed one (yours, then the 'ci-runner' account's), else yours.
+# A base holding only partial directories does not count.
 find_base() {
   local b
   if [ -n "$DIR_BASE" ] || [ -n "$RUN_AS" ]; then default_dir_base; return 0; fi
   for b in $(runner_bases); do
-    if [ -n "$(instance_dirs "$b")" ]; then echo "$b"; return 0; fi
+    if [ "$(count_instances "$b")" -gt 0 ]; then echo "$b"; return 0; fi
   done
   echo "$HOME/actions-runner"
 }
@@ -905,7 +905,8 @@ cmd_status() {
   echo "Runner directories on this machine, under $base:"
   for dir in $(instance_dirs "$base"); do
     found=true
-    echo "  $dir"
+    if [ -x "$dir/config.sh" ]; then echo "  $dir"
+    else echo "  $dir   (partial: no config.sh; ci-runner scale N removes it)"; fi
   done
   $found || echo "  (none)"
   echo "Instances on this machine: $(count_instances "$base")   (change: ci-runner scale N)"
