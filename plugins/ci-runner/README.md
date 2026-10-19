@@ -17,6 +17,11 @@ ci-runner scale 4 --cpu 75 --memory 75   # 4 jobs at once, together using at mos
 You need: the [GitHub CLI](https://cli.github.com) signed in with admin rights on the repo
 (`gh auth login`), `curl`, `tar`, and bash 3.2 or later (the macOS default is fine).
 
+> [!NOTE]
+> **Run `ci-runner` as your regular user, never with `sudo`:** `ci-runner` needs your user's `gh` login
+> to request registration and status tokens from GitHub. It calls `sudo` internally when writing
+> systemd units or configuring cgroups.
+
 ```bash
 # 1. Get the command (once per machine)
 git clone https://github.com/zenithml/agent-framework.git
@@ -69,7 +74,8 @@ GitHub's built-in `GITHUB_TOKEN` is not allowed to do that. So the fallback need
 you create once:
 
 1. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with
-   repository access to **only this repo** and the permission **Administration: Read-only**.
+   repository access to **only this repo** (or the org) and the permission **Administration: Read-only**
+   (or for organization runners: **Self-hosted runners: Read-only**).
 2. Give it to `ci-runner on`, which stores it as the `RUNNER_STATUS_PAT` secret:
    - run `ci-runner on` and paste it when asked (input is hidden), or
    - `RUNNER_STATUS_PAT=<token> ci-runner on` (never put a token in the command line itself).
@@ -94,6 +100,73 @@ terminal (a script) it refuses instead, so the fallback is never dropped silentl
 --repo OWNER/NAME` removes it). The GitHub-hosted runner used for fallback is `ubuntu-latest`;
 a workflow can choose another with `with: { hosted: ubuntu-24.04 }` on the `select-runner` job.
 
+## Organization-level runners and defaults
+
+If you manage an organization with multiple repositories, register runners at the organization level
+so all private repositories can share the runner pool:
+
+```bash
+ci-runner install --org YOUR_ORG --create-user --count 4 --cpu 85 --memory 80
+```
+
+### Setting an org-wide default (Zero-maintenance)
+
+Instead of enabling ci-runner repo-by-repo, configure an **Organization Variable**:
+1. Go to **GitHub → Organization Settings → Secrets and variables → Actions → Variables tab**.
+2. Add `CI_RUNNER_LABEL` with value `self-hosted` and grant access to **All repositories** (or selected private repos).
+
+Every repository in the organization with `select-runner.yml` will automatically route jobs to your
+self-hosted runner pool without any manual per-repository variable setup.
+
+### Overriding the default in a specific repository
+
+Any repository can override the organization-level default:
+- **Use a dedicated runner label**: set repo-level `CI_RUNNER_LABEL=gpu-runner`.
+- **Enable auto-fallback for a critical repo**: set repo-level `CI_RUNNER_AUTO=true` and `CI_RUNNER_SCOPE=org` (requires `RUNNER_STATUS_PAT`).
+- **Force GitHub-hosted**: set repo-level `CI_RUNNER_LABEL=""` or point `runs-on` to `ubuntu-latest`.
+
+## Pitfalls, billing traps, and workarounds
+
+### 1. Auto Mode minimum 1-minute billing overhead
+In Auto Mode (`CI_RUNNER_AUTO=true`), the `select-runner` job *itself* must execute on GitHub-hosted
+(`ubuntu-latest`) to query the GitHub API before knowing whether your self-hosted machine is online.
+Because GitHub Actions rounds every job up to the nearest whole minute, **every workflow run in a
+private repository consumes at least 1 GitHub-hosted minute** even if all subsequent build/test jobs
+run on your self-hosted runner.
+
+* **Workaround:** If your machine is an always-on workstation or server, use **Static Mode**
+  (`ci-runner on --no-fallback`, setting `CI_RUNNER_LABEL=self-hosted` without `CI_RUNNER_AUTO`).
+  In static mode, `select-runner` runs directly on the self-hosted machine, burning **0 GitHub-hosted
+  minutes** ($0 Actions compute charges).
+
+### 2. Silent fallback when `RUNNER_STATUS_PAT` is missing
+If `CI_RUNNER_AUTO=true` is set but the `RUNNER_STATUS_PAT` secret is missing or expired, `select-runner.yml`
+cannot list runners. It emits a workflow warning and falls back to `ubuntu-latest` for all jobs,
+silently running the entire build on GitHub-hosted infrastructure.
+
+* **Workaround:** Check the `select-runner / Decide runner` job log in GitHub Actions. If you see:
+  `CI_RUNNER_AUTO=true but the RUNNER_STATUS_PAT secret is not set`, add the secret or switch to
+  static mode (`--no-fallback`).
+
+### 3. GitHub Free Organization secret restriction
+On **GitHub Free for organizations**, GitHub restricts Organization Secrets: they can **only be granted
+to public repositories**. Trying to share an organization secret with private repositories is not permitted
+without GitHub Team or Enterprise.
+
+* **Workaround:** On GitHub Free organizations, store `RUNNER_STATUS_PAT` as a **Repository Secret** on
+  each private repository:
+  ```bash
+  for repo in repo1 repo2 repo3; do
+    echo "$TOKEN" | gh secret set RUNNER_STATUS_PAT -R YOUR_ORG/$repo
+  done
+  ```
+  *(Or use Static Mode, which requires no PAT secret at all).*
+
+### 4. Unmigrated or dynamic workflows
+Workflows with hardcoded `runs-on: ubuntu-latest` (or dynamic workflows like GitHub Copilot Code
+Review) do not use `select-runner.yml` and will continue to run on GitHub-hosted runners. Check your
+workflows with `ci-runner check`.
+
 ## Running more jobs at once: `scale`
 
 Each runner instance runs one job at a time. To run more jobs in parallel, run more instances:
@@ -101,8 +174,21 @@ Each runner instance runs one job at a time. To run more jobs in parallel, run m
 ```bash
 ci-runner scale 4 --repo OWNER/NAME     # exactly 4 instances on this machine for that repo
 ci-runner scale 2 --repo OWNER/NAME     # back down to 2
-ci-runner scale 3 --org ORG             # the same for an organization-level runner
+ci-runner scale 4 --org ORG             # the same for an organization-level runner
 ```
+
+### Sizing: How many runner instances should you run?
+
+Determine the number of instances based on physical CPU cores and RAM:
+- **Typical CI jobs** (Node.js/Next.js builds, Python tests, linters) consume 1–2 CPU cores and 2–4 GB RAM during peak compilation/test steps.
+- **Rule of thumb:**
+  - **Runner instances:** Between 0.5× and 1× the number of physical CPU cores (or up to 0.5× the number of logical hyperthreads).
+  - **RAM requirement:** Ensure total system RAM has at least 4–8 GB per runner instance, plus 4–8 GB reserved for the host OS.
+  - *Example:* On an 8-core / 16-thread machine with 32 GB RAM, 4 to 6 runner instances is optimal. On a 6-core / 12-thread machine with 64 GB RAM, 4 to 6 instances provides great parallel throughput without CPU starvation.
+- **Resource caps (`limits`):** Always configure CPU and memory caps on Linux so parallel builds cannot freeze the machine:
+  ```bash
+  ci-runner limits --cpu 85 --memory 80
+  ```
 
 - **Up:** adds whichever of instances 1..N are missing, the same way `install` does. New instances
   get the label and account of the existing ones, unless you pass `--label` or `--run-as`.
