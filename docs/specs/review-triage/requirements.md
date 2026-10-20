@@ -43,6 +43,8 @@ say "I read these, not those" other than approving everything.
   updates that same comment on re-runs instead of adding another, keeping the reviewer's ticks
   on items that did not change. Without it, nothing is posted.
 - **G9 Machine output.** `--format json` gives the same result as JSON for other tools.
+- **G11 Visual page.** `--format html` writes one self-contained page: the ordered review path
+  with each hunk's diff, a per-item read tick, and a live count of unread "Read closely" lines.
 - **G10 Docs and release.** The skill is listed in `docs/plugins.md`, AGENTS.md routing, the
   review standard and the lint-harness skill-name list; it is held to the strict schema, ships
   baseline evals and a file manifest; the sdd version is 0.10.0 in both manifests.

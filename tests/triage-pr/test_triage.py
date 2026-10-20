@@ -590,6 +590,25 @@ class TestPrevious(unittest.TestCase):
 
 # --- T15 -------------------------------------------------------------------
 
+class TestHtml(unittest.TestCase):
+    def test_html_page_embeds_ordered_items_and_diff(self):
+        r = cli("--format", "html", stdin=MIXED)
+        self.assertEqual(r.returncode, 0)
+        self.assertTrue(r.stdout.startswith("<!doctype html>"))
+        data = json.loads(re.search(r"const DATA=(.*?);\nconst NAMES", r.stdout, re.S).group(1))
+        self.assertEqual([i["tier"] for i in data["items"]],
+                         [i["tier"] for i in json.loads(cli("--format", "json", stdin=MIXED).stdout)["items"]])
+        self.assertTrue(all(i["_hunks"] for i in data["items"] if i["hunks"]))
+
+    def test_json_has_no_private_keys(self):
+        out = json.loads(cli("--format", "json", stdin=MIXED).stdout)
+        self.assertFalse(any(k.startswith("_") for i in out["items"] for k in i))
+
+    def test_script_close_tag_in_diff_is_escaped(self):
+        d = moddiff("src/a.js", hunk(["+x = '</script><b>'"]))
+        self.assertEqual(cli("--format", "html", stdin=d).stdout.count("</script>"), 1)
+
+
 class TestInputs(unittest.TestCase):
     def test_tty_stdin_prints_usage_instead_of_blocking(self):
         code = ("import sys, runpy; sys.stdin.isatty = lambda: True; "

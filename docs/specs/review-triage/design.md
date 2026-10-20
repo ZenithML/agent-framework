@@ -55,7 +55,7 @@ Script functions:
 | `is_whitespace_only(f, hunk)` | Applies the whitespace-only rule. |
 | `triage(files, rules, promotions)` | Builds the ordered items and the summary. |
 | `render_markdown(result, previous=None)` / `render_json(result)` | Produces the output. `previous` is the body of an earlier triage comment, used to carry ticks over. |
-| `main(argv)` | Takes `--diff FILE` (default stdin), `--rules FILE`, `--format markdown|json`, `--promote FILE:LINE=REASON` (repeatable) and `--previous FILE`. Exits 0 on success, 2 on a usage error, a bad rules file, a bad promotion, or input that is not a diff. |
+| `main(argv)` | Takes `--diff FILE` (default stdin), `--rules FILE`, `--format markdown|json|html`, `--promote FILE:LINE=REASON` (repeatable) and `--previous FILE`. Exits 0 on success, 2 on a usage error, a bad rules file, a bad promotion, or input that is not a diff. |
 
 ### Parsing
 

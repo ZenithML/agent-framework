@@ -62,6 +62,7 @@ Optional repo rules live in `.claude/sdd/review-triage.json`. Every key is optio
 6. **Output.**
    - With `--comment`, write the final markdown (with check lines) to `"$TMP/triage.md"` and post it. If a comment was found in step 3, update it: `gh api -X PATCH repos/{owner}/{repo}/issues/comments/{id} -F body=@"$TMP/triage.md"`. Otherwise create one: `gh api -X POST repos/{owner}/{repo}/issues/N/comments -F body=@"$TMP/triage.md"`. Then print the comment URL (`html_url` from the response).
    - Without `--comment`, print the triage markdown.
+   - With `--html FILE`, also run the script with `--format html` and write the page to FILE. It is one self-contained page: the ordered review path with every diff, a per-item "read" tick kept in the browser, and a count of unread "Read closely" lines. Tell the user the path so they can open it.
    - Do not approve, request changes, or edit code.
 
 ## Rules

@@ -13,7 +13,7 @@ markdown review path with a checklist (default) or JSON. It can only be told
 to promote a hunk into the focus tier (--promote); there is no way to demote.
 
 Usage:
-  triage.py [--diff FILE] [--rules FILE] [--format markdown|json]
+  triage.py [--diff FILE] [--rules FILE] [--format markdown|json|html]
             [--promote FILE:LINE=REASON ...] [--previous FILE]
 
 Exit status: 0 on success, 2 on a usage error, a bad rules file, a bad
@@ -48,6 +48,7 @@ class Hunk:
     new_start: int
     added: list = field(default_factory=list)
     removed: list = field(default_factory=list)
+    raw: list = field(default_factory=list)   # body lines with their +/-/space prefix
 
 
 @dataclass
@@ -240,7 +241,9 @@ def parse_diff(text):
         if m:
             hunk = Hunk(raw.rstrip("\r"), int(m.group(1)), int(m.group(2)))
             cur.hunks.append(hunk)
-        elif raw.startswith("+"):
+            continue
+        hunk.raw.append(raw.rstrip("\r"))
+        if raw.startswith("+"):
             hunk.added.append(raw[1:])
         elif raw.startswith("-"):
             hunk.removed.append(raw[1:])
@@ -450,6 +453,7 @@ def _make_item(tier_name, f, line, hunks, reasons):
     item["added"] = sum(len(h.added) for h in hunks)
     item["removed"] = sum(len(h.removed) for h in hunks)
     item["reasons"] = list(reasons)
+    item["_hunks"] = [{"header": h.header, "lines": h.raw} for h in hunks]  # for --format html
     return item
 
 
@@ -638,8 +642,110 @@ def render_markdown(result, previous=None):
     return "\n".join(out) + "\n" + COVERAGE
 
 
+def _public(result):
+    """The result without the private keys (those starting with '_')."""
+    items = [{k: v for k, v in it.items() if not k.startswith("_")} for it in result["items"]]
+    return {"summary": result["summary"], "items": items}
+
+
 def render_json(result):
-    return json.dumps(result, indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(_public(result), indent=2, ensure_ascii=False) + "\n"
+
+
+HTML_TEMPLATE = r"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Review triage</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1c2330;--mute:#5d6676;--line:#dde1e8;--card:#fff;--focus:#c2410c;--focus-bg:#fdeee4;--std:#2f5d8a;--std-bg:#e6eef6;--low:#4b7a5a;--low-bg:#e6f1ea;--add:#e3f4e8;--del:#fbe6e6;--mono:ui-monospace,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--fg:#e6e9ef;--mute:#9aa3b2;--line:#2a313d;--card:#1a1f28;--focus:#fb923c;--focus-bg:#33201a;--std:#7fb0e0;--std-bg:#1b2836;--low:#7fc296;--low-bg:#1b2a21;--add:#16301f;--del:#3a1c1f;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:980px;margin:0 auto}
+h1{font-size:20px;margin:0 0 8px}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;background:var(--line)}
+.bar span{min-width:3px}
+.cov{margin-top:8px;font-size:14px}.cov b{color:var(--focus)}
+.tabs{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.tabs button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:14px;padding:3px 12px;cursor:pointer}
+.tabs button[aria-pressed=true]{border-color:var(--fg)}
+main{padding:16px max(16px,env(safe-area-inset-left,0px)) 48px}
+.list{display:flex;flex-direction:column;gap:10px}
+.item{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:6px;min-width:0}
+.item[data-tier=focus]{--c:var(--focus)}.item[data-tier=standard]{--c:var(--std)}.item[data-tier=low]{--c:var(--low)}
+.top{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
+.top input{width:18px;height:18px;margin-top:3px;flex:none}
+.head{flex:1;min-width:0}
+.path{font:13px var(--mono);overflow-wrap:anywhere}
+.meta{color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.tag{font-size:12px;padding:1px 8px;border-radius:10px;background:var(--focus-bg);color:var(--focus)}
+.item[data-tier=low] .tag{background:var(--low-bg);color:var(--low)}
+.item.done{opacity:.6}.item.done .path{text-decoration:line-through}
+.tog{font:inherit;font-size:13px;background:none;border:0;color:var(--std);cursor:pointer;padding:0 4px}
+.diff{overflow-x:auto;border-top:1px solid var(--line);font:12px/1.45 var(--mono)}
+.diff .hh{padding:3px 12px;color:var(--mute);background:var(--std-bg)}
+.diff .l{display:block;white-space:pre;padding:0 12px;min-width:max-content}
+.diff .a{background:var(--add)}.diff .d{background:var(--del)}
+:focus-visible{outline:2px solid var(--std);outline-offset:2px}
+.note{color:var(--mute);font-size:13px}
+</style></head><body>
+<header><div class="wrap"><h1>Review triage</h1>
+<div class="bar" id="bar"></div><div class="cov" id="cov"></div>
+<div class="tabs" id="tabs"></div></div></header>
+<main><div class="wrap"><p class="note">Ordered review path. Tick each item once you have read it; unticked "Read closely" items are counted as not reviewed. Ticks are kept in this browser only.</p><div class="list" id="list"></div></div></main>
+<script>
+const DATA=__DATA__;
+const NAMES={focus:"Read closely",standard:"Review normally",low:"Safe to skip"};
+const KEY="triage:"+location.pathname+":"+DATA.items.length+":"+DATA.summary.changed_lines;
+let ticks={};try{ticks=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let tab="all";
+const $=id=>document.getElementById(id);
+const id=i=>i.file+":"+(i.line==null?"":i.line)+":"+i.tier;
+const n=i=>i.added+i.removed;
+const by=t=>DATA.items.filter(i=>i.tier===t);
+const sum=a=>a.reduce((x,i)=>x+n(i),0);
+function head(){
+  const tot=sum(DATA.items)||1;
+  $("bar").innerHTML=["focus","standard","low"].map(t=>`<span style="flex:${sum(by(t))};background:var(--${t=="focus"?"focus":t=="standard"?"std":"low"})"></span>`).join("");
+  const f=by("focus"),open=f.filter(i=>!ticks[id(i)]).length;
+  $("cov").innerHTML=f.length?(open?`<b>${open} of ${f.length}</b> "Read closely" items not yet read (${sum(f.filter(i=>!ticks[id(i)])).toLocaleString()} lines). Approving now would skip them.`:`All ${f.length} "Read closely" items read.`):"Nothing needs close reading.";
+  $("tabs").innerHTML=[["all","All ("+DATA.items.length+")"]].concat(["focus","standard","low"].map(t=>[t,NAMES[t]+" ("+by(t).length+")"])).map(([k,l])=>`<button aria-pressed="${tab===k}" data-k="${k}">${l}</button>`).join("");
+  document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.k;head();list()});
+}
+function list(){
+  const root=$("list");root.textContent="";
+  DATA.items.filter(i=>tab==="all"||i.tier===tab).forEach(i=>{
+    const el=document.createElement("div");el.className="item"+(ticks[id(i)]?" done":"");el.dataset.tier=i.tier;
+    const top=document.createElement("div");top.className="top";
+    const cb=document.createElement("input");cb.type="checkbox";cb.checked=!!ticks[id(i)];cb.setAttribute("aria-label","Mark read: "+i.file);
+    cb.onchange=()=>{ticks[id(i)]=cb.checked;try{localStorage.setItem(KEY,JSON.stringify(ticks))}catch(e){}el.classList.toggle("done",cb.checked);head()};
+    const h=document.createElement("div");h.className="head";
+    const p=document.createElement("div");p.className="path";p.textContent=i.file;
+    const m=document.createElement("div");m.className="meta";
+    m.textContent=NAMES[i.tier]+(i.line!=null?" \u00b7 line "+i.line:"")+" \u00b7 +"+i.added+" -"+i.removed;
+    h.append(p,m);
+    if(i.reasons.length){const t=document.createElement("div");t.className="tags";i.reasons.forEach(r=>{const s=document.createElement("span");s.className="tag";s.textContent=r;t.append(s)});h.append(t)}
+    const tg=document.createElement("button");tg.className="tog";
+    const dv=document.createElement("div");dv.className="diff";
+    (i._hunks||[]).forEach(hk=>{const hh=document.createElement("div");hh.className="hh";hh.textContent=hk.header;dv.append(hh);
+      hk.lines.forEach(l=>{const s=document.createElement("span");s.className="l"+(l[0]=="+"?" a":l[0]=="-"?" d":"");s.textContent=l||" ";dv.append(s)})});
+    const show=i.tier==="focus";dv.hidden=!show;tg.textContent=show?"Hide diff":"Show diff";
+    tg.onclick=()=>{dv.hidden=!dv.hidden;tg.textContent=dv.hidden?"Show diff":"Hide diff"};
+    if(!i._hunks||!i._hunks.length)tg.hidden=true;
+    top.append(cb,h,tg);el.append(top,dv);root.append(el);
+  });
+}
+head();list();
+</script></body></html>
+"""
+
+
+def render_html(result):
+    """One self-contained page: the ordered review path with diffs and ticks."""
+    data = json.dumps(result, ensure_ascii=False).replace("</", "<\\/")
+    return HTML_TEMPLATE.replace("__DATA__", data)
 
 
 # --- CLI -------------------------------------------------------------------
@@ -653,7 +759,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="triage.py", description="Risk triage for a unified diff.")
     ap.add_argument("--diff", metavar="FILE", help="diff file (default: stdin)")
     ap.add_argument("--rules", metavar="FILE", help="repo rules JSON file")
-    ap.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    ap.add_argument("--format", choices=("markdown", "json", "html"), default="markdown")
     ap.add_argument("--promote", action="append", default=[], metavar="FILE:LINE=REASON",
                     help="move a hunk into the focus tier (repeatable)")
     ap.add_argument("--previous", metavar="FILE",
@@ -682,7 +788,12 @@ def main(argv=None):
     except (DiffError, RulesError, PromoteError) as e:
         print("triage.py: %s" % e, file=sys.stderr)
         return 2
-    out = render_json(result) if args.format == "json" else render_markdown(result, previous)
+    if args.format == "json":
+        out = render_json(result)
+    elif args.format == "html":
+        out = render_html(result)
+    else:
+        out = render_markdown(result, previous)
     sys.stdout.write(out)
     return 0
 
