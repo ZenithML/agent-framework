@@ -396,9 +396,9 @@ class TestRules(unittest.TestCase):
         rules = T.load_rules(self.rules({"focus_paths": ["^ledger/"]}))
         self.assertEqual(reasons_of(moddiff("ledger/rates.py", h), rules=rules),
                          ["repo rule: ^ledger/"])
-        rules = T.load_rules(self.rules({"low_paths": ["^docs/generated/"]}))
-        self.assertEqual(tier(run(moddiff("docs/generated/a.md", h), rules=rules), "low")[0]["reasons"],
-                         ["repo rule: ^docs/generated/"])
+        rules = T.load_rules(self.rules({"low_paths": ["^docs/api/"]}))
+        self.assertEqual(tier(run(moddiff("docs/api/a.md", h), rules=rules), "low")[0]["reasons"],
+                         ["repo rule: ^docs/api/"])
         rules = T.load_rules(self.rules({"focus_patterns": [r"\bfeature_flag\("]}))
         d = moddiff("src/a.py", hunk(["+feature_flag('x')"]))
         self.assertEqual(reasons_of(d, rules=rules), [r"repo rule: \bfeature_flag\("])
