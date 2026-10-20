@@ -232,6 +232,8 @@ For each file:
      becomes a focus item. If not, it goes to the standard remainder.
 5. **Promotions.** For each `--promote FILE:LINE=REASON`, find the hunk of `FILE` whose
    `new_start` (or `old_start` for a deleted file) equals `LINE`.
+   - A whole-file low item counts as a remainder holding all of that file's hunks, so a hunk of a
+     lockfile or generated file can be promoted too. Promotion only ever raises a tier.
    - If that hunk is in a remainder, move it out into its own focus item with the reason
      `promoted: REASON`.
    - If it is already focus, append `promoted: REASON` to its reasons.
