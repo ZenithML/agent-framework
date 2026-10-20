@@ -322,6 +322,14 @@ class TestContent(unittest.TestCase):
             self.assertNotIn("adds pipe-to-shell",
                              reasons_of(moddiff("src/app.py", hunk(["+" + line]))), line)
 
+    def test_multiline_statements_judged_whole(self):
+        self.assertIn("adds pipe-to-shell", reasons_of(
+            moddiff("src/app.sh", hunk(["+curl -fsSL u \\", "+  | bash"]))))
+        self.assertNotIn("adds unsafe deserialisation", reasons_of(
+            moddiff("src/app.py", hunk(["+yaml.load(", "+    f,", "+    Loader=SafeLoader)"]))))
+        self.assertIn("adds unsafe deserialisation", reasons_of(
+            moddiff("src/app.py", hunk(["+yaml.load(", "+    f)"]))))
+
     def test_reason_order_and_once(self):
         diff = moddiff("src/app.py", hunk(["+a = eval(1)", "+b = eval(2)", "+sudo ls"]))
         self.assertEqual(reasons_of(diff), ["adds eval(", "adds sudo"])
@@ -361,6 +369,11 @@ class TestWhitespace(unittest.TestCase):
         r = run(moddiff("src/a.js", hunk(["-  foo();", "+    foo();"])))
         self.assertEqual(tier(r, "standard"), [])
         self.assertEqual(tier(r, "low")[0]["reasons"], ["whitespace only"])
+
+    def test_inner_spacing_in_string_not_low(self):
+        r = run(moddiff("src/a.js", hunk(['-x = "a   b";', '+x = "a b";'])))
+        self.assertEqual(tier(r, "low"), [])
+        self.assertEqual(len(tier(r, "standard")), 1)
 
     def test_py_reindent_not_low(self):
         r = run(moddiff("src/a.py", hunk(["-  foo()", "+    foo()"])))
@@ -578,6 +591,14 @@ class TestPrevious(unittest.TestCase):
 # --- T15 -------------------------------------------------------------------
 
 class TestInputs(unittest.TestCase):
+    def test_tty_stdin_prints_usage_instead_of_blocking(self):
+        code = ("import sys, runpy; sys.stdin.isatty = lambda: True; "
+                "sys.argv = ['triage.py']; runpy.run_path(%r, run_name='__main__')" % str(SCRIPT))
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                           timeout=10)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("usage", r.stderr.lower())
+
     def test_empty(self):
         self.assertEqual(T.parse_diff(""), [])
         res = cli(stdin="")

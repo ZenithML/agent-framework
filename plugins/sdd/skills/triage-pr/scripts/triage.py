@@ -396,8 +396,11 @@ def file_low_reason(f, rules):
 def hunk_focus_reasons(f, hunk, rules):
     """Content and test-weakening reasons for one hunk."""
     reasons = []
+    # Built-in rules see the added lines as one text, with backslash
+    # continuations folded, so a statement split over lines is judged whole.
+    added = re.sub(r"\\[ \t]*\n\s*", " ", "\n".join(hunk.added))
     for reason, regexes in CONTENT_RULES:
-        if any(rx.search(line) for line in hunk.added for rx in regexes):
+        if any(rx.search(added) for rx in regexes):
             reasons.append(reason)
     for src, rx in rules["focus_patterns"]:
         if any(rx.search(line) for line in hunk.added):
@@ -425,7 +428,8 @@ def is_whitespace_only(f, hunk):
         for line in lines:
             if not line.strip():
                 continue
-            out.append(line.rstrip() if significant else " ".join(line.split()))
+            # Inner spaces can be inside a string literal, so only the edges go.
+            out.append(line.rstrip() if significant else line.strip())
         return out
 
     return norm(hunk.removed) == norm(hunk.added)
@@ -665,6 +669,9 @@ def main(argv=None):
         if args.diff:
             text = _read(args.diff)
         else:
+            if sys.stdin.isatty():
+                ap.print_help(sys.stderr)
+                return 2
             text = sys.stdin.buffer.read().decode("utf-8", errors="replace")
         previous = _read(args.previous) if args.previous else None
         files = parse_diff(text)
