@@ -131,6 +131,8 @@ def _git_header_paths(rest):
         if rest[n // 2] == " " and left[2:] == right[2:] and left.startswith("a/") \
                 and right.startswith("b/"):
             return left[2:], right[2:]
+    if n % 2 == 1 and rest[n // 2] == " " and rest[: n // 2] == rest[n // 2 + 1:]:
+        return rest[: n // 2], rest[n // 2 + 1:]  # --no-prefix, same path twice
     idx = rest.find(" b/")
     if idx != -1:
         return _strip_prefix(rest[:idx], "a/"), rest[idx + 3:]
@@ -183,6 +185,8 @@ def parse_diff(text):
             if cur.new_path is None:
                 cur.new_path = cur.old_path
         cur.mode_changed = old_mode and new_mode
+        if cur.path is None:
+            raise DiffError("cannot read the file path from a 'diff --git' header")
         files.append(cur)
 
     for raw in lines:
@@ -302,7 +306,7 @@ CONTENT_RULES = [
     ("adds shell execution", [r"shell\s*=\s*True", r"os\.system\(", r"child_process", r"subprocess\."]),
     ("adds rm -rf", [r"rm\s+-[a-z]*r[a-z]*f", r"rm\s+-[a-z]*f[a-z]*r"]),
     ("adds sudo", [r"\bsudo\b"]),
-    ("adds pipe-to-shell", [r"\b(curl|wget)\b[^|]*\|\s*(sh|bash|zsh)\b"]),
+    ("adds pipe-to-shell", [r"\b(curl|wget)\b.*\|\s*(sh|bash|zsh)\b"]),
     ("adds destructive SQL", [r"\b(DROP|TRUNCATE)\s+(TABLE|DATABASE)\b", r"\bDELETE\s+FROM\b",
                               r"\bALTER\s+TABLE\b"]),
     ("adds unsafe deserialisation", [r"pickle\.loads?\(", r"yaml\.load\((?![^)]*SafeLoader)",
@@ -342,6 +346,11 @@ def _candidate_paths(f):
     return [f.path]
 
 
+def _dedup(reasons):
+    """Drop repeated reasons, keeping the first occurrence of each."""
+    return list(dict.fromkeys(reasons))
+
+
 def path_focus_reasons(f, rules):
     """Focus reasons that come from the file's path."""
     paths = _candidate_paths(f)
@@ -362,7 +371,7 @@ def path_focus_reasons(f, rules):
     for src, rx in rules["focus_paths"]:
         if any(rx.search(p) for p in paths):
             reasons.append("repo rule: " + src)
-    return reasons
+    return _dedup(reasons)
 
 
 def file_low_reason(f, rules):
@@ -400,7 +409,7 @@ def hunk_focus_reasons(f, hunk, rules):
             reasons.append("removes assertions")
         if any(rx.search(line) for line in hunk.added for rx in SKIP_RES):
             reasons.append("adds skip marker")
-    return reasons
+    return _dedup(reasons)
 
 
 def is_whitespace_only(f, hunk):
@@ -467,7 +476,7 @@ def triage(files, rules, promotions):
             if is_whitespace_only(f, h):
                 st["low"].append(h)
                 continue
-            reasons = P + hunk_focus_reasons(f, h, rules)
+            reasons = _dedup(P + hunk_focus_reasons(f, h, rules))
             if reasons:
                 st["focus"].append((h, reasons))
             else:
@@ -520,7 +529,8 @@ def _promote(states, fname, line, reason):
             continue
         for entry in st["focus"]:
             if _hunk_key(f, entry[0]) == line:
-                entry[1].append(label)
+                if label not in entry[1]:
+                    entry[1].append(label)
                 return
         for bucket in ("std", "low"):
             for h in st[bucket]:

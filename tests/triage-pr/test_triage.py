@@ -6,6 +6,7 @@ through its command line.
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -138,6 +139,36 @@ class TestParsing(unittest.TestCase):
         self.assertIn('café "q".bin', fs)
         self.assertTrue(fs['café "q".bin'].binary)
 
+    def test_quoted_paths_via_rename_and_headers(self):
+        f = T.parse_diff('diff --git "a/o\\tld" "b/n\\\\ew"\nsimilarity index 100%\n'
+                         'rename from "o\\tld"\nrename to "n\\\\ew"\n')[0]
+        self.assertEqual((f.status, f.old_path, f.new_path), ("renamed", "o\tld", "n\\ew"))
+        diff = ('diff --git "a/t\\tb" "b/t\\tb"\nindex 1..2 100644\n'
+                '--- "a/t\\tb"\n+++ "b/t\\\\b"\n' + hunk(["-x", "+y"]))
+        f = T.parse_diff(diff)[0]
+        self.assertEqual((f.old_path, f.new_path), ("t\tb", "t\\b"))
+
+    def test_no_prefix_headers(self):
+        diff = ("diff --git img.png img.png\nindex 1..2 100644\n"
+                "Binary files img.png and img.png differ\n"
+                "diff --git run.sh run.sh\nold mode 100644\nnew mode 100755\n")
+        fs = T.parse_diff(diff)
+        self.assertEqual([f.path for f in fs], ["img.png", "run.sh"])
+        self.assertTrue(fs[0].binary)
+        self.assertTrue(fs[1].mode_changed)
+        res = cli(stdin=diff)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertNotIn("Traceback", res.stderr)
+
+    def test_unparseable_header_exits_2(self):
+        diff = "diff --git x y\nindex 1..2 100644\nBinary files x and y differ\n"
+        with self.assertRaises(T.DiffError):
+            T.parse_diff(diff)
+        res = cli(stdin=diff)
+        self.assertEqual(res.returncode, 2)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertIn("triage.py:", res.stderr)
+
     def test_plus_plus_header_not_counted(self):
         f = T.parse_diff(moddiff("a.txt", hunk(["-x", "+y"])))[0]
         self.assertEqual((len(f.hunks[0].added), len(f.hunks[0].removed)), (1, 1))
@@ -235,7 +266,8 @@ class TestPathFocus(unittest.TestCase):
         self.assertIsNone(focus[0]["line"])
         md = T.render_markdown(r)
         self.assertIn("- [ ] `util/a.py` → `auth/a.py` (+0 −0) — sensitive path: auth", md)
-        self.assertNotIn(" L", md.split("### 1.")[1].split("### 2.")[0].replace("Read closely", ""))
+        item_line = next(x for x in md.split("\n") if x.startswith("- [ ] `util/a.py`"))
+        self.assertIsNone(re.search(r" L\d+", item_line), item_line)
 
 
 # --- T7 / T8 ---------------------------------------------------------------
@@ -280,6 +312,15 @@ class TestContent(unittest.TestCase):
             self.assertIn(reason, reasons_of(moddiff("src/app.py", hunk(["+" + line]))), line)
         self.assertNotIn("adds unsafe deserialisation",
                          reasons_of(moddiff("src/app.py", hunk(["+yaml.load(f, Loader=SafeLoader)"]))))
+
+    def test_pipe_to_shell_multi_pipe(self):
+        for line in ["curl u | tee f | bash", "curl u | gpg -d | sh", "wget -qO- u | zsh",
+                     "curl u|sh"]:
+            self.assertIn("adds pipe-to-shell",
+                          reasons_of(moddiff("src/app.py", hunk(["+" + line]))), line)
+        for line in ["curl u | shellcheck -", "curl u -o f", "echo hi | bash"]:
+            self.assertNotIn("adds pipe-to-shell",
+                             reasons_of(moddiff("src/app.py", hunk(["+" + line]))), line)
 
     def test_reason_order_and_once(self):
         diff = moddiff("src/app.py", hunk(["+a = eval(1)", "+b = eval(2)", "+sudo ls"]))
@@ -412,6 +453,19 @@ class TestRules(unittest.TestCase):
         self.assertEqual(reasons_of(moddiff("src/AUTH/x.py", h)), ["sensitive path: auth"])
         self.assertIn("adds eval(", reasons_of(moddiff("src/x.py", hunk(["+EVAL(1)"]))))
 
+    def test_duplicate_reasons_once(self):
+        h = hunk(["+feature_flag('x')", "+feature_flag('y')"])
+        rules = T.load_rules(self.rules({"focus_paths": ["^src/", "^src/"],
+                                         "focus_patterns": [r"feature_flag\(", r"feature_flag\("]}))
+        self.assertEqual(reasons_of(moddiff("src/auth/a.py", h), rules=rules),
+                         ["sensitive path: auth", "repo rule: ^src/",
+                          r"repo rule: feature_flag\("])
+        # the same path reason on the file and the hunk is not repeated
+        rules = T.load_rules(self.rules({"focus_paths": ["^src/"], "focus_patterns": ["^src/"]}))
+        d = moddiff("src/a.py", hunk(["+x"]))
+        got = reasons_of(d, rules=rules)
+        self.assertEqual(len(got), len(set(got)), got)
+
     def test_bad_rules(self):
         cases = [
             (None, "{not json", "rules.json"),
@@ -454,6 +508,29 @@ class TestPromote(unittest.TestCase):
         d = moddiff("src/auth/a.js", hunk(["+x"], 4))
         r = run(d, promote=[("src/auth/a.js", 4, "why")])
         self.assertEqual(tier(r, "focus")[0]["reasons"], ["sensitive path: auth", "promoted: why"])
+
+    def test_promote_twice_same_reason_once(self):
+        d = moddiff("src/auth/a.js", hunk(["+x"], 4))
+        r = run(d, promote=[("src/auth/a.js", 4, "why"), ("src/auth/a.js", 4, "why")])
+        self.assertEqual(tier(r, "focus")[0]["reasons"], ["sensitive path: auth", "promoted: why"])
+        r = run(self.DIFF, promote=[("src/app.js", 10, "why"), ("src/app.js", 10, "why")])
+        self.assertEqual(tier(r, "focus")[0]["reasons"], ["promoted: why"])
+
+    def test_lockfile_hunk_promoted(self):
+        d = moddiff("yarn.lock", hunk(["+a", "+b"], 3), hunk(["-c", "+d"], 40))
+        before = run(d)
+        self.assertEqual(tier(before, "low")[0]["hunks"], 2)
+        r = run(d, promote=[("yarn.lock", 3, "pins new registry")])
+        focus = tier(r, "focus")
+        self.assertEqual(len(focus), 1)
+        self.assertEqual((focus[0]["line"], focus[0]["reasons"]), (3, ["promoted: pins new registry"]))
+        low = tier(r, "low")
+        self.assertEqual(len(low), 1)
+        self.assertEqual((low[0]["hunks"], low[0]["added"], low[0]["removed"]), (1, 1, 1))
+        self.assertEqual(low[0]["reasons"], ["lockfile"])
+        self.assertEqual(r["summary"]["focus"], {"items": 1, "lines": 2})
+        self.assertEqual(r["summary"]["low"], {"items": 1, "lines": 2})
+        self.assertEqual(r["summary"]["changed_lines"], 4)
 
     def test_unknown_exits_2(self):
         with self.assertRaises(T.PromoteError):
