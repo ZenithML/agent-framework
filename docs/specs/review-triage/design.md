@@ -145,6 +145,7 @@ The repo rules file is `.claude/sdd/review-triage.json`. Every key is optional:
   so they are case-sensitive unless they begin with `(?i)`.
 - **Paths.** Path regexes use `search` against the file's path. For a rename they are tested
   against both the old and the new path. For a deletion the path is the old path.
+- **Whole-file low and test-file checks.** These use the file's path only: the new path, or the old path for a deletion. On a rename the old path is not consulted.
 - **Content.** Content patterns are matched against **added** lines only. The one exception is
   the test-weakening rule `removes assertions`, which also reads removed lines.
 - **Reasons.**
@@ -279,6 +280,7 @@ instead of approving silently.
 - **Standard items.** These print `(+a −r, N hunks)`, with `hunk` when N is 1. A binary file
   prints `(binary)`.
 - **Empty sections.** An empty section prints `_None._`.
+- **Empty diff.** Markdown prints `Nothing to triage: the diff is empty.`; JSON prints the result with every count 0 and `items: []`. Both exit 0.
 - **Minus sign.** The minus is U+2212, so that `-3` cannot read as a list marker.
 - **Agent lines.** The skill appends a `  check: …` line under each focus item before showing
   or posting the output. JSON does not carry `check:` lines; they are the agent's reading
