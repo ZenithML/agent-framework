@@ -11,6 +11,8 @@ description: >
 
 Review and provide feedback on a pull request. To *act on* existing feedback (fix issues, reply to comments, resolve merge conflicts, sync the PR description), use `/fix-pr` instead.
 
+For a PR too large to read fully, run `/sdd:triage-pr` first to get an ordered review path (read closely, review normally, safe to skip).
+
 ## Default Behavior
 
 When tagged in a pull request (e.g. @claude[agent], @copilot) to review or provide feedback:
