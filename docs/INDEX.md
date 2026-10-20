@@ -22,6 +22,7 @@
 | Domain | Document | Status |
 |---|---|---|
 | ci-runner: scale, resource caps, workflow readiness check (0.3.0) | [`requirements.md`](specs/ci-runner/requirements.md), [`design.md`](specs/ci-runner/design.md), [`tasks.md`](specs/ci-runner/tasks.md) | Approved |
+| review-triage: risk triage for large PRs (0.10.0) | [`requirements.md`](specs/review-triage/requirements.md), [`design.md`](specs/review-triage/design.md), [`tasks.md`](specs/review-triage/tasks.md) | Approved |
 
 ## Research
 

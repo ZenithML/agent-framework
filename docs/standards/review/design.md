@@ -40,6 +40,12 @@ The author (human or agent) must complete all of the following:
 
 ---
 
+## Large pull requests
+
+When a PR is larger than a reviewer can read carefully, triage it first into read-closely, review-normally and safe-to-skip, with a stated reason for every skip. The reviewer ticks each read-closely item as read. An approval with unticked items must say which were not reviewed rather than approving silently.
+
+---
+
 ## Review Skill
 
-Use `/sdd:review-pr` to post inline feedback. Do not push code changes directly during a review — use `/sdd:fix-pr` to act on feedback after the review.
+Use `/sdd:triage-pr` to triage a large PR before reviewing it. Use `/sdd:review-pr` to post inline feedback. Do not push code changes directly during a review — use `/sdd:fix-pr` to act on feedback after the review.

@@ -37,6 +37,9 @@ jobs:
       - name: Negative controls
         run: ./tests/run-fixtures.sh
 
+      - name: Test triage-pr
+        run: ./tests/triage-pr.sh
+
   ci-runner:
     runs-on: ubuntu-latest
     steps:
