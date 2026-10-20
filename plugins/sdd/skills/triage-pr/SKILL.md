@@ -41,6 +41,7 @@ Optional repo rules live in `.claude/sdd/review-triage.json`. Every key is optio
 ## Steps
 
 1. **Get the diff.**
+   - Make a scratch directory for this run: `TMP=$(mktemp -d)`. Every temp file below goes in it.
    - Given a PR number N, run `gh pr diff N > "$TMP/pr.diff"`.
    - Given neither a number nor `--base`, find the current branch's PR with `gh pr view --json number --jq .number`. If one exists, run `gh pr diff <number> > "$TMP/pr.diff"`.
    - With no PR (or when `--base` is given), run `git diff <base>...HEAD > "$TMP/pr.diff"`, where `<base>` is `--base` or `<MAIN_BRANCH>`.
@@ -50,16 +51,16 @@ Optional repo rules live in `.claude/sdd/review-triage.json`. Every key is optio
    - Get the current user: `gh api user --jq .login`.
    - List the PR's comments: `gh api repos/{owner}/{repo}/issues/N/comments --paginate`.
    - Pick the most recent comment whose author login is that user and whose body starts with `<!-- sdd:triage-pr -->`. Remember its `id`.
-   - If found, write its body to a temp file and pass it with `--previous FILE`, so ticks carry over.
+   - If found, write its body to `"$TMP/previous.md"` and pass it with `--previous FILE`, so ticks carry over.
 4. **Run the script.**
-   `python3 ${CLAUDE_PLUGIN_ROOT}/skills/triage-pr/scripts/triage.py --diff "$TMP/pr.diff" [--rules ...] [--previous FILE]`
+   `python3 ${CLAUDE_PLUGIN_ROOT}/skills/triage-pr/scripts/triage.py --diff "$TMP/pr.diff" [--rules ...] [--previous "$TMP/previous.md"]`
    If it exits 2, show its message and stop.
 5. **Read the focus hunks.**
    - Read every focus hunk in the diff. Under each `- [ ]` item write a line `  check: <one concrete question the human should answer>`. The question must come from actually reading that hunk, not from the reason text.
    - While reading the review-normally files, a hunk may carry a risk the rules do not cover, for example a changed authorisation check in a file with a neutral name. For each such hunk, re-run the script adding `--promote FILE:LINE=<reason>` (repeatable; LINE is the hunk's new start line), then redo the check lines for the new output.
    - Never edit tiers, counts or reasons by hand. There is no demote option, and you must not move a line out of section 1.
 6. **Output.**
-   - With `--comment`, write the final markdown (with check lines) to a file and post it. If a comment was found in step 3, update it: `gh api -X PATCH repos/{owner}/{repo}/issues/comments/{id} -F body=@FILE`. Otherwise create one: `gh api -X POST repos/{owner}/{repo}/issues/N/comments -F body=@FILE`. Then print the comment URL (`html_url` from the response).
+   - With `--comment`, write the final markdown (with check lines) to `"$TMP/triage.md"` and post it. If a comment was found in step 3, update it: `gh api -X PATCH repos/{owner}/{repo}/issues/comments/{id} -F body=@"$TMP/triage.md"`. Otherwise create one: `gh api -X POST repos/{owner}/{repo}/issues/N/comments -F body=@"$TMP/triage.md"`. Then print the comment URL (`html_url` from the response).
    - Without `--comment`, print the triage markdown.
    - Do not approve, request changes, or edit code.
 
