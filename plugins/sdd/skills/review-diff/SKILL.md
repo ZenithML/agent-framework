@@ -19,12 +19,13 @@ skill writes is `.review/findings.json` (and `.review/.gitignore`).
 
 ## Step 1: Find the change
 
-1. Base ref: `--base` if given; otherwise `origin/<default>` where `<default>` comes from
-   `git symbolic-ref --short refs/remotes/origin/HEAD`, then `origin/main`, `origin/master`,
-   `main`, `master`, the first that exists. Do not fetch.
+1. Base ref: `--base` if given; otherwise the first of these that exists: the output of
+   `git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null` (already `origin/<name>`, use
+   it as is), `origin/main`, `origin/master`, `main`, `master`. Do not fetch.
 2. `base=$(git merge-base HEAD <base ref>)`, `head=$(git rev-parse HEAD)`.
 3. The change is `git diff <base>` (committed and uncommitted edits to tracked files) plus every
-   file from `git ls-files --others --exclude-standard` (new files). Read new files whole.
+   file from `git ls-files --others --exclude-standard` (new files). Read new text files whole;
+   skip binary files and very large ones (over about 1 MB), and say in `summary` that you did.
 4. Read the intent if it is there: the task or spec the change implements (an SDD
    `requirements.md` / `design.md` the commits touch, the PR description, or the brief you were
    given). A finding may be that the change does not do what was asked.
@@ -66,7 +67,7 @@ Create `.review/` with a `.gitignore` containing `*`, then write `.review/findin
   "head": "<full sha of HEAD>",
   "base": "<full sha of the merge base>",
   "reviewer": { "agent": "<your agent, e.g. claude, agy, codex>", "model": "<your model if known>" },
-  "verdict": "pass",
+  "verdict": "revise",
   "summary": "<one or two sentences on the change as a whole>",
   "findings": [
     {
