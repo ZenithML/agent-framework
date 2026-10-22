@@ -70,7 +70,9 @@ def tools_of(fields):
 
 
 def convert_agent(path):
-    fields, body = parse_frontmatter(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as fh:
+        content = fh.read()
+    fields, body = parse_frontmatter(content)
     name, role = fields["name"], fields.get("role", "")
     tools = tools_of(fields)
     contract = [f"## Tool contract (role: {role or 'unspecified'})", "",
@@ -101,8 +103,11 @@ def cmd_agents(src, dest):
         written.add(name + ".toml")
     for fn in os.listdir(dest):
         p = os.path.join(dest, fn)
-        if fn.endswith(".toml") and fn not in written and open(p, encoding="utf-8").readline().startswith(GENERATED_MARK):
-            os.remove(p)
+        if fn.endswith(".toml") and fn not in written:
+            with open(p, encoding="utf-8") as fh:
+                is_generated = fh.readline().startswith(GENERATED_MARK)
+            if is_generated:
+                os.remove(p)
     print(f"  Wrote {len(written)} Codex agents to {dest}")
 
 
@@ -116,6 +121,9 @@ def server_table(name, cfg):
         lines.append(f"url = {toml_str(cfg['url'])}")
         static, from_env = {}, {}
         for h, v in (cfg.get("headers") or {}).items():
+            if not isinstance(v, str):
+                static[h] = v
+                continue
             bearer = re.fullmatch(r"Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}", v)
             whole = ENV_REF.fullmatch(v)
             if h.lower() == "authorization" and bearer:
@@ -134,6 +142,9 @@ def server_table(name, cfg):
             lines.append("args = [" + ", ".join(toml_str(a) for a in cfg["args"]) + "]")
         static, forward = {}, []
         for k, v in (cfg.get("env") or {}).items():
+            if not isinstance(v, str):
+                static[k] = v
+                continue
             whole = ENV_REF.fullmatch(v)
             if whole and whole.group(1) == k:
                 forward.append(k)
@@ -152,14 +163,19 @@ def server_table(name, cfg):
 def cmd_mcp(mcp_path, config_path):
     servers = {}
     if os.path.exists(mcp_path):
-        servers = json.load(open(mcp_path, encoding="utf-8")).get("mcpServers", {})
-    existing = open(config_path, encoding="utf-8").read() if os.path.exists(config_path) else ""
+        with open(mcp_path, encoding="utf-8") as fh:
+            servers = json.load(fh).get("mcpServers", {})
+    existing = ""
+    if os.path.exists(config_path):
+        with open(config_path, encoding="utf-8") as fh:
+            existing = fh.read()
     block_re = re.compile(re.escape(BLOCK_START) + r".*?" + re.escape(BLOCK_END) + r"\n?", re.S)
     rest = block_re.sub("", existing).rstrip("\n")
     if not servers:
         if existing and rest != existing.rstrip("\n"):
             if rest:
-                open(config_path, "w", encoding="utf-8").write(rest + "\n")
+                with open(config_path, "w", encoding="utf-8") as fh:
+                    fh.write(rest + "\n")
             else:
                 os.remove(config_path)
             print(f"  Removed generated MCP block from {config_path}")

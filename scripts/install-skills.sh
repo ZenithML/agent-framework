@@ -68,6 +68,7 @@ done
 [ -d "$TARGET" ] || { echo "Error: '$TARGET' is not a directory." >&2; exit 1; }
 
 WANT_AGY=false; WANT_CODEX=false
+HARNESSES="${HARNESSES//[[:space:]]/}"
 IFS=',' read -ra _H <<< "$HARNESSES"
 for h in "${_H[@]}"; do
   case "$h" in
@@ -340,7 +341,7 @@ fi
 echo ""
 echo "Next steps:"
 echo "  cd \"$(realpath "$TARGET")\""
-echo "  git add .claude/ .agents/ $([ "$WANT_CODEX" = true ] && echo .codex/)"
+echo "  git add .claude/ $([ "$WANT_AGY" = true ] && echo .agents/) $([ "$WANT_CODEX" = true ] && echo .codex/)"
 echo "  git commit -m 'chore: install sdd harness (flat) v${HARNESS_VERSION}'"
 echo ""
 if [ "$WANT_CODEX" = true ]; then
