@@ -459,6 +459,7 @@ Write `AGENTS.md` at the repo root. This file is a routing map only — no rules
 |---|---|
 | Any code change | `/sdd:ship` |
 | Review a PR | `/sdd:review-pr` |
+| Review the local change before it goes public | `/sdd:review-diff` |
 | Triage a large PR before reviewing it | `/sdd:triage-pr` |
 ```
 

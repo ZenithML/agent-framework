@@ -3,7 +3,7 @@
 **Status:** Approved
 **Last Updated:** 2026-10-20
 
-Scope: `plugins/sdd` 0.10.0. Adds one skill, `/sdd:triage-pr`, and the script it runs.
+Scope: `plugins/sdd` 0.11.0. Adds one skill, `/sdd:triage-pr`, and the script it runs.
 
 ## Problem Statement
 
@@ -47,7 +47,7 @@ say "I read these, not those" other than approving everything.
   with each hunk's diff, a per-item read tick, and a live count of unread "Read closely" lines.
 - **G10 Docs and release.** The skill is listed in `docs/plugins.md`, AGENTS.md routing, the
   review standard and the lint-harness skill-name list; it is held to the strict schema, ships
-  baseline evals and a file manifest; the sdd version is 0.10.0 in both manifests.
+  baseline evals and a file manifest; the sdd version is 0.11.0 in both manifests.
 
 ## Out of Scope
 

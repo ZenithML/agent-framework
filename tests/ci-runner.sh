@@ -298,6 +298,12 @@ check "--force removes a busy instance" test ! -e "$SC/widget-3"
 mkinst 3
 out="$(FAKE_RUNNERS_FAIL=1 sc 2 2>&1)"
 check "an unreadable runner list warns and proceeds" sh -c "[ ! -e '$SC/widget-3' ] && echo \"\$0\" | grep -q 'could not check'" "$out"
+mkdir -p "$SC/widget-3"
+out="$(sc 2 2>&1)"
+check "scale removes a partial directory above N" sh -c "[ ! -e '$SC/widget-3' ] && echo \"\$0\" | grep -q 'Removing the partial runner directory'" "$out"
+mkdir -p "$WORK/sc-partial/widget-2"
+out="$(ci status --repo acme/widget --dir "$WORK/sc-partial" 2>&1)"
+check "status marks a partial directory" sh -c "echo \"\$0\" | grep -q 'widget-2 .*partial'" "$out"
 out="$(ci scale 2 --repo acme/widget --dir "$WORK/sc-empty" --yes --dry-run 2>&1)"
 check "scale with no instances installs like install" sh -c "echo \"\$0\" | grep -q 'into $WORK/sc-empty/widget\$' && echo \"\$0\" | grep -q 'into $WORK/sc-empty/widget-2\$'" "$out"
 unset FAKE_USER

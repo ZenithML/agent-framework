@@ -96,7 +96,7 @@ Use a regex that matches a skill invocation but excludes filename paths like `sp
 Build the pattern concretely by joining the skill names with `|`, then run it via Grep with the standards file path. Example:
 
 ```
-(^|[^/\w-])/(architect|audit|branching-model|create-pr|critique|fix-pr|implement|lint-harness|plan|prepare-docs|publish|qa|review-pr|sdd-init|ship|spec|tasks|test|triage-pr)([^\w.-]|$)
+(^|[^/\w-])/(architect|audit|branching-model|create-pr|critique|fix-pr|implement|lint-harness|plan|prepare-docs|publish|qa|review-diff|review-pr|sdd-init|ship|spec|tasks|test|triage-pr)([^\w.-]|$)
 ```
 
 This allows `` `/lint-harness` `` (backtick before, backtick after), ` /create-pr ` (spaces), but rejects `tasks.md`, `design.md`, and `specs/<domain>/tasks.md`.
