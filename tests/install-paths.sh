@@ -122,6 +122,10 @@ PY
   check "codex: odd .mcp.json entries do not abort the install" "$install" --harness claude,codex "$u"
   check "codex: serverUrl becomes url, shapeless entry skipped" \
     python3 -c "import tomllib,sys; m=tomllib.load(open('$u/.codex/config.toml','rb'))['mcp_servers']; sys.exit(not(m['hosted']['url']=='https://s.test/mcp' and m['dyn']['url']=='https://d.test/mcp' and 'broken' not in m))"
+  printf '%s\n' '{"mcpServers":{"broken":{"type":"stdio"}}}' > "$u/.mcp.json"
+  "$install" --harness claude,codex "$u" >/dev/null 2>&1
+  check "codex: a stale generated block goes when no server can be mirrored" \
+    bash -c "! grep -q mcp_servers '$u/.codex/config.toml' 2>/dev/null"
   local n; n="$(new_project no-codex)"; "$install" "$n" >/dev/null 2>&1
   check "default install writes no .codex/" test ! -e "$n/.codex"
   check "unknown harness is rejected" bash -c "! '$install' --harness bogus '$n'"

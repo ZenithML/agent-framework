@@ -177,7 +177,8 @@ def cmd_mcp(mcp_path, config_path):
             existing = fh.read()
     block_re = re.compile(re.escape(BLOCK_START) + r".*?" + re.escape(BLOCK_END) + r"\n?", re.S)
     rest = block_re.sub("", existing).rstrip("\n")
-    if not servers:
+
+    def drop_generated_block():
         if existing and rest != existing.rstrip("\n"):
             if rest:
                 with open(config_path, "w", encoding="utf-8") as fh:
@@ -185,7 +186,7 @@ def cmd_mcp(mcp_path, config_path):
             else:
                 os.remove(config_path)
             print(f"  Removed generated MCP block from {config_path}")
-        return
+
     tables, warnings = [], []
     for name, cfg in sorted(servers.items()):
         t, notes = server_table(name, cfg)
@@ -193,6 +194,7 @@ def cmd_mcp(mcp_path, config_path):
             tables.append(t)
         warnings += [f"{name}: {n}" for n in notes]
     if not tables:
+        drop_generated_block()
         for w in warnings:
             print(f"  Warning: {w}", file=sys.stderr)
         return
