@@ -151,6 +151,14 @@ def merge_base_show(root, path):
     """
     import subprocess
 
+    # A root nested inside another repo (the negative-control fixtures live in
+    # this one) must not borrow that repo's history: git -C would find the
+    # enclosing repo and compare the fixture against the real merge base.
+    top = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+                         capture_output=True, text=True, timeout=20)
+    if top.returncode != 0 or Path(top.stdout.strip()).resolve() != Path(root).resolve():
+        return None
+
     for base in ("origin/main", "origin/master", "main", "master"):
         try:
             mb = subprocess.run(["git", "-C", str(root), "merge-base", "HEAD", base],
