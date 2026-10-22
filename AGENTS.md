@@ -35,7 +35,8 @@ There is no `CLAUDE.md` — Claude Code falls back to this file when it is absen
 | Respond to PR review feedback | `/sdd:fix-pr` |
 | Review a pull request | `/sdd:review-pr` |
 | Review the local change before it goes public (findings to `.review/findings.json`) | `/sdd:review-diff` |
+| Triage a large PR — which parts need a human, which can be skipped | `/sdd:triage-pr` |
 | Lint skills / agents / standards (judgment half) | `/sdd:lint-harness` |
-| Run every mechanical gate before marking an MR ready | `./scripts/check-all.sh` (and `./tests/run-fixtures.sh`, and `./tests/install-paths.sh` when installers or manifests change, and `./tests/ci-runner.sh` when `plugins/ci-runner/` changes) |
+| Run every mechanical gate before marking an MR ready | `./scripts/check-all.sh` (and `./tests/run-fixtures.sh`, and `./tests/install-paths.sh` when installers or manifests change, and `./tests/ci-runner.sh` when `plugins/ci-runner/` changes, and `./tests/triage-pr.sh` when `plugins/sdd/skills/triage-pr/` changes) |
 | Hold one more skill to the strict authoring schema | Add its name to [`scripts/checks/harness-config.json`](scripts/checks/harness-config.json); removals are refused |
 | Audit docs | `/sdd:audit` |

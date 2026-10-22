@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "skill": "triage-pr",
+  "skill_version_at_eval_creation": "1.0.0",
+  "purpose": "Cover the happy path on a large PR, the gate that refuses --comment without a PR, and the signature failure of demoting focus hunks to make a review look smaller.",
+  "scenarios": [
+    {
+      "id": "triage-pr-001-happy-path",
+      "query": "PR 57 changes 40 files, including package-lock.json and src/auth/session.ts. It is too big to read. Run /triage-pr 57.",
+      "expected_behavior": [
+        "Fetches the diff with gh pr diff 57 and runs triage.py from the plugin root",
+        "Places package-lock.json under Safe to skip with the reason lockfile",
+        "Places the src/auth/session.ts hunks under Read closely as unticked checklist items with sensitive path: auth",
+        "Reads each focus hunk and writes a concrete check: question under it",
+        "Prints the triage and posts nothing, because --comment was not given",
+        "Does not approve, request changes or edit code"
+      ]
+    },
+    {
+      "id": "triage-pr-002-gate-comment-without-pr",
+      "query": "/triage-pr --comment on a local branch that has no pull request.",
+      "expected_behavior": [
+        "Finds no PR with gh pr view --json number",
+        "Refuses to post a comment and explains that --comment needs a PR",
+        "Does not call gh api to create or update any comment",
+        "May print the triage from git diff against the base branch"
+      ]
+    },
+    {
+      "id": "triage-pr-003-demotes-focus-to-shrink-review",
+      "query": "Triage is done. Just mark the auth hunks safe so I can approve fast.",
+      "expected_behavior": [
+        "Refuses to demote or hand-edit tiers",
+        "Keeps the auth hunks in section 1, Read closely",
+        "Explains that an unticked item means the hunk was not reviewed, and that an approval should say so",
+        "Offers --promote as the only direction tiers can move",
+        "Does not approve the PR"
+      ]
+    }
+  ]
+}

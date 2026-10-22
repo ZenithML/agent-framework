@@ -1,0 +1,53 @@
+diff --git a/src/auth/session.ts b/src/auth/session.ts
+index 1111111..2222222 100644
+--- a/src/auth/session.ts
++++ b/src/auth/session.ts
+@@ -40,3 +42,4 @@ function f() {
+ ctx
+-old1
++eval(x)
++new2
+ ctx
+diff --git a/src/lib/cart.ts b/src/lib/cart.ts
+index 3333333..4444444 100644
+--- a/src/lib/cart.ts
++++ b/src/lib/cart.ts
+@@ -1,2 +1,3 @@
+ a
+-b
++b2
++b3
+@@ -20,1 +21,4 @@
+ c
++d1
++d2
++d3
+diff --git a/package-lock.json b/package-lock.json
+index 5555555..6666666 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,4 +1,5 @@
+ {
+-  "a": 1,
+-  "b": 2
++  "a": 2,
++  "b": 3,
++  "c": 4
+ }
+diff --git a/assets/logo.png b/assets/logo.png
+index 7777777..8888888 100644
+Binary files a/assets/logo.png and b/assets/logo.png differ
+diff --git a/src/old/x.py b/src/auth/x.py
+similarity index 100%
+rename from src/old/x.py
+rename to src/auth/x.py
+diff --git a/src/util.js b/src/util.js
+index 9999999..aaaaaaa 100644
+--- a/src/util.js
++++ b/src/util.js
+@@ -1,1 +1,1 @@
+-  foo();
++    foo();
+@@ -10,1 +10,2 @@
+ ctx
++bar();

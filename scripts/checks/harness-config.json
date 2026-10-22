@@ -24,9 +24,15 @@
     "changelog"
   ],
   "_strict_skills": "Skills held to strict_frontmatter. Add names as they are brought up to the standard; coverage_ratchet.py refuses removals.",
-  "strict_skills": [],
+  "strict_skills": [
+    "triage-pr"
+  ],
   "_evals_required": "Skills required to ship evaluations/baseline-evals.json with three real scenarios. Same ratchet.",
-  "evals_required": [],
+  "evals_required": [
+    "triage-pr"
+  ],
   "_manifest_skills": "Skills required to close with a manifest. Plugin skills here do not carry one yet.",
-  "manifest_skills": []
+  "manifest_skills": [
+    "triage-pr"
+  ]
 }

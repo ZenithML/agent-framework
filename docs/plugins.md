@@ -11,7 +11,7 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 19 slash commands (invoked as /sdd:<name>)
+  skills/<name>/SKILL.md        — 20 slash commands (invoked as /sdd:<name>)
   agents/<name>.md              — 7 pipeline agents (architect, planner, critic,
                                   executor, tester, publisher, archivist)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
@@ -24,7 +24,7 @@ plugins/sdd/
 |---|---|---|
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
-| `implement` · `critique` · `qa` | `review-pr` · `review-diff` | `lint-harness` |
+| `implement` · `critique` · `qa` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 | `architect` (internal) | | |
 
