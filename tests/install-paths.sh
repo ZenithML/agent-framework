@@ -115,6 +115,17 @@ PY
   check "codex: re-run is idempotent" test -z "$(git -C "$c" status --porcelain)"
   rm "$c/.mcp.json"; "$install" --harness codex "$c" >/dev/null 2>&1
   check "codex: dropping .mcp.json removes the generated block" bash -c "! grep -q mcp_servers '$c/.codex/config.toml' && grep -q foo '$c/.codex/config.toml'"
+  # Servers Codex cannot take as-is must not abort the install: serverUrl is read as url,
+  # headersHelper and shapeless entries only warn.
+  local u; u="$(new_project codex-odd)"
+  printf '%s\n' '{"mcpServers":{"hosted":{"serverUrl":"https://s.test/mcp"},"dyn":{"type":"http","url":"https://d.test/mcp","headersHelper":"echo {}"},"broken":{"type":"stdio"}}}' > "$u/.mcp.json"
+  check "codex: odd .mcp.json entries do not abort the install" "$install" --harness claude,codex "$u"
+  check "codex: serverUrl becomes url, shapeless entry skipped" \
+    python3 -c "import tomllib,sys; m=tomllib.load(open('$u/.codex/config.toml','rb'))['mcp_servers']; sys.exit(not(m['hosted']['url']=='https://s.test/mcp' and m['dyn']['url']=='https://d.test/mcp' and 'broken' not in m))"
+  printf '%s\n' '{"mcpServers":{"broken":{"type":"stdio"}}}' > "$u/.mcp.json"
+  "$install" --harness claude,codex "$u" >/dev/null 2>&1
+  check "codex: a stale generated block goes when no server can be mirrored" \
+    bash -c "! grep -q mcp_servers '$u/.codex/config.toml' 2>/dev/null"
   local n; n="$(new_project no-codex)"; "$install" "$n" >/dev/null 2>&1
   check "default install writes no .codex/" test ! -e "$n/.codex"
   check "unknown harness is rejected" bash -c "! '$install' --harness bogus '$n'"

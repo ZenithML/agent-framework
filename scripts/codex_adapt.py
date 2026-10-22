@@ -117,8 +117,14 @@ ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}")
 def server_table(name, cfg):
     key = name if re.fullmatch(r"[A-Za-z0-9_-]+", name) else toml_str(name)
     lines, notes = [f"[mcp_servers.{key}]"], []
-    if "url" in cfg:
-        lines.append(f"url = {toml_str(cfg['url'])}")
+    url = cfg.get("url") or cfg.get("serverUrl")  # serverUrl: used by some hosted servers' setup snippets
+    if not url and not cfg.get("command"):
+        return None, ["has neither url nor command; skipped (Codex needs one of them)"]
+    if url:
+        lines.append(f"url = {toml_str(url)}")
+        if cfg.get("headersHelper"):
+            notes.append("headersHelper runs a command for headers, which Codex cannot do; "
+                         "set bearer_token_env_var in .codex/config.toml by hand if it needs auth")
         static, from_env = {}, {}
         for h, v in (cfg.get("headers") or {}).items():
             if not isinstance(v, str):
@@ -171,7 +177,8 @@ def cmd_mcp(mcp_path, config_path):
             existing = fh.read()
     block_re = re.compile(re.escape(BLOCK_START) + r".*?" + re.escape(BLOCK_END) + r"\n?", re.S)
     rest = block_re.sub("", existing).rstrip("\n")
-    if not servers:
+
+    def drop_generated_block():
         if existing and rest != existing.rstrip("\n"):
             if rest:
                 with open(config_path, "w", encoding="utf-8") as fh:
@@ -179,17 +186,23 @@ def cmd_mcp(mcp_path, config_path):
             else:
                 os.remove(config_path)
             print(f"  Removed generated MCP block from {config_path}")
-        return
+
     tables, warnings = [], []
     for name, cfg in sorted(servers.items()):
         t, notes = server_table(name, cfg)
-        tables.append(t)
+        if t:
+            tables.append(t)
         warnings += [f"{name}: {n}" for n in notes]
+    if not tables:
+        drop_generated_block()
+        for w in warnings:
+            print(f"  Warning: {w}", file=sys.stderr)
+        return
     block = BLOCK_START + "\n" + "\n\n".join(tables) + "\n" + BLOCK_END + "\n"
     os.makedirs(os.path.dirname(config_path) or ".", exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as fh:
         fh.write((rest + "\n\n" if rest else "") + block)
-    print(f"  Wrote {len(servers)} MCP server(s) from .mcp.json to {config_path}")
+    print(f"  Wrote {len(tables)} MCP server(s) from .mcp.json to {config_path}")
     for w in warnings:
         print(f"  Warning: {w}", file=sys.stderr)
 
