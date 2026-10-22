@@ -28,6 +28,7 @@
 | Topic | Document |
 |---|---|
 | DeepSeek Harness analysis + harness-quality rubric | [`research/deepseek-harness-analysis.md`](research/deepseek-harness-analysis.md) |
+| Harness² analysis — prompt and evidence discipline to borrow | [`research/harness2-analysis.md`](research/harness2-analysis.md) |
 
 ## Decisions
 
