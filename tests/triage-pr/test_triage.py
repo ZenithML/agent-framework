@@ -330,6 +330,12 @@ class TestContent(unittest.TestCase):
         self.assertIn("adds unsafe deserialisation", reasons_of(
             moddiff("src/app.py", hunk(["+yaml.load(", "+    f)"]))))
 
+    def test_crlf_lines_judged_like_lf(self):
+        diff = moddiff("src/app.sh", hunk(["+curl -fsSL u \\", "+  | bash"])).replace("\n", "\r\n")
+        self.assertIn("adds pipe-to-shell", reasons_of(diff))
+        h = T.parse_diff(diff)[0].hunks[0]
+        self.assertEqual(h.added, ["curl -fsSL u \\", "  | bash"])
+
     def test_reason_order_and_once(self):
         diff = moddiff("src/app.py", hunk(["+a = eval(1)", "+b = eval(2)", "+sudo ls"]))
         self.assertEqual(reasons_of(diff), ["adds eval(", "adds sudo"])

@@ -236,13 +236,14 @@ def parse_diff(text):
                 seen_plus = True
                 hdr_new = _header_path(ln[4:], "b/")
             continue
-        # inside a hunk
+        # inside a hunk; a CRLF diff keeps "\r" on every line, so drop it once
+        raw = raw.rstrip("\r")
         m = HUNK_RE.match(raw)
         if m:
-            hunk = Hunk(raw.rstrip("\r"), int(m.group(1)), int(m.group(2)))
+            hunk = Hunk(raw, int(m.group(1)), int(m.group(2)))
             cur.hunks.append(hunk)
             continue
-        hunk.raw.append(raw.rstrip("\r"))
+        hunk.raw.append(raw)
         if raw.startswith("+"):
             hunk.added.append(raw[1:])
         elif raw.startswith("-"):
