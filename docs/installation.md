@@ -48,8 +48,9 @@ The script does these things:
 - rewrites the plugin's `${CLAUDE_PLUGIN_ROOT}` paths to repo-relative `.claude/` paths, and
   `/sdd:<skill>` references to `/<skill>` (flat-installed skills have no namespace)
 - declares the SessionStart hook in `.claude/settings.json`
-- symlinks `.agents/skills` to `.claude/skills`, so Antigravity (`agy`) discovers the skills too
-  (skipped with a warning if `.agents/skills` already exists)
+- symlinks `.agents/skills` to `.claude/skills`, so Antigravity (`agy`) and Codex discover the skills
+  too (skipped with a warning if `.agents/skills` already exists)
+- with `--harness codex`, also wires up Codex (see [Using Codex](#using-codex))
 - writes a `.claude/sdd/.harness-version` stamp and a `.claude/sdd/.harness-manifest` that
   records each installed file's hash, so a later re-run can tell your edits from upstream changes
 
@@ -60,7 +61,7 @@ it installs alongside your own skills and leaves them untouched.
 
 ```bash
 cd /path/to/your-project
-git add .claude/
+git add .claude/ .agents/   # plus .codex/ if you used --harness codex
 git commit -m "chore: install sdd harness"
 ```
 
@@ -76,6 +77,34 @@ or pass `--overwrite-local` to take the upstream version. An install from before
 existed has no record of your edits, so its first re-run overwrites them. Check `git diff` after
 that run. Compare `.claude/sdd/.harness-version` against this
 repo's plugin version to see whether you are behind.
+
+### Using Codex
+
+`./scripts/install-skills.sh --harness claude,codex /path/to/your-project` (the `claude` entry is
+implied, since `.claude/` stays the one canonical copy). A project can serve Claude Code, `agy` and
+Codex at once. Codex has no plugin marketplace path here; flat copy is the supported route.
+
+| Piece | Claude Code | Codex |
+|---|---|---|
+| Rules | `AGENTS.md` | `AGENTS.md` (same file) |
+| Skills | `.claude/skills/` | `.agents/skills/`, a symlink to `.claude/skills/`; invoke with `$ship`, `$sdd-init` or `/skills` |
+| Subagents | `.claude/agents/*.md` | `.codex/agents/*.toml`, **generated** from the `.md` files on every install. Edit the `.md`, never the `.toml` |
+| MCP servers | `.mcp.json` | `.codex/config.toml`: the installer mirrors `.mcp.json` into a marked `[mcp_servers.*]` block and leaves the rest of the file alone |
+
+Differences to know about:
+- **Tool seal is advisory in Codex.** Codex agents have no `tools:` allowlist. The generated
+  instructions restate each role's contract, and `reviewer`/`auditor` agents get
+  `sandbox_mode = "read-only"`, but the verifier's "cannot read the implementation" guarantee is a
+  prompt rule there, the weakest kind per the [harness standard](../plugins/sdd/standards/harness.md).
+- **Models are not mapped.** `model: opus|sonnet` has no Codex equivalent, so generated agents inherit
+  the session model. Set `[agents]` defaults in `.codex/config.toml` if you want otherwise.
+- **MCP env interpolation.** Codex does not expand `${VAR}`. `Authorization: Bearer ${X}` becomes
+  `bearer_token_env_var = "X"` and bare `${X}` values become forwarded env vars; other interpolation
+  is forwarded with a warning.
+- **Trust.** Codex reads project `.codex/` config only for a trusted project.
+- **No SessionStart hook.** The remote-VM setup hook is Claude Code on the web only and is not
+  installed for Codex.
+- Re-run the installer after editing `.mcp.json` or an agent to refresh `.codex/`.
 
 ---
 

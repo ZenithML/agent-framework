@@ -14,12 +14,18 @@
 # install without a namespace, so they are invoked as /frames, /tune, /trap,
 # /render-init. Omit it for projects with no visual output.
 #
+# --harness picks which agent CLIs the project is wired for (default: claude,agy).
+# .claude/ is always the canonical copy. agy / Antigravity and Codex both read
+# skills from .agents/skills, which links to .claude/skills. codex additionally
+# generates .codex/agents/*.toml from the agents and, when the project has a
+# .mcp.json, mirrors its servers into .codex/config.toml (scripts/codex_adapt.py).
+#
 # Re-running over an earlier install updates it. Harness files the project has
 # edited since are kept, not overwritten (see step 2); pass --overwrite-local to
 # replace them with the new release anyway.
 #
 # Usage:
-#   scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] <target-project-dir>
+#   scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] [--harness LIST] <target-project-dir>
 
 set -euo pipefail
 
@@ -30,14 +36,16 @@ DRY_RUN=false
 FORCE=false
 WITH_RENDER=false
 OVERWRITE_LOCAL=false
+HARNESSES="claude,agy"
 
 usage() {
   cat <<'USAGE' >&2
-Usage: scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] <target-project-dir>
+Usage: scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] [--harness LIST] <target-project-dir>
   --dry-run, -d     Show actions without copying or writing files
   --force, -f       Install even if the target .claude/ has non-harness skills/agents
   --with-render     Also install the render plugin (perceptual verification)
   --overwrite-local Replace harness files edited in the target with the new release
+  --harness LIST    Comma list of claude, agy, codex (default: claude,agy; .claude/ is always installed)
 USAGE
   exit 1
 }
@@ -48,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --force|-f) FORCE=true; shift ;;
     --with-render) WITH_RENDER=true; shift ;;
     --overwrite-local) OVERWRITE_LOCAL=true; shift ;;
+    --harness) HARNESSES="${2:-}"; [ -n "$HARNESSES" ] || usage; shift 2 ;;
     --help|-h) usage ;;
     --) shift; break ;;
     -*) echo "Unknown option: $1" >&2; usage ;;
@@ -57,6 +66,19 @@ done
 
 [ -n "${TARGET:-}" ] || usage
 [ -d "$TARGET" ] || { echo "Error: '$TARGET' is not a directory." >&2; exit 1; }
+
+WANT_AGY=false; WANT_CODEX=false
+IFS=',' read -ra _H <<< "$HARNESSES"
+for h in "${_H[@]}"; do
+  case "$h" in
+    claude) ;;
+    agy) WANT_AGY=true ;;
+    codex) WANT_CODEX=true ;;
+    *) echo "Error: unknown harness '$h' (expected claude, agy, codex)." >&2; exit 1 ;;
+  esac
+done
+# Codex discovers skills at .agents/skills, the same path agy uses.
+[ "$WANT_CODEX" = true ] && WANT_AGY=true
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Error: python3 is required but not found in PATH." >&2
@@ -77,7 +99,8 @@ if [ "$DRY_RUN" = true ]; then
   echo "  - rewrite \${CLAUDE_PLUGIN_ROOT} -> .claude and /sdd:<skill> -> /<skill> in copied markdown"
   echo "  - keep harness files edited since the last install (manifest: $CLAUDE_DIR/sdd/.harness-manifest)"
   echo "  - declare the SessionStart hook in $SETTINGS"
-  echo "  - symlink $TARGET/.agents/skills -> ../.claude/skills (for agy / Antigravity)"
+  [ "$WANT_AGY" = true ] && echo "  - symlink $TARGET/.agents/skills -> ../.claude/skills (for agy / Antigravity / Codex)"
+  [ "$WANT_CODEX" = true ] && echo "  - generate $TARGET/.codex/agents/*.toml from the agents, and mirror .mcp.json into $TARGET/.codex/config.toml"
   echo "  - write $CLAUDE_DIR/sdd/.harness-version ($HARNESS_VERSION)"
   echo "Re-run without --dry-run to apply."
   exit 0
@@ -271,9 +294,10 @@ with open(path, 'w') as fh:
 print(f"  Updated {path}")
 PYEOF
 
-# 4. Expose the skills to Antigravity (agy), which scans .agents/skills/ and not
-#    .claude/skills/. A relative symlink keeps a single copy of the skills.
+# 4. Expose the skills to Antigravity (agy) and Codex, which scan .agents/skills/
+#    and not .claude/skills/. A relative symlink keeps a single copy of the skills.
 #    Never clobber an existing .agents/skills that is not already our link.
+if [ "$WANT_AGY" = true ]; then
 LINK="$TARGET/.agents/skills"
 EXPECTED="../.claude/skills"
 if [ -L "$LINK" ]; then
@@ -287,11 +311,21 @@ if [ -L "$LINK" ]; then
   fi
 elif [ -e "$LINK" ]; then
   echo "  Warning: $LINK exists and is not a symlink to $EXPECTED; left as is." >&2
-  echo "           agy will not see the sdd skills until you link or copy them there." >&2
+  echo "           agy / Codex will not see the sdd skills until you link or copy them there." >&2
 else
   mkdir -p "$TARGET/.agents"
   ln -s "$EXPECTED" "$LINK"
-  echo "  Linked .agents/skills -> $EXPECTED (agy / Antigravity discovery)"
+  echo "  Linked .agents/skills -> $EXPECTED (agy / Antigravity / Codex discovery)"
+fi
+fi
+
+# 4b. Codex: custom subagents are TOML files in .codex/agents/, generated from
+#     the installed (already path-rewritten) agents so the two cannot drift. The
+#     project's .mcp.json is mirrored into .codex/config.toml, since Codex does
+#     not read .mcp.json and ignores mcp_servers inside an agent file.
+if [ "$WANT_CODEX" = true ]; then
+  python3 "$HARNESS_DIR/scripts/codex_adapt.py" agents "$CLAUDE_DIR/agents" "$TARGET/.codex/agents"
+  python3 "$HARNESS_DIR/scripts/codex_adapt.py" mcp "$TARGET/.mcp.json" "$TARGET/.codex/config.toml"
 fi
 
 # 5. Write a version stamp so consumers can detect when an update is available.
@@ -306,8 +340,13 @@ fi
 echo ""
 echo "Next steps:"
 echo "  cd \"$(realpath "$TARGET")\""
-echo "  git add .claude/"
+echo "  git add .claude/ .agents/ $([ "$WANT_CODEX" = true ] && echo .codex/)"
 echo "  git commit -m 'chore: install sdd harness (flat) v${HARNESS_VERSION}'"
 echo ""
-echo "Then open Claude Code and run /sdd-init."
+if [ "$WANT_CODEX" = true ]; then
+  echo "Commit .codex/ and .agents/ too. Codex loads project .codex/ config only for a trusted project."
+  echo "Then open Claude Code or Codex and run /sdd-init (Codex: \$sdd-init)."
+else
+  echo "Then open Claude Code and run /sdd-init."
+fi
 echo "To update later, re-run this script from an updated harness checkout."
