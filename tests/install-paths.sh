@@ -96,8 +96,28 @@ PY
   check "--with-render adds render skills" test -f "$r/.claude/skills/frames/SKILL.md"
 
   local d; d="$(new_project dry)"
-  "$install" --dry-run "$d" >/dev/null 2>&1
-  check "--dry-run writes nothing" test ! -e "$d/.claude"
+  "$install" --dry-run --harness codex "$d" >/dev/null 2>&1
+  check "--dry-run writes nothing" bash -c "test ! -e '$d/.claude' && test ! -e '$d/.codex'"
+
+  # Codex: skills via .agents/skills, agents as TOML, .mcp.json mirrored into config.toml.
+  local c; c="$(new_project codex)"
+  printf '%s\n' '{"mcpServers":{"gh":{"type":"http","url":"https://x.test/mcp","headers":{"Authorization":"Bearer ${GH_TOKEN}"}},"pw":{"command":"npx","args":["pw"],"env":{"A":"b"}}}}' > "$c/.mcp.json"
+  printf '[features]\nfoo = true\n' > "$c/.codex-seed"; mkdir -p "$c/.codex"; mv "$c/.codex-seed" "$c/.codex/config.toml"
+  "$install" --harness claude,codex "$c" >/dev/null 2>&1
+  check "codex: $SDD_AGENTS agent TOMLs" test "$(ls "$c/.codex/agents" | wc -l)" -eq "$SDD_AGENTS"
+  check "codex: agent TOML parses and names the agent" \
+    python3 -c "import tomllib,sys; d=tomllib.load(open('$c/.codex/agents/critic.toml','rb')); sys.exit(d['name']!='critic' or d['sandbox_mode']!='read-only' or not d['developer_instructions'])"
+  check "codex: .agents/skills reaches the skills" test -f "$c/.agents/skills/ship/SKILL.md"
+  check "codex: config.toml parses, keeps existing keys, mirrors .mcp.json" \
+    python3 -c "import tomllib,sys; d=tomllib.load(open('$c/.codex/config.toml','rb')); m=d['mcp_servers']; sys.exit(not(d['features']['foo'] and m['gh']['bearer_token_env_var']=='GH_TOKEN' and m['pw']['command']=='npx'))"
+  git -C "$c" add -A && git -C "$c" -c user.name=t -c user.email=t@t commit -qm installed
+  "$install" --harness claude,codex "$c" >/dev/null 2>&1
+  check "codex: re-run is idempotent" test -z "$(git -C "$c" status --porcelain)"
+  rm "$c/.mcp.json"; "$install" --harness codex "$c" >/dev/null 2>&1
+  check "codex: dropping .mcp.json removes the generated block" bash -c "! grep -q mcp_servers '$c/.codex/config.toml' && grep -q foo '$c/.codex/config.toml'"
+  local n; n="$(new_project no-codex)"; "$install" "$n" >/dev/null 2>&1
+  check "default install writes no .codex/" test ! -e "$n/.codex"
+  check "unknown harness is rejected" bash -c "! '$install' --harness bogus '$n'"
 
   local o; o="$(new_project own)"
   mkdir -p "$o/.claude/skills/my-own-skill" && echo "own" > "$o/.claude/skills/my-own-skill/SKILL.md"

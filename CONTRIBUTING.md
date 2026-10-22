@@ -27,6 +27,20 @@ tests/
 
 ## Setting up locally
 
+### Dogfooding this repo
+
+Work on the harness with the harness itself, loaded live from your working tree:
+
+```bash
+./scripts/dev.sh                    # sdd; add --with-render / --with-ci-runner as needed
+```
+
+It runs `claude --plugin-dir plugins/sdd`: no install, no cache, no version bump. Edit a skill, run
+`/reload-plugins`, and the change is live. This is for the Claude Code side only. The installer and
+Codex output are exercised by `./tests/install-paths.sh`, not by this launcher.
+
+### Loading it into a test repo
+
 No build step. Clone, then load the plugin into any test repo:
 
 ```bash
