@@ -74,8 +74,8 @@ start the pipeline.
 files you have not edited and deletes unedited files a newer version no longer ships. Files you **have**
 edited since the last install are kept. If upstream changed one of those too, the new upstream copy
 is written to `.claude/sdd/upstream/<path>` for you to merge by hand (don't commit that directory),
-Unresolved incoming copies survive subsequent reruns until reconciled;
-or pass `--overwrite-local` to take the upstream version. Customized retired files remain
+or pass `--overwrite-local` to take the upstream version. Unresolved incoming copies survive
+subsequent reruns until reconciled. Customized retired files remain
 tracked so an explicit later `--overwrite-local` can retire them. An install from before the manifest
 existed has no record of your edits, so its first re-run overwrites them. Check `git diff` after
 that run. Compare `.claude/sdd/.harness-version` against this

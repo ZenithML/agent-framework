@@ -292,8 +292,9 @@ settings = {}
 if os.path.exists(path):
     with open(path) as fh:
         settings = json.load(fh)
-if any(name.startswith('sdd@') and enabled
-       for name, enabled in settings.get('enabledPlugins', {}).items()):
+enabled_plugins = settings.get('enabledPlugins')
+if isinstance(enabled_plugins, dict) and any(name.startswith('sdd@') and enabled
+       for name, enabled in enabled_plugins.items()):
     print('Warning: the sdd plugin is still enabled. After reviewing the flat snapshot, disable that pipeline plugin registration to avoid loading duplicate skills. Settings were preserved.', file=sys.stderr)
 # bash, not sh: the hook script uses `set -o pipefail`, which dash (/bin/sh on
 # Debian/Ubuntu) rejects.

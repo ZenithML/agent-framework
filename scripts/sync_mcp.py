@@ -18,7 +18,7 @@ except ImportError:
 
 BLOCK_START = "# >>> sdd-harness mcp (generated from .mcp.json; do not edit) >>>"
 BLOCK_END = "# <<< sdd-harness mcp <<<"
-ENV = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+ENV = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}")
 
 
 def literal(value):
@@ -29,6 +29,15 @@ def string(value):
     if not isinstance(value, str) or "${" in value:
         raise ValueError("expected a string without interpolation")
     return value
+
+
+def scalar(value):
+    """Validate a JSON scalar that TOML can represent."""
+    if isinstance(value, str):
+        return string(value)
+    if isinstance(value, (bool, int, float)):
+        return value
+    raise ValueError("expected a string, number, or boolean")
 
 
 def mapping(value):
@@ -57,14 +66,14 @@ def server_table(name, config):
         lines.append("url = " + literal(string(url)))
         static, forwarded = {}, {}
         for key, value in mapping(config.get("headers", {})).items():
-            bearer = re.fullmatch(r"Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}", value) if isinstance(value, str) else None
+            bearer = re.fullmatch(r"Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}", value) if isinstance(value, str) else None
             whole = ENV.fullmatch(value) if isinstance(value, str) else None
             if key.lower() == "authorization" and bearer:
                 lines.append("bearer_token_env_var = " + literal(bearer.group(1)))
             elif whole:
                 forwarded[key] = whole.group(1)
             else:
-                static[key] = string(value)
+                static[key] = scalar(value)
         if static:
             lines.append("http_headers = " + inline(static))
         if forwarded:
@@ -84,7 +93,7 @@ def server_table(name, config):
             if whole and whole.group(1) == key:
                 forwarded.append(key)
             else:
-                static[key] = string(value)
+                static[key] = scalar(value)
         if static:
             lines.append("env = " + inline(static))
         if forwarded:
@@ -160,6 +169,8 @@ def sync(target, check=False):
                 output.write(desired)
             if destination.exists():
                 os.chmod(temporary, destination.stat().st_mode & 0o777)
+            else:
+                os.chmod(temporary, 0o644)
             os.replace(temporary, destination)
         finally:
             if os.path.exists(temporary):
