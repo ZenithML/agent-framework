@@ -36,6 +36,13 @@ Then open Claude Code in your project, run `/sdd-init` once, and `/ship <feature
 pipeline. To install through the GitHub marketplace or as a vendored copy instead, see
 [Installation](docs/installation.md).
 
+## Working on this framework
+
+Launch Claude or Codex from this checkout's root. Discovery links expose the canonical
+`plugins/sdd/skills` to both clients, and `.claude/agents` exposes the canonical roles to
+Claude. Use `/ship` in Claude or `$ship` in Codex; no plugin installation is needed for
+this source checkout. Consumer plugin installations still use `/sdd:ship`.
+
 ## Documentation
 
 | Guide | Covers |

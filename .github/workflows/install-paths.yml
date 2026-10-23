@@ -27,6 +27,9 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code@2.1.291
 
+      - name: Verify Claude source-checkout discovery
+        run: python3 -m unittest discover -s tests -p test_source_discovery.py
+
       - name: Verify shared runtime installation
         run: python3 -m unittest discover -s tests -p test_shared_runtime.py
 

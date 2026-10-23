@@ -117,9 +117,24 @@ snapshot, avoids adding plugin registrations, and preserves `AGENTS.md` and proj
 A new project receives a shared routing map; existing project instructions are never replaced
 by the installer. Restart or reload the client if new skills are absent from discovery.
 
-In this framework source checkout, `.agents/skills` links directly to `plugins/sdd/skills`.
-The root `AGENTS.md` records that layout; no flat snapshot needs to be installed into the
-framework itself. Consumers keep the `.claude/` canonical layout described above.
+In this framework source checkout, both `.claude/skills` and `.agents/skills` link directly
+to `plugins/sdd/skills`, and `.claude/agents` links to `plugins/sdd/agents`. Starting Claude
+from the repository root exposes `/ship`, `/spec`, etc. as project skills without a plugin
+install; Codex discovers the same canonical files. The source project's settings disable
+`sdd@sdd-harness`, preventing a globally cached older plugin from replacing or duplicating
+these project skills. Consumer marketplace and vendored routes below retain `/sdd:` names.
+
+The root `AGENTS.md` explains source path resolution: `${CLAUDE_PLUGIN_ROOT}` refers to
+`plugins/sdd` and plugin command examples use the unnamespaced project equivalent here.
+No flat snapshot needs to be installed into the framework itself. Consumers keep the
+`.claude/` canonical layout described above. After updating an existing source-checkout
+session, restart Claude or run `/reload-skills`, then check `/skills` for `ship`, `spec`,
+`review-diff`, and `triage-pr`.
+
+`python3 -m unittest discover -s tests -p test_source_discovery.py` exercises actual Claude
+startup with an empty configuration directory and no credentials or MCP servers. It checks
+the reported skill and role inventories before the expected unauthenticated model result;
+no model call is needed. CI installs Claude before running this regression test.
 
 ### Shared MCP configuration
 
