@@ -7,6 +7,11 @@ description: >
   and does not check skills or agents (that is /sdd:lint-harness).
 ---
 
+Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/archivist.md` in full. In Codex, pass
+that exact canonical role definition and only this stage's scoped inputs to a fresh native
+subagent; do not assume a registered custom role. Read and apply the Cross-harness delegation
+contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
+
 **Usage:** `/sdd:audit` or `/sdd:audit <domain>`
 
 Spawn the `archivist` agent to check documentation health against `${CLAUDE_PLUGIN_ROOT}/standards/doc-structure.md`.

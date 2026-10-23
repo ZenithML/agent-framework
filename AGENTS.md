@@ -40,3 +40,14 @@ There is no `CLAUDE.md` — Claude Code falls back to this file when it is absen
 | Run every mechanical gate before marking an MR ready | `./scripts/check-all.sh` (and `./tests/run-fixtures.sh`, and `./tests/install-paths.sh` when installers or manifests change, and `./tests/ci-runner.sh` when `plugins/ci-runner/` changes, and `./tests/triage-pr.sh` when `plugins/sdd/skills/triage-pr/` changes) |
 | Hold one more skill to the strict authoring schema | Add its name to [`scripts/checks/harness-config.json`](scripts/checks/harness-config.json); removals are refused |
 | Audit docs | `/sdd:audit` |
+| Install or update consumers, including Codex discovery and shared roles | [Installation](docs/installation.md) |
+
+## Coding-agent discovery
+
+`.agents/skills` links to `plugins/sdd/skills` in this source checkout. Codex can discover
+these canonical skills directly; `${CLAUDE_PLUGIN_ROOT}` means `plugins/sdd` here. Consumer
+flat installs instead link `.agents/skills` to `.claude/skills`. See
+[the delegation contract](plugins/sdd/standards/agent-pipeline.md#cross-harness-delegation)
+for full-role native delegation, isolated stage inputs and session-model inheritance.
+Claude Code uses its plugin registration. Installation and authentication are documented in
+[the installation guide](docs/installation.md).

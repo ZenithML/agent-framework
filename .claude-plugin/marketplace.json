@@ -3,14 +3,14 @@
   "owner": {
     "name": "zenithml"
   },
-  "description": "Agent harness — a stack-agnostic spec-driven pipeline (spec → plan → implement → QA → publish), plus a verification harness for perceptual work, packaged as reusable Claude Code plugins.",
-  "version": "0.11.2",
+  "description": "Agent harness \u2014 a stack-agnostic spec-driven pipeline (spec \u2192 plan \u2192 implement \u2192 QA \u2192 publish), plus a verification harness for perceptual work, packaged as reusable Claude Code plugins.",
+  "version": "0.12.0",
   "plugins": [
     {
       "name": "sdd",
       "source": "./plugins/sdd",
       "description": "Spec-driven development pipeline: orchestrator + planner/executor/critic/tester/publisher/archivist agents, TDD implement loop, doc-audit, and PR workflow. Stack-agnostic via .claude/sdd/config.json.",
-      "version": "0.11.2",
+      "version": "0.12.0",
       "author": {
         "name": "zenithml"
       },

@@ -9,7 +9,7 @@ description: >
 
 **Usage:** `/sdd-init` (or `/sdd:sdd-init` when installed as a plugin)
 
-Bootstraps a repo that has the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, an ADR directory, `AGENTS.md`) and a pull request template, and commits everything.
+Bootstraps a repo with a flat harness or the sdd plugin enabled but no `.claude/sdd/config.json` yet. Detects the tech stack from manifest files, derives command defaults, confirms with the user, writes the config, seeds the docs scaffold (`docs/INDEX.md`, an ADR directory, `AGENTS.md`) and a pull request template, and commits everything.
 
 ---
 
@@ -183,7 +183,13 @@ Wait for the user's response:
 
 ## Step 6a: Offer plugin source choice
 
-After the user confirms the generated .claude/sdd/config.json but before writing files, present a single combined message offering how to install/enable the sdd plugin for the repository. Offer three choices and ask for a single selection. Use the Bash tool to run commands, Read/Edit/Write to show or modify files, and ask the user for confirmations before any commit.
+First detect a flat install using `.claude/sdd/.harness-version` and
+`.claude/skills/ship/SKILL.md`. If both exist, retain that installation and proceed to
+Step 7 without adding plugin registrations or offering a second copy. Codex uses this flat
+route. Existing plugin registrations should be reported for manual reconciliation, not
+silently enabled or removed. An existing flat install is not a reason to rerun onboarding.
+
+For a plugin installation only: after the user confirms the generated .claude/sdd/config.json but before writing files, present a single combined message offering how to install/enable the sdd plugin for the repository. Offer three choices and ask for a single selection. Use the Bash tool to run commands, Read/Edit/Write to show or modify files, and ask the user for confirmations before any commit.
 
 Choices (present as buttons):
 
@@ -443,7 +449,12 @@ touch <ADR_DIR>/.gitkeep
 
 ### 8e. AGENTS.md
 
-Write `AGENTS.md` at the repo root. This file is a routing map only — no rules, no explanations.
+Preserve an existing `AGENTS.md`, including the flat installer's routing map and any project
+rules. Merge only missing navigation for the confirmed documentation and installed skills;
+never replace the whole file. If absent, write the routing map below. For flat installations
+use `/ship`, `/spec`, etc.; in Codex also show `$ship` or `/skills`. Plugin installations keep
+the `/sdd:` namespace. Canonical role instructions remain in the installed `agents/` Markdown,
+with skill discovery through `.agents/skills`; onboarding creates no Codex agent copies.
 
 ```markdown
 ## Standards

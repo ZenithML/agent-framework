@@ -25,11 +25,12 @@ Copy the harness into your project and commit it:
 ```bash
 git clone https://github.com/zenithml/agent-framework.git
 ./agent-framework/scripts/install-skills.sh /path/to/your-project
-cd /path/to/your-project && git add .claude/ && git commit -m "chore: install sdd harness"
+cd /path/to/your-project && git add AGENTS.md .claude/ .agents/ && git commit -m "chore: install sdd harness"
 ```
 
-To also wire the project for Codex, add `--harness claude,codex` (skills, subagents and `.mcp.json`
-are translated; see [Using Codex](docs/installation.md#using-codex)). `agy` is covered by default.
+To also wire the project for Codex, add `--harness claude,codex`. Skills are exposed through a
+symlink, native subagents read the canonical Markdown roles, and MCP definitions are synced
+from `.mcp.json`; see [Using Codex](docs/installation.md#using-codex). `agy` is covered by default.
 
 Then open Claude Code in your project, run `/sdd-init` once, and `/ship <feature>` to start the
 pipeline. To install through the GitHub marketplace or as a vendored copy instead, see
