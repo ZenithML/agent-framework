@@ -2,6 +2,35 @@
 
 This document describes the agent-driven development workflow the SDD plugin provides. It is the reference for anyone (human or AI) working on or extending the pipeline.
 
+## Cross-harness delegation
+
+Canonical role instructions live only in `agents/<agent-name>.md` under the plugin root
+(or `.claude/agents/` in a flat consumer install). Discovery through `.agents/skills` is
+a symlink to the canonical skills; there are no Codex role copies or generated agents.
+
+Before every role invocation, including nested reviews and direct architect resumption:
+
+1. Read the canonical role Markdown in full, including its frontmatter, tool contract,
+   constraints and handoff schema. Read the scoped inputs required for the current stage.
+2. In Claude Code, invoke the existing registered role using the Agent/Task mechanism;
+   existing registered roles and their declared capabilities are unchanged.
+3. In Codex, start a native generic subagent. Pass the exact full role instructions as its
+   task instructions, followed by only the scoped stage context and invocation arguments.
+   Do not use a role summary, infer a custom agent registration, duplicate the role in
+   another file, or inherit the caller's full conversation. The native subagent must have
+   a fresh context containing just the role definition and permitted stage inputs.
+4. Map Claude tool names to native equivalents (file reads/patches, shell commands, searches,
+   browser tools and subagent spawning). Inherit the session model in Codex; do not request
+   Claude model labels such as opus, sonnet or haiku. Preserve role prohibitions and handoff
+   formats while using those native tools. If native delegation is unavailable, report the
+   limitation; do not substitute a self-review for an independent critic or tester.
+
+Codex role restrictions are advisory instructions, including read-only review and the
+verifier's prohibition on source inspection. No per-role sandbox or tool allowlist is
+installed by this harness. The Claude enforcement claims below apply to Claude Code only.
+
+---
+
 ## Philosophy
 
 - **`/sdd:ship` is the single entry point** for all code changes — feature, fix, or refactor.

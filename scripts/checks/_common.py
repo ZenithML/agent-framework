@@ -112,9 +112,10 @@ def _glob_all(root, patterns):
     seen, out = set(), []
     for pattern in patterns:
         for p in sorted(root.glob(pattern)):
-            if p.name == "README.md" or p in seen:
+            canonical = p.resolve()
+            if p.name == "README.md" or canonical in seen:
                 continue
-            seen.add(p)
+            seen.add(canonical)
             out.append(p)
     return sorted(out)
 

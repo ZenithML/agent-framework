@@ -49,7 +49,8 @@ The script does these things:
   `/sdd:<skill>` references to `/<skill>` (flat-installed skills have no namespace)
 - declares the SessionStart hook in `.claude/settings.json`
 - symlinks `.agents/skills` to `.claude/skills`, so Antigravity (`agy`) and Codex discover the skills
-  too (skipped with a warning if `.agents/skills` already exists)
+  too (foreign symlinks and existing directories remain intact, with a warning)
+- seeds a root `AGENTS.md` routing map only when absent; existing project guidance stays intact
 - with `--harness codex`, also wires up Codex (see [Using Codex](#using-codex))
 - writes a `.claude/sdd/.harness-version` stamp and a `.claude/sdd/.harness-manifest` that
   records each installed file's hash, so a later re-run can tell your edits from upstream changes
@@ -61,7 +62,7 @@ it installs alongside your own skills and leaves them untouched.
 
 ```bash
 cd /path/to/your-project
-git add .claude/ .agents/   # plus .codex/ if you used --harness codex
+git add AGENTS.md .claude/ .agents/   # plus .codex/config.toml if MCP is configured
 git commit -m "chore: install sdd harness"
 ```
 
@@ -70,10 +71,12 @@ start the pipeline.
 
 **To update later:** `git pull` in your harness checkout, re-run
 `./scripts/install-skills.sh /path/to/your-project`, and commit. The re-run updates harness
-files you have not edited and deletes the ones a newer version no longer ships. Files you **have**
+files you have not edited and deletes unedited files a newer version no longer ships. Files you **have**
 edited since the last install are kept. If upstream changed one of those too, the new upstream copy
 is written to `.claude/sdd/upstream/<path>` for you to merge by hand (don't commit that directory),
-or pass `--overwrite-local` to take the upstream version. An install from before the manifest
+or pass `--overwrite-local` to take the upstream version. Unresolved incoming copies survive
+subsequent reruns until reconciled. Customized retired files remain
+tracked so an explicit later `--overwrite-local` can retire them. An install from before the manifest
 existed has no record of your edits, so its first re-run overwrites them. Check `git diff` after
 that run. Compare `.claude/sdd/.harness-version` against this
 repo's plugin version to see whether you are behind.
@@ -88,25 +91,76 @@ Codex at once. Codex has no plugin marketplace path here; flat copy is the suppo
 |---|---|---|
 | Rules | `AGENTS.md` | `AGENTS.md` (same file) |
 | Skills | `.claude/skills/` | `.agents/skills/`, a symlink to `.claude/skills/`; invoke with `$ship`, `$sdd-init` or `/skills` |
-| Subagents | `.claude/agents/*.md` | `.codex/agents/*.toml`, **generated** from the `.md` files on every install. Edit the `.md`, never the `.toml` |
+| Subagents | Registered roles from `agents/*.md` | Native generic subagents receive the full canonical `.claude/agents/*.md` and scoped stage inputs; no generated role copies |
 | MCP servers | `.mcp.json` | `.codex/config.toml`: the installer mirrors `.mcp.json` into a marked `[mcp_servers.*]` block and leaves the rest of the file alone |
 
-Differences to know about:
-- **Tool seal is advisory in Codex.** Codex agents have no `tools:` allowlist. The generated
-  instructions restate each role's contract, and `reviewer`/`auditor` agents get
-  `sandbox_mode = "read-only"`, but the verifier's "cannot read the implementation" guarantee is a
-  prompt rule there, the weakest kind per the [harness standard](../plugins/sdd/standards/harness.md).
-- **Models are not mapped.** `model: opus|sonnet` has no Codex equivalent, so generated agents inherit
-  the session model. Set `[agents]` defaults in `.codex/config.toml` if you want otherwise.
-- **MCP env interpolation.** Codex does not expand `${VAR}`. `Authorization: Bearer ${X}` becomes
-  `bearer_token_env_var = "X"` and bare `${X}` values become forwarded env vars; other interpolation
-  is forwarded with a warning.
-- **Trust.** Codex reads project `.codex/` config only for a trusted project.
-- **No SessionStart hook.** The remote-VM setup hook is Claude Code on the web only and is not
-  installed for Codex.
-- Re-run the installer after editing `.mcp.json` or an agent to refresh `.codex/`.
+Each dispatcher reads its canonical role Markdown in full before spawning. Codex uses fresh
+native context, passes the complete role including frontmatter and handoff contract, and
+supplies only the inputs permitted for that stage. Nested architect, planner and publisher
+calls follow the same procedure. Claude tool names map to native operations, and Codex
+inherits the session model instead of requesting `opus`, `sonnet` or `haiku`. If native
+subagents are unavailable, report that limitation instead of substituting self-review.
 
----
+Codex role restrictions are advisory instructions under the caller's environment permissions.
+No Codex per-role sandbox or tool allowlist is installed; in particular, source-blind QA is
+not enforced by a generated agent configuration. Claude Code retains its declared role tools.
+Read the installed `.claude/standards/agent-pipeline.md` for the complete delegation contract.
+
+Existing `.codex/agents/` files are left untouched, including legacy generated files. The
+installer warns about those legacy copies; review and retire them manually after checking
+for customizations. The pipeline no longer uses registered Codex roles. Likewise, a flat
+install warns about an enabled `sdd@...` plugin without changing its registration: disable
+that duplicate pipeline after review, preserving other plugins, permissions and hooks.
+
+The Claude SessionStart hook remains Claude-specific. Flat onboarding retains the existing
+snapshot, avoids adding plugin registrations, and preserves `AGENTS.md` and project config.
+A new project receives a shared routing map; existing project instructions are never replaced
+by the installer. Restart or reload the client if new skills are absent from discovery.
+
+In this framework source checkout, both `.claude/skills` and `.agents/skills` link directly
+to `plugins/sdd/skills`, and `.claude/agents` links to `plugins/sdd/agents`. Starting Claude
+from the repository root exposes `/ship`, `/spec`, etc. as project skills without a plugin
+install; Codex discovers the same canonical files. The source project's settings disable
+`sdd@sdd-harness`, preventing a globally cached older plugin from replacing or duplicating
+these project skills. Consumer marketplace and vendored routes below retain `/sdd:` names.
+
+The root `AGENTS.md` explains source path resolution: `${CLAUDE_PLUGIN_ROOT}` refers to
+`plugins/sdd` and plugin command examples use the unnamespaced project equivalent here.
+No flat snapshot needs to be installed into the framework itself. Consumers keep the
+`.claude/` canonical layout described above. After updating an existing source-checkout
+session, restart Claude or run `/reload-skills`, then check `/skills` for `ship`, `spec`,
+`review-diff`, and `triage-pr`.
+
+`python3 -m unittest discover -s tests -p test_source_discovery.py` exercises actual Claude
+startup with an empty configuration directory and no credentials or MCP servers. It checks
+the reported skill and role inventories before the expected unauthenticated model result;
+no model call is needed. CI installs Claude before running this regression test.
+
+### Shared MCP configuration
+
+Keep server definitions in the project's `.mcp.json`; it is the single source of truth.
+With `--harness codex`, installation synchronizes those definitions into a marked block of
+`.codex/config.toml` and installs a reusable helper. MCP sync requires Python 3.11+ and no
+third-party packages. It makes no connections and does not authenticate.
+
+After editing, adding or removing servers in `.mcp.json`, run from the consumer root:
+
+```sh
+python3 .claude/sdd/sync_mcp.py
+python3 .claude/sdd/sync_mcp.py --check  # nonzero on drift; writes nothing
+```
+
+The helper preserves unrelated Codex settings and manual servers. Same-name manual entries
+must be reconciled into `.mcp.json` first; they are never overwritten. Missing/empty source
+removes only the managed servers. Malformed input or unsupported fields fail before writing.
+HTTP and stdio are supported. `Bearer ${TOKEN}` becomes `bearer_token_env_var`, bare
+header `${TOKEN}` becomes `env_http_headers`, and stdio `TOKEN: "${TOKEN}"` becomes
+`env_vars`. No environment values are read or written. Other interpolation and dynamic
+header commands require explicit reconciliation; they are not silently passed through.
+Keep credentials outside committed configuration. OAuth login remains per client, for example
+`codex mcp login atlassian`. Trust the project so Codex loads `.codex/config.toml`, then restart
+or reload the client to pick up changed servers. Commit the helper and generated MCP block;
+edit server definitions only in `.mcp.json`.
 
 ## GitHub marketplace
 

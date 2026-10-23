@@ -7,6 +7,11 @@ description: >
   not trigger for design or task breakdown (that is /sdd:plan).
 ---
 
+Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/planner.md` in full. In Codex, pass
+that exact canonical role definition and only this stage's scoped inputs to a fresh native
+subagent; do not assume a registered custom role. Read and apply the Cross-harness delegation
+contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
+
 **Usage:** `/sdd:spec <domain> [--autonomous]`
 
 Spawn the `planner` agent with `--spec-only` and the domain name.

@@ -7,6 +7,11 @@ description: >
   does not merge anything.
 ---
 
+Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` in full. In Codex, pass
+that exact canonical role definition and only this stage's scoped inputs to a fresh native
+subagent; do not assume a registered custom role. Read and apply the Cross-harness delegation
+contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
+
 **Usage:** `/sdd:publish <domain>`
 
 Spawns the `publisher` agent with the domain name and domain path (`docs/specs/<domain>/`).

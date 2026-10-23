@@ -17,8 +17,8 @@
 # --harness picks which agent CLIs the project is wired for (default: claude,agy).
 # .claude/ is always the canonical copy. agy / Antigravity and Codex both read
 # skills from .agents/skills, which links to .claude/skills. codex additionally
-# generates .codex/agents/*.toml from the agents and, when the project has a
-# .mcp.json, mirrors its servers into .codex/config.toml (scripts/codex_adapt.py).
+# reads canonical Markdown roles directly through native subagent delegation.
+# Its MCP definitions are synchronized from .mcp.json into .codex/config.toml.
 #
 # Re-running over an earlier install updates it. Harness files the project has
 # edited since are kept, not overwritten (see step 2); pass --overwrite-local to
@@ -101,7 +101,8 @@ if [ "$DRY_RUN" = true ]; then
   echo "  - keep harness files edited since the last install (manifest: $CLAUDE_DIR/sdd/.harness-manifest)"
   echo "  - declare the SessionStart hook in $SETTINGS"
   [ "$WANT_AGY" = true ] && echo "  - symlink $TARGET/.agents/skills -> ../.claude/skills (for agy / Antigravity / Codex)"
-  [ "$WANT_CODEX" = true ] && echo "  - generate $TARGET/.codex/agents/*.toml from the agents, and mirror .mcp.json into $TARGET/.codex/config.toml"
+  [ "$WANT_CODEX" = true ] && echo "  - use shared Markdown roles and synchronize .mcp.json into $TARGET/.codex/config.toml"
+  echo "  - seed AGENTS.md routing only if absent; preserve existing project guidance"
   echo "  - write $CLAUDE_DIR/sdd/.harness-version ($HARNESS_VERSION)"
   echo "Re-run without --dry-run to apply."
   exit 0
@@ -119,6 +120,17 @@ if [ "$FORCE" = false ] && [ ! -f "$CLAUDE_DIR/sdd/.harness-version" ] \
   exit 1
 fi
 
+# Validate shared MCP input before writing any consumer files.
+if [ "$WANT_CODEX" = true ]; then
+  python3 - "$HARNESS_DIR/scripts" "$TARGET" <<'PYMCP'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from sync_mcp import plan
+plan(Path(sys.argv[2]))
+PYMCP
+fi
+
 # 1. Stage the harness in a temp dir: copy skills, agents, standards, templates,
 #    config schema/examples and hook, then rewrite them for a flat install. The
 #    staged tree is synced into the target in step 2, which is what lets a re-run
@@ -130,9 +142,10 @@ mkdir -p "$S/skills" "$S/agents" "$S/standards" "$S/templates/docs" "$S/sdd" "$S
 cp -r "$PLUGIN_DIR/skills/." "$S/skills/"
 cp -r "$PLUGIN_DIR/agents/." "$S/agents/"
 cp -r "$PLUGIN_DIR/standards/." "$S/standards/"
-cp -r "$PLUGIN_DIR/templates/docs/." "$S/templates/docs/"
+cp -r "$PLUGIN_DIR/templates/." "$S/templates/"
 cp "$PLUGIN_DIR/config/"*.json "$S/sdd/"
 cp "$PLUGIN_DIR/hooks/remote-session-start.sh" "$S/hooks/"
+cp "$HARNESS_DIR/scripts/sync_mcp.py" "$S/sdd/"
 
 # 1b. The render plugin is opt-in: most projects have nothing to look at.
 if [ "$WITH_RENDER" = true ]; then
@@ -209,7 +222,8 @@ old = None
 if os.path.exists(manifest_path):
     with open(manifest_path) as fh:
         old = json.load(fh).get('files', {})
-shutil.rmtree(upstream_dir, ignore_errors=True)
+# Preserve unresolved incoming copies across reruns. The manifest advances to
+# the incoming baseline, so deleting this directory can lose the only conflict copy.
 
 new, kept, conflicts, removed = {}, [], [], []
 for dirpath, _dirs, files in os.walk(stage):
@@ -232,12 +246,16 @@ for dirpath, _dirs, files in os.walk(stage):
                 continue
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(src, dst)
+        incoming = os.path.join(upstream_dir, rel)
+        if os.path.isfile(incoming):
+            os.remove(incoming)
 
 for rel, digest in (old or {}).items():
     dst = os.path.join(dest, rel)
     if rel in new or not os.path.exists(dst):
         continue
     if sha(dst) != digest and not overwrite_local:
+        new[rel] = digest  # Retain retired edits for a later explicit overwrite.
         kept.append(rel)
         continue
     os.remove(dst)
@@ -274,6 +292,10 @@ settings = {}
 if os.path.exists(path):
     with open(path) as fh:
         settings = json.load(fh)
+enabled_plugins = settings.get('enabledPlugins')
+if isinstance(enabled_plugins, dict) and any(name.startswith('sdd@') and enabled
+       for name, enabled in enabled_plugins.items()):
+    print('Warning: the sdd plugin is still enabled. After reviewing the flat snapshot, disable that pipeline plugin registration to avoid loading duplicate skills. Settings were preserved.', file=sys.stderr)
 # bash, not sh: the hook script uses `set -o pipefail`, which dash (/bin/sh on
 # Debian/Ubuntu) rejects.
 cmd = 'bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/remote-session-start.sh"'
@@ -305,10 +327,7 @@ if [ -L "$LINK" ]; then
   if [ "$(readlink "$LINK")" = "$EXPECTED" ]; then
     echo "  .agents/skills symlink already in place"
   else
-    mkdir -p "$TARGET/.agents"
-    rm -f "$LINK"
-    ln -s "$EXPECTED" "$LINK"
-    echo "  Updated .agents/skills -> $EXPECTED (agy / Antigravity discovery)"
+    echo "  Warning: foreign .agents/skills symlink left untouched; expose installed skills there manually." >&2
   fi
 elif [ -e "$LINK" ]; then
   echo "  Warning: $LINK exists and is not a symlink to $EXPECTED; left as is." >&2
@@ -320,13 +339,18 @@ else
 fi
 fi
 
-# 4b. Codex: custom subagents are TOML files in .codex/agents/, generated from
-#     the installed (already path-rewritten) agents so the two cannot drift. The
-#     project's .mcp.json is mirrored into .codex/config.toml, since Codex does
-#     not read .mcp.json and ignores mcp_servers inside an agent file.
+# 4b. Codex uses the canonical Markdown roles; no copied agent definitions.
+# MCP configuration is the only generated Codex block.
 if [ "$WANT_CODEX" = true ]; then
-  python3 "$HARNESS_DIR/scripts/codex_adapt.py" agents "$CLAUDE_DIR/agents" "$TARGET/.codex/agents"
-  python3 "$HARNESS_DIR/scripts/codex_adapt.py" mcp "$TARGET/.mcp.json" "$TARGET/.codex/config.toml"
+  python3 "$CLAUDE_DIR/sdd/sync_mcp.py" --target "$TARGET"
+  if [ -d "$TARGET/.codex/agents" ] && grep -rl 'Generated by agent-framework scripts/codex_adapt.py' "$TARGET/.codex/agents" >/dev/null 2>&1; then
+    echo "Warning: legacy generated Codex agents remain untouched. Review and retire them manually; pipeline dispatchers now read the canonical Markdown roles." >&2
+  fi
+fi
+
+# Existing project rules stay authoritative. Seed routing only for a fresh project.
+if [ ! -e "$TARGET/AGENTS.md" ] && [ ! -L "$TARGET/AGENTS.md" ]; then
+  cp "$CLAUDE_DIR/templates/agent-routing.md" "$TARGET/AGENTS.md"
 fi
 
 # 5. Write a version stamp so consumers can detect when an update is available.
@@ -341,11 +365,12 @@ fi
 echo ""
 echo "Next steps:"
 echo "  cd \"$(realpath "$TARGET")\""
-echo "  git add .claude/ $([ "$WANT_AGY" = true ] && echo .agents/) $([ "$WANT_CODEX" = true ] && echo .codex/)"
+echo "  git add AGENTS.md .claude/ $([ "$WANT_AGY" = true ] && echo .agents/) $([ "$WANT_CODEX" = true ] && echo .codex/)"
 echo "  git commit -m 'chore: install sdd harness (flat) v${HARNESS_VERSION}'"
 echo ""
 if [ "$WANT_CODEX" = true ]; then
   echo "Commit .codex/ and .agents/ too. Codex loads project .codex/ config only for a trusted project."
+  echo "After changing .mcp.json: python3 .claude/sdd/sync_mcp.py (or --check for drift). Requires Python 3.11+."
   echo "Then open Claude Code or Codex and run /sdd-init (Codex: \$sdd-init)."
 else
   echo "Then open Claude Code and run /sdd-init."

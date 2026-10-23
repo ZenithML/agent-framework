@@ -99,14 +99,13 @@ PY
   "$install" --dry-run --harness codex "$d" >/dev/null 2>&1
   check "--dry-run writes nothing" bash -c "test ! -e '$d/.claude' && test ! -e '$d/.codex'"
 
-  # Codex: skills via .agents/skills, agents as TOML, .mcp.json mirrored into config.toml.
+  # Codex: shared Markdown roles, discovery link, and managed MCP configuration.
   local c; c="$(new_project codex)"
   printf '%s\n' '{"mcpServers":{"gh":{"type":"http","url":"https://x.test/mcp","headers":{"Authorization":"Bearer ${GH_TOKEN}"}},"pw":{"command":"npx","args":["pw"],"env":{"A":"b"}}}}' > "$c/.mcp.json"
   printf '[features]\nfoo = true\n' > "$c/.codex-seed"; mkdir -p "$c/.codex"; mv "$c/.codex-seed" "$c/.codex/config.toml"
   "$install" --harness claude,codex "$c" >/dev/null 2>&1
-  check "codex: $SDD_AGENTS agent TOMLs" test "$(ls "$c/.codex/agents" | wc -l)" -eq "$SDD_AGENTS"
-  check "codex: agent TOML parses and names the agent" \
-    python3 -c "import tomllib,sys; d=tomllib.load(open('$c/.codex/agents/critic.toml','rb')); sys.exit(d['name']!='critic' or d['sandbox_mode']!='read-only' or not d['developer_instructions'])"
+  check "codex: no generated role files" test ! -e "$c/.codex/agents"
+  check "codex: canonical critic role available" test -f "$c/.claude/agents/critic.md"
   check "codex: .agents/skills reaches the skills" test -f "$c/.agents/skills/ship/SKILL.md"
   check "codex: config.toml parses, keeps existing keys, mirrors .mcp.json" \
     python3 -c "import tomllib,sys; d=tomllib.load(open('$c/.codex/config.toml','rb')); m=d['mcp_servers']; sys.exit(not(d['features']['foo'] and m['gh']['bearer_token_env_var']=='GH_TOKEN' and m['pw']['command']=='npx'))"
@@ -115,17 +114,18 @@ PY
   check "codex: re-run is idempotent" test -z "$(git -C "$c" status --porcelain)"
   rm "$c/.mcp.json"; "$install" --harness codex "$c" >/dev/null 2>&1
   check "codex: dropping .mcp.json removes the generated block" bash -c "! grep -q mcp_servers '$c/.codex/config.toml' && grep -q foo '$c/.codex/config.toml'"
-  # Servers Codex cannot take as-is must not abort the install: serverUrl is read as url,
-  # headersHelper and shapeless entries only warn.
+  # Unsupported translation fails before writing any consumer snapshot.
   local u; u="$(new_project codex-odd)"
-  printf '%s\n' '{"mcpServers":{"hosted":{"serverUrl":"https://s.test/mcp"},"dyn":{"type":"http","url":"https://d.test/mcp","headersHelper":"echo {}"},"broken":{"type":"stdio"}}}' > "$u/.mcp.json"
-  check "codex: odd .mcp.json entries do not abort the install" "$install" --harness claude,codex "$u"
-  check "codex: serverUrl becomes url, shapeless entry skipped" \
-    python3 -c "import tomllib,sys; m=tomllib.load(open('$u/.codex/config.toml','rb'))['mcp_servers']; sys.exit(not(m['hosted']['url']=='https://s.test/mcp' and m['dyn']['url']=='https://d.test/mcp' and 'broken' not in m))"
-  printf '%s\n' '{"mcpServers":{"broken":{"type":"stdio"}}}' > "$u/.mcp.json"
-  "$install" --harness claude,codex "$u" >/dev/null 2>&1
-  check "codex: a stale generated block goes when no server can be mirrored" \
-    bash -c "! grep -q mcp_servers '$u/.codex/config.toml' 2>/dev/null"
+  printf '%s\n' '{"mcpServers":{"dyn":{"url":"https://d.test/mcp","headersHelper":"echo {}"}}}' > "$u/.mcp.json"
+  check "codex: unsupported MCP input fails without mutation" bash -c '
+    ! "$1" --harness codex "$2" >/dev/null 2>&1 && test ! -e "$2/.claude" && test ! -e "$2/.codex"
+  ' _ "$install" "$u"
+  printf '%s\n' '{"mcpServers":{"hosted":{"serverUrl":"https://s.test/mcp"}}}' > "$u/.mcp.json"
+  "$install" --harness codex "$u" >/dev/null 2>&1
+  check "codex: installed standalone sync helper detects no drift" python3 "$u/.claude/sdd/sync_mcp.py" --target "$u" --check
+  printf '%s\n' '{"mcpServers":{}}' > "$u/.mcp.json"
+  python3 "$u/.claude/sdd/sync_mcp.py" --target "$u" >/dev/null 2>&1
+  check "codex: standalone sync removes retired entries" test ! -e "$u/.codex/config.toml"
   local n; n="$(new_project no-codex)"; "$install" "$n" >/dev/null 2>&1
   check "default install writes no .codex/" test ! -e "$n/.codex"
   check "unknown harness is rejected" bash -c "! '$install' --harness bogus '$n'"

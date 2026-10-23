@@ -29,15 +29,22 @@ tests/
 
 ### Dogfooding this repo
 
-Work on the harness with the harness itself, loaded live from your working tree:
+Launch `claude` from the checkout root. Committed `.claude/skills` and `.claude/agents`
+links expose the canonical plugin files directly; use `/ship`, `/spec` and `/lint-harness`.
+Codex discovers the same skills through `.agents/skills`. No plugin installation or cached
+marketplace is needed for source development. Restart the session or run `/reload-skills`
+after changing discovery links.
+
+To exercise the namespaced plugin route separately, run the existing live launcher from an
+empty test repository:
 
 ```bash
-./scripts/dev.sh                    # sdd; add --with-render / --with-ci-runner as needed
+/path/to/agent-framework/scripts/dev.sh  # add --with-render / --with-ci-runner as needed
 ```
 
-It runs `claude --plugin-dir plugins/sdd`: no install, no cache, no version bump. Edit a skill, run
-`/reload-plugins`, and the change is live. This is for the Claude Code side only. The installer and
-Codex output are exercised by `./tests/install-paths.sh`, not by this launcher.
+It runs `claude --plugin-dir /path/to/agent-framework/plugins/sdd` without installing a
+plugin or caching a copy. That test session uses `/sdd:ship`, etc.; `/reload-plugins` refreshes
+edits. The real startup regression tests cover both this route and plain source discovery.
 
 ### Loading it into a test repo
 
@@ -98,13 +105,13 @@ Skills live at `plugins/sdd/skills/<name>/SKILL.md`. Each file:
 - Contains a **Configuration preamble** (copy verbatim from any existing skill) so the agent resolves `.claude/sdd/config.json` placeholders
 - Uses numbered steps — see `plugins/sdd/standards/harness.md` for the cross-reference design rules that govern execution-layer docs
 
-After editing any skill, run `/sdd:lint-harness` before opening a PR.
+After editing any skill, run `/lint-harness` in this source checkout before opening a PR.
 
 ### Adding a skill
 
 1. Create `plugins/sdd/skills/<name>/SKILL.md`
-2. The directory name becomes the slash command: `skills/my-skill/` → `/sdd:my-skill`
-3. Run `claude plugin validate ./plugins/sdd --strict` and `/sdd:lint-harness`
+2. The directory name becomes the slash command: `skills/my-skill/` → `/sdd:my-skill` in a plugin, `/my-skill` in this checkout
+3. Run `claude plugin validate ./plugins/sdd --strict` and `/lint-harness` in this source checkout
 
 No manifest edit is needed. Claude Code always scans a plugin's `skills/` directory, so a new directory is picked up automatically. `plugin.json` deliberately carries **no** `skills` field — its schema expects directory paths, not per-skill entries, and a hand-maintained list would only be a second place to forget.
 
@@ -136,12 +143,12 @@ claude plugin validate ./plugins/sdd --strict  # plugin.json, skill/agent frontm
 **Harness anti-patterns — judgment.** Run after editing any skill, agent, or standard:
 
 ```
-/sdd:lint-harness
+/lint-harness
 ```
 
 It checks for step-delegation cross-references, prohibited screenshot mechanisms, rule drift between execution-layer files, and skill-name references in changed standards.
 
-CI runs `claude plugin validate --strict` (advisory until the CLI version is pinned), `./scripts/check-all.sh`, `./tests/run-fixtures.sh` and `./tests/install-paths.sh`. `/sdd:lint-harness` is a judgment check and stays manual: run it before marking a PR ready.
+CI runs `claude plugin validate --strict` (advisory until the CLI version is pinned), `./scripts/check-all.sh`, `./tests/run-fixtures.sh` and `./tests/install-paths.sh`. `/lint-harness` is a judgment check and stays manual: run it before marking a PR ready.
 
 ## Versioning
 

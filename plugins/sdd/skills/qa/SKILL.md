@@ -7,6 +7,11 @@ description: >
   /sdd:test), and never reads implementation code.
 ---
 
+Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/tester.md` in full. In Codex, pass
+that exact canonical role definition and only this stage's scoped inputs to a fresh native
+subagent; do not assume a registered custom role. Read and apply the Cross-harness delegation
+contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
+
 **Usage:** `/sdd:qa <domain> <task-id>`
 
 Spawn the `tester` agent with the domain, task ID, and required context.

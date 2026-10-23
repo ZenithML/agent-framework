@@ -7,6 +7,11 @@ description: >
   arguments), and does not trigger to run a single stage cleanly (use that stage's skill).
 ---
 
+Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` in full. In Codex, pass
+that exact canonical role definition and only this stage's scoped inputs to a fresh native
+subagent; do not assume a registered custom role. Read and apply the Cross-harness delegation
+contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
+
 **Note:** This is the internal pipeline orchestrator. For normal use, invoke `/ship` instead — it calls this skill automatically.
 
 Invoke the architect directly only to resume a failed pipeline or debug a specific stage.

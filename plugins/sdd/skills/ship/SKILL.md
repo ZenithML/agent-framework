@@ -8,6 +8,11 @@ description: >
   pipeline that failed midway (invoke the architect directly).
 ---
 
+Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` in full. In Codex, pass
+that exact canonical role definition and only this stage's scoped inputs to a fresh native
+subagent; do not assume a registered custom role. Read and apply the Cross-harness delegation
+contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
+
 **Usage:** `/sdd:ship <feature-description> [--autonomous]`
 
 The primary entry point for all code changes. Spawns the `architect` agent to run the full pipeline:

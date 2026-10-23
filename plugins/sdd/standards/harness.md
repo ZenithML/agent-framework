@@ -131,9 +131,15 @@ dispatch versus delegation above: a file that routes is fine, a step that abdica
 
 ## Agent roles and tool contracts
 
-Context isolation is this pipeline's main safety property, and prose cannot enforce it. "Pass
+In Claude Code, context isolation is this pipeline's main safety property, and prose cannot enforce it. "Pass
 only the Test Scenarios section" is an instruction a model can exceed. What binds is the
 agent's `tools:` declaration: **a tool that is not declared cannot be called.**
+
+Codex reads these same canonical Markdown roles through native generic delegation. Their
+contracts remain instructions under the caller's environment permissions; this harness does
+not install per-role Codex sandboxes or enforce tool allowlists. In particular, the verifier's
+source-inspection ban is advisory in Codex. The enforcement claims in this section apply to
+Claude Code. See [the delegation contract](agent-pipeline.md#cross-harness-delegation).
 
 Every agent therefore declares a `role:`, and each role carries a tool contract:
 
