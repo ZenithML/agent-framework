@@ -98,7 +98,7 @@ Each dispatcher reads its canonical role Markdown in full before spawning. Codex
 native context, passes the complete role including frontmatter and handoff contract, and
 supplies only the inputs permitted for that stage. Nested architect, planner and publisher
 calls follow the same procedure. Claude tool names map to native operations, and Codex
-resolves the target role’s `provider_defaults.openai` model when the host supports it,
+resolves the target role's `provider_defaults.openai` model when the host supports it,
 falling back to the session model when resolution or support checks fail. If native
 subagents are unavailable, report that limitation instead of substituting self-review.
 
