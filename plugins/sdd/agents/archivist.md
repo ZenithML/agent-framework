@@ -5,10 +5,6 @@ description: >
   Read-only documentation audit. Checks specs against the doc-structure standard and reports conformance gaps without repairing them.
 model: sonnet
 tier: workhorse
-provider_defaults:
-  anthropic: sonnet
-  openai: gpt-6.1-sol
-  google: gemini-4-argon-medium
 tools: [Read, Bash, Grep, Glob]
 ---
 

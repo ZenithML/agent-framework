@@ -135,12 +135,15 @@ In Claude Code, context isolation is this pipeline's main safety property, and p
 only the Test Scenarios section" is an instruction a model can exceed. What binds is the
 agent's `tools:` declaration: **a tool that is not declared cannot be called.**
 
-Every role declares a semantic `tier` and a `provider_defaults` mapping for Anthropic,
-OpenAI and Google. Its legacy `model` equals the Anthropic default. Before delegation,
-the caller resolves the target role's default for the active provider and passes it only
-when supported and active. Missing or unverifiable mappings, invalid tiers and
-unsupported/deprecated models fall back to the parent session model (`inherit`, or no
-model override). A model rejection permits one retry without the override. This applies
+Every role declares a semantic `tier`. The shared model tier catalog at `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`
+defines provider defaults for Anthropic, OpenAI and Google; roles may declare partial
+`provider_defaults` overrides. Callers read the catalog, validate the target tier, prefer
+an explicit role override for the active provider and otherwise use the tier entry.
+The legacy `model` equals the resolved Anthropic default for older Claude tooling.
+Missing/malformed catalogs, invalid tiers, unknown providers, missing mappings,
+invalid overrides or unsupported/deprecated/unverifiable models select the parent session
+model (`inherit`, or no override). Invalid explicit overrides never fall through to a
+different default. A model rejection permits one retry without the override. This applies
 to direct and nested delegation; provider names are never translated across catalogs.
 
 Codex reads these same canonical Markdown roles through native generic delegation. Their

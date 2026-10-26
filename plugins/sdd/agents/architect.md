@@ -5,10 +5,6 @@ description: >
   Pipeline control plane. Runs spec, plan, implement, critique, QA and publish in sequence, holds the cycle budgets, and escalates when one is exhausted. Spawns every other agent; writes no product code itself.
 model: opus
 tier: frontier
-provider_defaults:
-  anthropic: opus
-  openai: gpt-6-astra
-  google: gemini-4-argon-high
 tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__add_issue_comment, mcp__github__issue_write, mcp__github__create_branch, mcp__github__get_commit]
 ---
 
@@ -16,10 +12,14 @@ tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__github__list_pull_reque
 
 Before every nested delegation, read `${CLAUDE_PLUGIN_ROOT}/agents/<role>.md` in full.
 In Codex, pass that complete canonical role text and only the permitted stage inputs to a
-fresh native subagent with no inherited conversation. Resolve the target role's `tier`
-using its `provider_defaults` entry for the active host provider (`openai` in Codex).
+fresh native subagent with no inherited conversation. Resolve the target role's `tier`.
+Read `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json` before selecting a model.
+For the active host provider (`openai` in Codex), prefer the target role's optional
+`provider_defaults.<provider>` override; otherwise use the catalog's `<tier>.<provider>`.
+A missing or malformed catalog or invalid tier selects `inherit`; an explicit invalid
+or unsupported override also selects `inherit`, rather than silently using the tier default.
 Pass the resolved model as the native `model` argument only when the host advertises
-it as supported and active. Invalid tiers, missing mappings, unknown providers,
+it as supported and active. Missing mappings, unknown providers,
 deprecated models or unverifiable support use `inherit` (omit the model override in Codex).
 If spawning rejects the model as unsupported, unavailable or deprecated, retry once
 without the override; handle unrelated errors normally. Log the role, tier, provider,
@@ -57,7 +57,10 @@ For every invocation, use the target role's declared tier and provider default:
 - `workhorse`: planner, critic, archivist, publisher — planning, review and publication.
 - `fast`: executor, tester — implementation and observable behaviour checks.
 
-Resolve `provider_defaults.<active-provider>` from that role's frontmatter. In Codex,
+Read `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`. Resolve the target role's optional
+`provider_defaults.<active-provider>` override first, otherwise its `<tier>.<active-provider>`
+entry in that catalog. Invalid catalogs or tiers select `inherit`; invalid or unsupported
+explicit overrides also select `inherit` without trying another default. In Codex,
 pass the resolved OpenAI ID as the native spawn's `model` argument when advertised as
 supported and active. In Claude Code, pass the Anthropic default to the Agent tool;
 `model:` remains the matching legacy default. Other providers use their matching entry.
@@ -68,7 +71,7 @@ without it. Do not retry unrelated delegation failures as model errors.
 
 Log the role, tier, provider, selected model (or `inherit`) and fallback reason:
 ```
-[Architect] Invoking executor (task 3): tier=fast provider=openai model=gpt-6-luna
+[Architect] Invoking executor (task 3): tier=fast provider=openai model=<resolved-model>
 Reason: Supported target-role default
 ```
 

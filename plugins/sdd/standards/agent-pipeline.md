@@ -27,23 +27,42 @@ Before every role invocation, including nested reviews and direct architect resu
 
 ### Provider model resolution
 
-Each canonical role declares a semantic `tier` (`frontier`, `workhorse` or `fast`) and
-`provider_defaults` mapping keyed by `anthropic`, `openai` and `google`. The mapping
-belongs to that role's tier; callers read the target role, not their own defaults.
-The legacy `model` field equals `provider_defaults.anthropic` for older Claude tooling.
+Each canonical role declares a semantic `tier` (`frontier`, `workhorse` or `fast`).
+The shared model tier catalog at `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json` is the source of default model
+IDs for all providers. In a flat install it lives at `.claude/sdd/model-tiers.json`.
 
-| Tier | Roles | Anthropic | OpenAI | Google |
-|---|---|---|---|---|
-| frontier | architect | opus | gpt-6-astra | gemini-4-argon-high |
-| workhorse | planner, critic, archivist, publisher | sonnet | gpt-6.1-sol | gemini-4-argon-medium |
-| fast | executor, tester | haiku | gpt-6-luna | gemini-3.8-flash-high |
+| Tier | Roles |
+|---|---|
+| frontier | architect |
+| workhorse | planner, critic, archivist, publisher |
+| fast | executor, tester |
 
-The caller identifies the active host provider from the session, then reads
-`provider_defaults.<provider>` from the target role. Codex uses `openai`; Claude Code
-uses `anthropic`. A provider-specific model is passed only if the host's advertised
-model capabilities confirm it is supported, accessible and active. Unknown providers,
-invalid/missing tiers, missing mappings, unsupported or deprecated models, and support
-that cannot be verified all fall back to `inherit` (the parent session model).
+Before every invocation, the caller reads the catalog and identifies the active host
+provider from the session (`openai` in Codex, `anthropic` in Claude Code). Resolution is:
+
+1. Require a readable JSON catalog containing the target role's valid tier. A missing or
+   malformed catalog, missing/invalid tier, or unknown provider selects `inherit`.
+2. If the target role declares `provider_defaults.<provider>`, use that explicit override.
+   An absent provider key falls through to the catalog's `<tier>.<provider>` entry.
+3. Require a non-empty string model ID that the host confirms as supported, accessible and
+   active. Missing mappings, malformed overrides, unsupported/deprecated models or
+   unverifiable support select `inherit` (the parent session model). An explicit invalid
+   or unsupported override does not silently fall through to a different default.
+
+Roles normally contain no `provider_defaults`; consumers may add a partial mapping when
+one role needs a provider-specific exception, for example:
+
+```yaml
+tier: workhorse
+provider_defaults:
+  openai: <host-supported-model-id>
+```
+
+The legacy `model` field remains a static Claude compatibility value. It equals the
+resolved Anthropic default (the role override when present, otherwise the tier catalog
+entry). Callers implementing this contract resolve from the catalog and optional override;
+`model` is not a fallback source. Changing an Anthropic default also requires updating
+any affected legacy `model` fields; tests enforce that alignment for shipped roles.
 There is no cross-provider name translation or substitution with another tier.
 
 For Codex native spawning, the resolved supported ID is the `model` argument, with
@@ -56,8 +75,8 @@ Callers log the role, tier, provider, selected model and any fallback reason.
 
 ### Antigravity model selectors
 
-`provider_defaults.google` contains concrete agy CLI IDs, checked against `agy models`:
-`gemini-4-argon-high`, `gemini-4-argon-medium` and `gemini-3.8-flash-high`.
+The catalog's Google defaults (or a role's `provider_defaults.google` override) contain
+concrete agy CLI IDs, checked against `agy models`.
 The agy CLI's `--model` does not accept `pro`.
 
 Antigravity's in-process `invoke_subagent` has a different interface: its `Model` enum

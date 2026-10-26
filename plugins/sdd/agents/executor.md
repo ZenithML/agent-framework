@@ -5,10 +5,6 @@ description: >
   The only agent that writes product code. Implements one task test-first (red, green, refactor), commits, and reports a design gap rather than resolving it silently.
 model: haiku
 tier: fast
-provider_defaults:
-  anthropic: haiku
-  openai: gpt-6-luna
-  google: gemini-3.8-flash-high
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 ---
 

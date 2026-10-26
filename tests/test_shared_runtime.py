@@ -60,7 +60,15 @@ class SharedRuntimeTests(unittest.TestCase):
         dispatch = (self.target / ".agents/skills/ship/SKILL.md").read_text()
         self.assertIn("provider_defaults", dispatch)
         self.assertIn("omit the Codex model override", dispatch)
-        self.assertIn("gpt-6-astra", (self.target / ".claude/agents/architect.md").read_text())
+        catalog = self.target / ".claude/sdd/model-tiers.json"
+        source_catalog = ROOT / "plugins/sdd/config/model-tiers.json"
+        self.assertEqual(catalog.read_bytes(), source_catalog.read_bytes())
+        self.assertIn(".claude/sdd/model-tiers.json", dispatch)
+        data = json.loads(catalog.read_text())
+        data["workhorse"]["openai"] = "local-supported-model"
+        catalog.write_text(json.dumps(data))
+        self.install()
+        self.assertEqual(json.loads(catalog.read_text()), data)
 
     def test_existing_project_rules_hooks_and_codex_files_survive(self):
         existing = {

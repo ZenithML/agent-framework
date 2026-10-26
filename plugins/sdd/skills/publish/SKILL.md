@@ -10,7 +10,11 @@ description: >
 Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` in full. In Codex, pass
 that exact canonical role definition and only this stage's scoped inputs to a fresh native
 subagent; do not assume a registered custom role. Resolve the target role's `tier`
-against its `provider_defaults` entry for the active host provider (`openai` in Codex).
+by reading `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`. For the active host provider
+(`openai` in Codex), prefer the target role's optional `provider_defaults.<provider>`
+override; otherwise use the catalog's `<tier>.<provider>` entry. Missing or malformed
+catalogs and invalid tiers select `inherit`. An explicit invalid or unsupported override
+also selects `inherit`, without trying the tier default.
 Pass that model as the native `model` argument only when the host confirms support; missing mappings,
 invalid tiers, unknown providers, deprecated models or unverifiable support use `inherit`
 (the parent session model; omit the Codex model override). If the host rejects the model,
