@@ -4,6 +4,7 @@ role: auditor
 description: >
   Read-only documentation audit. Checks specs against the doc-structure standard and reports conformance gaps without repairing them.
 model: sonnet
+tier: workhorse
 tools: [Read, Bash, Grep, Glob]
 ---
 

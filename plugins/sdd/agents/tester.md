@@ -3,7 +3,8 @@ name: tester
 role: verifier
 description: >
   Sealed verifier. Exercises observable behaviour of the running application against the QA Scenarios in design.md and returns PASS or FAIL with behavioural feedback. Declares no file-read tool, so it cannot inspect the implementation it is judging.
-model: sonnet
+model: haiku
+tier: fast
 tools: [Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_evaluate, mcp__playwright__browser_wait_for, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_network_requests, mcp__playwright__browser_fill_form]
 ---
 

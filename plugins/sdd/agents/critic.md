@@ -4,6 +4,7 @@ role: reviewer
 description: >
   Adversarial reviewer for requirements, design, or code. Returns a structured PASS or REVISE verdict with reasons. Read-only by contract: it cannot modify what it assesses.
 model: sonnet
+tier: workhorse
 tools: [Read, Grep, Glob]
 ---
 

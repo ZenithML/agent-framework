@@ -30,6 +30,9 @@ jobs:
       - name: Verify Claude source-checkout discovery
         run: python3 -m unittest discover -s tests -p test_source_discovery.py
 
+      - name: Verify subagent provider tiers
+        run: python3 -m unittest discover -s tests -p test_agent_tiers.py
+
       - name: Verify shared runtime installation
         run: python3 -m unittest discover -s tests -p test_shared_runtime.py
 

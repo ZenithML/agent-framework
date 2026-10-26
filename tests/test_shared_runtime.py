@@ -51,6 +51,25 @@ class SharedRuntimeTests(unittest.TestCase):
         self.assertIn("Local instruction", canonical.read_text())
         self.assertFalse((self.target / ".codex/agents").exists())
 
+    def test_install_preserves_canonical_model_catalog_and_resolution_contract(self):
+        self.install()
+        for source in (ROOT / "plugins/sdd/agents").glob("*.md"):
+            installed = self.target / ".claude/agents" / source.name
+            self.assertEqual(installed.read_text().split("---", 2)[1],
+                             source.read_text().split("---", 2)[1], source.name)
+        dispatch = (self.target / ".agents/skills/ship/SKILL.md").read_text()
+        self.assertIn("provider_defaults", dispatch)
+        self.assertIn("omit the Codex model override", dispatch)
+        catalog = self.target / ".claude/sdd/model-tiers.json"
+        source_catalog = ROOT / "plugins/sdd/config/model-tiers.json"
+        self.assertEqual(catalog.read_bytes(), source_catalog.read_bytes())
+        self.assertIn(".claude/sdd/model-tiers.json", dispatch)
+        data = json.loads(catalog.read_text())
+        data["workhorse"]["openai"] = "local-supported-model"
+        catalog.write_text(json.dumps(data))
+        self.install()
+        self.assertEqual(json.loads(catalog.read_text()), data)
+
     def test_existing_project_rules_hooks_and_codex_files_survive(self):
         existing = {
             "AGENTS.md": "# Project rules\nDo not replace this file.\n",

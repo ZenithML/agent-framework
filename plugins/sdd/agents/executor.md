@@ -3,7 +3,8 @@ name: executor
 role: author
 description: >
   The only agent that writes product code. Implements one task test-first (red, green, refactor), commits, and reports a design gap rather than resolving it silently.
-model: sonnet
+model: haiku
+tier: fast
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 ---
 

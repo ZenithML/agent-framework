@@ -13,17 +13,84 @@ Before every role invocation, including nested reviews and direct architect resu
 1. Read the canonical role Markdown in full, including its frontmatter, tool contract,
    constraints and handoff schema. Read the scoped inputs required for the current stage.
 2. In Claude Code, invoke the existing registered role using the Agent/Task mechanism;
-   existing registered roles and their declared capabilities are unchanged.
+   resolve the target role model as specified below, preserving its declared capabilities.
 3. In Codex, start a native generic subagent. Pass the exact full role instructions as its
    task instructions, followed by only the scoped stage context and invocation arguments.
    Do not use a role summary, infer a custom agent registration, duplicate the role in
    another file, or inherit the caller's full conversation. The native subagent must have
    a fresh context containing just the role definition and permitted stage inputs.
 4. Map Claude tool names to native equivalents (file reads/patches, shell commands, searches,
-   browser tools and subagent spawning). Inherit the session model in Codex; do not request
-   Claude model labels such as opus, sonnet or haiku. Preserve role prohibitions and handoff
+   browser tools and subagent spawning). Resolve the target role model as specified below;
+   never send Claude model labels to Codex. Preserve role prohibitions and handoff
    formats while using those native tools. If native delegation is unavailable, report the
    limitation; do not substitute a self-review for an independent critic or tester.
+
+### Provider model resolution
+
+Each canonical role declares a semantic `tier` (`frontier`, `workhorse` or `fast`).
+The shared model tier catalog at `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json` is the source of default model
+IDs for all providers. In a flat install it lives at `.claude/sdd/model-tiers.json`.
+
+| Tier | Roles |
+|---|---|
+| frontier | architect |
+| workhorse | planner, critic, archivist, publisher |
+| fast | executor, tester |
+
+Before every invocation, the caller reads the catalog and identifies the active host
+provider from the session (`openai` in Codex, `anthropic` in Claude Code). Resolution is:
+
+1. Require a readable JSON catalog containing the target role's valid tier. A missing or
+   malformed catalog, missing/invalid tier, or unknown provider selects `inherit`.
+2. If the target role declares `provider_defaults.<provider>`, use that explicit override.
+   An absent provider key falls through to the catalog's `<tier>.<provider>` entry.
+3. Require a non-empty string model ID that the host confirms as supported, accessible and
+   active. Missing mappings, malformed overrides, unsupported/deprecated models or
+   unverifiable support select `inherit` (the parent session model). An explicit invalid
+   or unsupported override does not silently fall through to a different default.
+
+Roles normally contain no `provider_defaults`; consumers may add a partial mapping when
+one role needs a provider-specific exception, for example:
+
+```yaml
+tier: workhorse
+provider_defaults:
+  openai: <host-supported-model-id>
+```
+
+The legacy `model` field remains a static Claude compatibility value. It equals the
+resolved Anthropic default (the role override when present, otherwise the tier catalog
+entry). Callers implementing this contract resolve from the catalog and optional override;
+`model` is not a fallback source. Changing an Anthropic default also requires updating
+any affected legacy `model` fields; tests enforce that alignment for shipped roles.
+There is no cross-provider name translation or substitution with another tier.
+
+For Codex native spawning, the resolved supported ID is the `model` argument, with
+fresh context (for example `fork_turns="none"` where exposed). For inheritance, omit
+`model` rather than passing the literal `inherit` to a host that does not accept it.
+If a spawn rejects an override as unavailable, unsupported or deprecated, retry once
+with the same role and scoped inputs and no override; other errors retain their normal
+failure handling. This applies to direct skill dispatch and every nested invocation.
+Callers log the role, tier, provider, selected model and any fallback reason.
+
+### Antigravity model selectors
+
+The catalog's Google defaults (or a role's `provider_defaults.google` override) contain
+concrete agy CLI IDs, checked against `agy models`.
+The agy CLI's `--model` does not accept `pro`.
+
+Antigravity's in-process `invoke_subagent` has a different interface: its `Model` enum
+accepts `pro`, `flash`, `flash_lite` and `inherit`; `pro` routes to Argon on the backend.
+For that tool only, adapt the supported Google catalog choice to its native selector:
+Argon high/medium → `pro`, Flash high → `flash`. Use `inherit` when the current schema
+cannot represent the selected model or support cannot be confirmed. The high/medium
+variant is not expressible through this enum; the native tool controls that choice.
+Do not pass CLI IDs to this enum or enum selectors to `agy --model`.
+This is host-interface adaptation within Google, never cross-provider model translation.
+
+Anthropic defaults retain Claude Code's supported `opus`, `sonnet` and `haiku` aliases,
+matching the legacy `model` fields without pinning retired versioned IDs.
+Host capability checks remain authoritative as provider catalogs change.
 
 Codex role restrictions are advisory instructions, including read-only review and the
 verifier's prohibition on source inspection. No per-role sandbox or tool allowlist is

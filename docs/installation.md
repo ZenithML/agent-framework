@@ -98,12 +98,18 @@ Each dispatcher reads its canonical role Markdown in full before spawning. Codex
 native context, passes the complete role including frontmatter and handoff contract, and
 supplies only the inputs permitted for that stage. Nested architect, planner and publisher
 calls follow the same procedure. Claude tool names map to native operations, and Codex
-inherits the session model instead of requesting `opus`, `sonnet` or `haiku`. If native
+reads `.claude/sdd/model-tiers.json` and resolves the target role's tier for OpenAI,
+with an optional `provider_defaults.openai` role override, when the host supports it,
+falling back to the session model when resolution or support checks fail. If native
 subagents are unavailable, report that limitation instead of substituting self-review.
 
 Codex role restrictions are advisory instructions under the caller's environment permissions.
 No Codex per-role sandbox or tool allowlist is installed; in particular, source-blind QA is
 not enforced by a generated agent configuration. Claude Code retains its declared role tools.
+Edit `.claude/sdd/model-tiers.json` to change defaults for a whole tier. Add a partial
+`provider_defaults` mapping to one role for an exception. These local edits are preserved
+on updates by the installer. Anthropic catalog or override changes also require updating
+the affected legacy role `model` fields for older Claude tooling.
 Read the installed `.claude/standards/agent-pipeline.md` for the complete delegation contract.
 
 Existing `.codex/agents/` files are left untouched, including legacy generated files. The

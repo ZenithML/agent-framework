@@ -1,0 +1,17 @@
+{
+  "frontier": {
+    "anthropic": "opus",
+    "openai": "gpt-6-astra",
+    "google": "gemini-4-argon-high"
+  },
+  "workhorse": {
+    "anthropic": "sonnet",
+    "openai": "gpt-6.1-sol",
+    "google": "gemini-4-argon-medium"
+  },
+  "fast": {
+    "anthropic": "haiku",
+    "openai": "gpt-6-luna",
+    "google": "gemini-3.8-flash-high"
+  }
+}
