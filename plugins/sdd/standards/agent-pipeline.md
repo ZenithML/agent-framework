@@ -13,17 +13,65 @@ Before every role invocation, including nested reviews and direct architect resu
 1. Read the canonical role Markdown in full, including its frontmatter, tool contract,
    constraints and handoff schema. Read the scoped inputs required for the current stage.
 2. In Claude Code, invoke the existing registered role using the Agent/Task mechanism;
-   existing registered roles and their declared capabilities are unchanged.
+   resolve the target role model as specified below, preserving its declared capabilities.
 3. In Codex, start a native generic subagent. Pass the exact full role instructions as its
    task instructions, followed by only the scoped stage context and invocation arguments.
    Do not use a role summary, infer a custom agent registration, duplicate the role in
    another file, or inherit the caller's full conversation. The native subagent must have
    a fresh context containing just the role definition and permitted stage inputs.
 4. Map Claude tool names to native equivalents (file reads/patches, shell commands, searches,
-   browser tools and subagent spawning). Inherit the session model in Codex; do not request
-   Claude model labels such as opus, sonnet or haiku. Preserve role prohibitions and handoff
+   browser tools and subagent spawning). Resolve the target role model as specified below;
+   never send Claude model labels to Codex. Preserve role prohibitions and handoff
    formats while using those native tools. If native delegation is unavailable, report the
    limitation; do not substitute a self-review for an independent critic or tester.
+
+### Provider model resolution
+
+Each canonical role declares a semantic `tier` (`frontier`, `workhorse` or `fast`) and
+`provider_defaults` mapping keyed by `anthropic`, `openai` and `google`. The mapping
+belongs to that role's tier; callers read the target role, not their own defaults.
+The legacy `model` field equals `provider_defaults.anthropic` for older Claude tooling.
+
+| Tier | Roles | Anthropic | OpenAI | Google |
+|---|---|---|---|---|
+| frontier | architect | opus | gpt-6-astra | gemini-4-argon-high |
+| workhorse | planner, critic, archivist, publisher | sonnet | gpt-6.1-sol | gemini-4-argon-medium |
+| fast | executor, tester | haiku | gpt-6-luna | gemini-3.8-flash-high |
+
+The caller identifies the active host provider from the session, then reads
+`provider_defaults.<provider>` from the target role. Codex uses `openai`; Claude Code
+uses `anthropic`. A provider-specific model is passed only if the host's advertised
+model capabilities confirm it is supported, accessible and active. Unknown providers,
+invalid/missing tiers, missing mappings, unsupported or deprecated models, and support
+that cannot be verified all fall back to `inherit` (the parent session model).
+There is no cross-provider name translation or substitution with another tier.
+
+For Codex native spawning, the resolved supported ID is the `model` argument, with
+fresh context (for example `fork_turns="none"` where exposed). For inheritance, omit
+`model` rather than passing the literal `inherit` to a host that does not accept it.
+If a spawn rejects an override as unavailable, unsupported or deprecated, retry once
+with the same role and scoped inputs and no override; other errors retain their normal
+failure handling. This applies to direct skill dispatch and every nested invocation.
+Callers log the role, tier, provider, selected model and any fallback reason.
+
+### Antigravity model selectors
+
+`provider_defaults.google` contains concrete agy CLI IDs, checked against `agy models`:
+`gemini-4-argon-high`, `gemini-4-argon-medium` and `gemini-3.8-flash-high`.
+The agy CLI's `--model` does not accept `pro`.
+
+Antigravity's in-process `invoke_subagent` has a different interface: its `Model` enum
+accepts `pro`, `flash`, `flash_lite` and `inherit`; `pro` routes to Argon on the backend.
+For that tool only, adapt the supported Google catalog choice to its native selector:
+Argon high/medium → `pro`, Flash high → `flash`. Use `inherit` when the current schema
+cannot represent the selected model or support cannot be confirmed. The high/medium
+variant is not expressible through this enum; the native tool controls that choice.
+Do not pass CLI IDs to this enum or enum selectors to `agy --model`.
+This is host-interface adaptation within Google, never cross-provider model translation.
+
+Anthropic defaults retain Claude Code's supported `opus`, `sonnet` and `haiku` aliases,
+matching the legacy `model` fields without pinning retired versioned IDs.
+Host capability checks remain authoritative as provider catalogs change.
 
 Codex role restrictions are advisory instructions, including read-only review and the
 verifier's prohibition on source inspection. No per-role sandbox or tool allowlist is

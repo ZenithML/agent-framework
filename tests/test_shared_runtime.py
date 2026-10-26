@@ -51,6 +51,17 @@ class SharedRuntimeTests(unittest.TestCase):
         self.assertIn("Local instruction", canonical.read_text())
         self.assertFalse((self.target / ".codex/agents").exists())
 
+    def test_install_preserves_canonical_model_catalog_and_resolution_contract(self):
+        self.install()
+        for source in (ROOT / "plugins/sdd/agents").glob("*.md"):
+            installed = self.target / ".claude/agents" / source.name
+            self.assertEqual(installed.read_text().split("---", 2)[1],
+                             source.read_text().split("---", 2)[1], source.name)
+        dispatch = (self.target / ".agents/skills/ship/SKILL.md").read_text()
+        self.assertIn("provider_defaults", dispatch)
+        self.assertIn("omit the Codex model override", dispatch)
+        self.assertIn("gpt-6-astra", (self.target / ".claude/agents/architect.md").read_text())
+
     def test_existing_project_rules_hooks_and_codex_files_survive(self):
         existing = {
             "AGENTS.md": "# Project rules\nDo not replace this file.\n",

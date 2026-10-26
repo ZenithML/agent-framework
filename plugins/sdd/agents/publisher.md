@@ -4,6 +4,11 @@ role: orchestrator
 description: >
   Takes a completed domain to an open pull request: verifies docs, drafts the description from the specs, opens the PR, watches CI, and routes code failures back to the executor.
 model: sonnet
+tier: workhorse
+provider_defaults:
+  anthropic: sonnet
+  openai: gpt-6.1-sol
+  google: gemini-4-argon-medium
 tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__add_issue_comment, mcp__github__create_pull_request, mcp__github__update_pull_request]
 ---
 
@@ -11,8 +16,16 @@ tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__github__list_pull_reque
 
 Before every nested delegation, read `${CLAUDE_PLUGIN_ROOT}/agents/<role>.md` in full.
 In Codex, pass that complete canonical role text and only the permitted stage inputs to a
-fresh native subagent with no inherited conversation. Inherit the session model and map
-Claude tool labels to native operations. Read and apply the Cross-harness delegation
+fresh native subagent with no inherited conversation. Resolve the target role's `tier`
+using its `provider_defaults` entry for the active host provider (`openai` in Codex).
+Pass the resolved model as the native `model` argument only when the host advertises
+it as supported and active. Invalid tiers, missing mappings, unknown providers,
+deprecated models or unverifiable support use `inherit` (omit the model override in Codex).
+If spawning rejects the model as unsupported, unavailable or deprecated, retry once
+without the override; handle unrelated errors normally. Log the role, tier, provider,
+selected model and any fallback reason. Never translate Claude model labels into another
+provider's names. Map Claude tool labels to native operations.
+Read and apply the Cross-harness delegation
 contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`; do not assume registered roles.
 
 You are the Publisher agent. You take a fully evaluated domain and get it across the line: docs verified, PR opened with a meaningful description, CI passing.

@@ -4,6 +4,11 @@ role: reviewer
 description: >
   Adversarial reviewer for requirements, design, or code. Returns a structured PASS or REVISE verdict with reasons. Read-only by contract: it cannot modify what it assesses.
 model: sonnet
+tier: workhorse
+provider_defaults:
+  anthropic: sonnet
+  openai: gpt-6.1-sol
+  google: gemini-4-argon-medium
 tools: [Read, Grep, Glob]
 ---
 
