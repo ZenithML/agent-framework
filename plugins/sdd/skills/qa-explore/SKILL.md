@@ -52,8 +52,9 @@ and a fix behind for every bug it confirms.
 
 ## Steps
 
-1. **Parse the invocation.** Everything except `--report-only` is the feature or flow. If it
-   is empty, ask what to explore and stop.
+1. **Parse the invocation.** `--report-only` is matched only as a standalone token; everything
+   else, verbatim, is the feature, flow, URL or command. If that is empty, ask what to explore
+   and stop. Tell the user which mode runs: fix (the default) or report-only.
 2. **Resolve the target.** Read `.claude/sdd/config.json` if present: the dev URL
    (`devServer.url`, default `http://localhost:3000`), `commands.devHost`, `commands.test`, and
    `devServer.credentialEnv`. Collect any credential variable *names* the user gave; never ask
@@ -61,13 +62,15 @@ and a fix behind for every bug it confirms.
 3. **Optional context.** If the flow clearly maps to a spec domain under `docs/specs/<domain>/`,
    read the QA Scenarios section of its `design.md`. It is context, not a boundary; skip this
    step when no domain is inferable.
-4. **Dispatch.** Spawn `qa-engineer` (per the delegation preamble above) in the foreground with
+4. **Record the start.** Run `git rev-parse HEAD` and keep it as the starting commit.
+5. **Dispatch.** Spawn `qa-engineer` (per the delegation preamble above) in the foreground with
    only: the feature or flow, the resolved dev URL, `--report-only` when given, the credential
    variable names, and the QA Scenarios from step 3 if any. Do not pass this conversation's
    history, diffs or other agents' output.
-5. **Relay the report.** Show the agent's final report — BUGS FOUND & FIXED, FRICTION NOTED,
-   NOT FIXED (why), CLEAN — as returned, plus the commits it made (`git log --oneline` since
-   the start of the session). Do not push or open a pull request; that is the user's call
+6. **Relay the report.** Show the agent's final report — BUGS FOUND & FIXED, FRICTION NOTED,
+   NOT FIXED (why), CLEAN — as returned, plus the commits it made
+   (`git log --oneline <starting commit>..HEAD`). In report-only mode, also run
+   `git status --porcelain` and point out any change the agent should not have made. Do not push or open a pull request; that is the user's call
    (`/sdd:create-pr`).
 
 ## What the agent will and will not do

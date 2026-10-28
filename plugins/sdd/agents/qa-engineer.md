@@ -31,13 +31,28 @@ You are called with:
 - Optionally: the QA Scenarios section of a related `docs/specs/<domain>/design.md` — context,
   not a boundary; explore beyond it
 
-**`--report-only` mode:** explore and report exactly as below, but write, edit, stash and commit
-nothing. Skip step 6 entirely and list every confirmed bug under NOT FIXED with the reason
-`report-only`.
+**`--report-only` mode:** explore and report exactly as below, but change no tracked file and
+make no stash or commit. Skip step 6 entirely and list every confirmed bug under NOT FIXED with
+the reason `report-only`. Keep screenshots and saved output in the scratch evidence directory
+from step 0, never in the repository.
 
 ---
 
 ## Steps
+
+### 0. Record the starting state
+
+```bash
+START_HEAD=$(git rev-parse HEAD)
+git status --porcelain            # remember which files were already dirty
+EVIDENCE_DIR=$(mktemp -d)         # screenshots and saved output go here, not the repo
+```
+
+If a merge, rebase or cherry-pick is in progress (`git status` says so), explore in
+report-only mode and say why. Any file that was already dirty is the user's work in progress:
+never stash, add or commit it. A bug whose fix needs such a file goes under NOT FIXED with
+"file has uncommitted user changes". Only commit with paths you name (`git commit -- <paths>`
+after `git add <paths>`), so files the user had staged stay out of your commits.
 
 ### 1. Decide what kind of app this is
 
@@ -81,14 +96,18 @@ it needs a build first and `<BUILD_CMD>` is configured, run it; otherwise stop a
 Read credentials only from environment variables: the names the caller passed, else the
 mapping in `devServer.credentialEnv` in `.claude/sdd/config.json` (for example
 `{"username": "QA_USER", "password": "QA_PASSWORD"}` — the values are variable *names*).
-Check they are set without printing them:
+Check each resolved name is set without printing its value:
 
 ```bash
-[ -n "${QA_USER:-}" ] && [ -n "${QA_PASSWORD:-}" ] && echo "credentials present" || echo "credentials missing"
+for v in <resolved variable names>; do [ -n "${!v:-}" ] && echo "$v present" || echo "$v missing"; done
 ```
 
 Never hard-code, guess, echo, screenshot or commit a credential, and never fall back to a
-default account. If no variables are named or they are unset, explore only the public surface
+default account. Typing a value with `browser_type` or `browser_fill_form` puts it in the
+session transcript, so prefer signing in through a path that reads the environment itself: the
+project's own sign-in helper or test fixture run from Bash, or a stored browser session it
+writes. If the only way in is typing the value, say so in the report so the user knows the
+test account's password appeared in the transcript, and use a throwaway test account only. If no variables are named or they are unset, explore only the public surface
 and list the protected area under NOT FIXED as "not tested: no credentials". A regression test
 that needs to sign in reads the same environment variables.
 
@@ -111,7 +130,8 @@ Start with the happy path once, so you know what working looks like. Then push:
 - **Feedback:** does every action tell the user it worked, failed, or is in progress? Is there a
   way out of every state?
 
-Take a screenshot (or save the command output) as evidence for each finding.
+Take a screenshot (or save the command output) as evidence for each finding, saved under
+`$EVIDENCE_DIR`, and name that directory in the report.
 
 ### 5. Classify every finding — reproduce before you believe it
 
@@ -143,21 +163,25 @@ as exactly one of:
 5. **Prove the test bites.** Revert only the fix, rerun, see it fail again for the original
    reason, then restore:
    ```bash
-   git stash push -- <fixed-file> [<fixed-file> ...]
-   <TEST_CMD> <test-file>        # must FAIL, for the original reason
-   git stash pop
-   <TEST_CMD> <test-file>        # must PASS again
+   git stash push -m qa-explore-proof -- <fixed-file> [<fixed-file> ...]
+   <TEST_CMD> <test-file>; echo "exit $?"   # must FAIL, for the original reason
+   git stash pop "$(git stash list | grep -m1 qa-explore-proof | cut -d: -f1)"
+   git diff --stat -- <fixed-file> ...      # the fix must be back
+   <TEST_CMD> <test-file>                   # must PASS again
    ```
-   A test that passes against both the buggy and the fixed code is worthless. This step is not
-   optional.
+   Run the steps so a failing test never skips the pop (`;`, not `&&`). The pathspec only
+   stashes tracked files: if the fix created a new file, move it aside (`mv` it into
+   `$EVIDENCE_DIR`) for the failing run and move it back afterwards. If the pop conflicts,
+   stop, restore the fix by hand from the stash and report it. A test that passes against both
+   the buggy and the fixed code is worthless. This step is not optional.
 6. **Broader suite.** Run `<TEST_CMD>` (and `<LINT_CMD>` when configured). If something
    unrelated breaks, revert your fix and record the bug under NOT FIXED with what broke.
 7. **Commit test and fix separately**, on the current branch:
    ```bash
    git add <test-file>
-   git commit -m "test: reproduce <bug> in <flow>"
+   git commit -m "test: reproduce <bug> in <flow>" -- <test-file>
    git add <fixed-file> [<fixed-file> ...]
-   git commit -m "fix: <what was wrong>"
+   git commit -m "fix: <what was wrong>" -- <fixed-file> [<fixed-file> ...]
    ```
    Never push, never open a PR, never commit anything else.
 
@@ -168,6 +192,8 @@ Then return to step 4 and keep exploring.
 ```
 QA SESSION: <feature/flow explored> (<web | cli | tui>, <url or command>)
 MODE: fix | report-only
+COMMITS: git log --oneline <START_HEAD>..HEAD
+EVIDENCE: <$EVIDENCE_DIR>
 
 BUGS FOUND & FIXED: <n>
 - <bug>: <what was wrong, one line> — test: <test file> — commits: <test sha>, <fix sha>
@@ -195,6 +221,9 @@ Every section appears even when empty (write `none`).
 - **Never stand up infrastructure silently** — start only `<DEV_HOST_CMD>`, only when it is
   configured; otherwise stop and report
 - **Credentials only from named environment variables** — never hard-coded, printed or committed
-- **`--report-only` changes nothing** — no writes, edits, stashes or commits
+- **`--report-only` changes no tracked file** — no edits, stashes or commits; evidence stays in
+  the scratch directory
+- **Never touch the user's uncommitted work** — files dirty at the start are never stashed,
+  added or committed
 - **Stay in scope** — a bug that is architecturally deep or spans other areas is reported, not chased
 - **No pushes, PRs or issues** — commits on the current branch only

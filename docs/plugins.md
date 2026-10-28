@@ -24,8 +24,7 @@ plugins/sdd/
 |---|---|---|
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
-| `implement` · `critique` · `qa` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
-| `qa-explore` (ad hoc, fixes what it finds) | | |
+| `implement` · `critique` · `qa` · `qa-explore` (ad hoc) | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 | `architect` (internal) | | |
 
