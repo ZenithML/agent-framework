@@ -48,6 +48,24 @@ class BugHuntTests(unittest.TestCase):
         evals = json.loads((PLUGIN / "skills/bug-hunt/evaluations/baseline-evals.json").read_text())
         self.assertEqual(len(evals["scenarios"]), 3)
 
+    def test_flow_safety(self):
+        for needle in ["branching.featurePrefix", "git diff START..HEAD", "the critic cannot run git",
+                       "delete the bug-hunt branch", "If the fix list is empty", "from the current HEAD",
+                       "never prompt under `--autonomous`"]:
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.skill)
+        # The clean-tree check guards fixing, not the read-only report.
+        self.assertLess(self.skill.index("## Step 5"), self.skill.index("**Start clean.**"))
+
+    def test_roles_and_docs_name_bug_hunt(self):
+        qa = (PLUGIN / "agents/qa-engineer.md").read_text()
+        self.assertIn("MODE: fix | report-only | fix-list", qa)
+        self.assertIn("in `--fix-list` mode, go to the next listed bug", qa)
+        self.assertIn("No reachable bugs found.", (PLUGIN / "agents/critic.md").read_text())
+        self.assertIn("`/sdd:bug-hunt`", (PLUGIN / "standards/harness.md").read_text())
+        pipeline = (PLUGIN / "standards/agent-pipeline.md").read_text()
+        self.assertIn("static bug audit (`bugs`)", pipeline)
+
 
 if __name__ == "__main__":
     unittest.main()

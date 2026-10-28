@@ -89,9 +89,10 @@ Look for:
 - **UX states** — missing feedback, states a user can reach but not leave
 - **Security and data** — missing auth checks, unvalidated input, exposed secrets
 
-Report only what a realistic input or caller can reach; name that path. Output `status:
-"REVISE"` when there is at least one finding, `"PASS"` when there are none, with each feedback
-item in this form:
+Report only what a realistic input or caller can reach; name that path. The root cause says
+why the bug happens, never how to fix it. Output `status: "REVISE"` when there is at least one
+finding, `"PASS"` with feedback `"No reachable bugs found."` when there are none. In this
+context each feedback item takes this pipe form instead of `<file or section>: <what is wrong>`:
 
 `<file>:<start>-<end> | <category> | <P0-P3> | <root cause and the path that reaches it>`
 

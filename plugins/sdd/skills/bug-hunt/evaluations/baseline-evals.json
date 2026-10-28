@@ -8,11 +8,11 @@
       "id": "bug-hunt-001-happy-path",
       "query": "/bug-hunt checkout. docs/specs/checkout/ exists, the dev server answers at devServer.url, and the working tree is clean. The cart total ignores a 100% discount code (returns the full price) and the payment page logs an uncaught error when the card field is empty.",
       "expected_behavior": [
-        "Records the starting commit and confirms the tree is clean",
+        "Runs the static audit and the runtime pass without changing anything",
         "Spawns the critic with context bugs on the checkout source, tests and spec, and qa-engineer with --report-only on the checkout routes",
         "Merges both into one report under .review/bug-hunt/checkout.md with severities, root causes and evidence, and does not commit it",
         "Stops at the human gate and asks the user to approve the fix list",
-        "After approval, creates the bug-hunt-checkout branch, spawns qa-engineer with --fix-list in priority order, then the critic in code context on START..HEAD",
+        "After approval, checks the tree is clean, branches feature/bug-hunt-checkout from the audited HEAD, spawns qa-engineer with --fix-list in priority order, then the critic in code context with the START..HEAD diff inline",
         "Runs the test command and opens one PR titled fix(checkout): bug hunt — 2 bugs fixed with the report as its body"
       ]
     },

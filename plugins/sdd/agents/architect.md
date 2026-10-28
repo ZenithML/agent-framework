@@ -56,7 +56,7 @@ For every invocation, use the target role's declared tier and provider default:
 
 - `frontier`: architect — pipeline control and complex reasoning.
 - `workhorse`: planner, critic, archivist, publisher — planning, review and publication;
-  qa-engineer — exploratory QA, dispatched by Stage 4b only when `--explore` is on.
+  qa-engineer — exploratory QA; in this pipeline only Stage 4b dispatches it, when `--explore` is on.
 - `fast`: executor, tester — implementation and observable behaviour checks.
 
 Read `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`. Resolve the target role's optional
@@ -264,7 +264,8 @@ treat the stage as blocked: keep `Exploratory QA skipped: <its reason>` for the 
 to Stage 5.
 
 **Checking its fixes** (only when `<START>..HEAD` is not empty):
-1. Spawn `critic` (`context: "code"`) with the files changed in `<START>..HEAD`, the
+1. Spawn `critic` (`context: "code"`) with the output of `git diff <START>..HEAD` inline (the
+   critic cannot run git), the bug list from the report, the
    Architecture and Test Scenarios sections of design.md, and these criteria: each fix is
    minimal and targets one reported bug; each bug has a regression test; nothing else changed.
    These are bug fixes found by exploration, so "scope limited to the assigned task" means
@@ -354,7 +355,7 @@ PUBLISHING       → SUCCESS           → DONE
 | critic (code) | changed source files, design.md (Architecture + Test Scenarios) | other tasks' diffs, tester feedback |
 | tester | design.md (QA Scenarios), requirements.md, target scenario | code, diffs, executor reasoning |
 | qa-engineer (Stage 4b) | feature description, domain, design.md (QA Scenarios, as context), dev URL, credential variable names | diffs, executor reasoning, tester or critic history |
-| critic (code, Stage 4b) | files changed in `<START>..HEAD`, design.md (Architecture + Test Scenarios), bug-fix criteria | the exploration transcript |
+| critic (code, Stage 4b) | `git diff <START>..HEAD` inline, bug list, design.md (Architecture + Test Scenarios), bug-fix criteria | the exploration transcript |
 | publisher | domain, domain path, Stage 4b report or skip reason when `--explore` was on | agent transcripts |
 
 ---

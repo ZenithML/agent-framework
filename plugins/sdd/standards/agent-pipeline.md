@@ -199,12 +199,12 @@ slower ship; leave it off for a quick one.
 |---|---|
 | `architect` | Pipeline orchestrator / control plane |
 | `planner` | Spec and task authoring (with embedded critic loops) |
-| `critic` | Adversarial reviewer — requirements, design, and code |
+| `critic` | Adversarial reviewer — requirements, design, and code; read-only static bug audit (`bugs`) for `/sdd:bug-hunt` |
 | `executor` | TDD implementation |
 | `tester` | Adversarial QA — behaviour testing, no source read |
 | `publisher` | Docs verification, PR authoring, CI monitoring |
 | `archivist` | Documentation audit (read-only, on-demand) |
-| `qa-engineer` | Exploratory QA — Stage 4b when `--explore` is on, or ad hoc — plays with the running app, fixes confirmed bugs test-first, reports friction (`/sdd:qa-explore`) |
+| `qa-engineer` | Exploratory QA — Stage 4b when `--explore` is on, `/sdd:bug-hunt` (report-only pass, `--fix-list` fixes), or ad hoc — plays with the running app, fixes confirmed bugs test-first, reports friction (`/sdd:qa-explore`) |
 
 Every agent declares a `role:` whose tool contract is defined in
 [harness.md](harness.md#agent-roles-and-tool-contracts). The contract is what actually binds:

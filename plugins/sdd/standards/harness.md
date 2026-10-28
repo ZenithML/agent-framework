@@ -162,7 +162,8 @@ Every agent therefore declares a `role:`, and each role carries a tool contract:
 | `verifier` | `tester` | Must declare no `Read`, `Grep`, or `Glob`. |
 | `auditor` | `archivist` | Read-only inspection and reporting. |
 
-`qa-engineer` (dispatched by `/sdd:qa-explore`, or by `/sdd:ship`'s opt-in Stage 4b) is an `author`, not a second verifier: it plays
+`qa-engineer` (dispatched by `/sdd:qa-explore`, by `/sdd:ship`'s opt-in Stage 4b, and by
+`/sdd:bug-hunt` for its report-only pass and `--fix-list` fixes) is an `author`, not a second verifier: it plays
 with the running app, then reads source and fixes the bugs it confirms, so it needs `Read`,
 `Edit` and `Write` alongside its browser tools. It makes no independence claim. Its evidence is
 a regression test shown failing, then passing, then failing again with the fix reverted. The
