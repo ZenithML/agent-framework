@@ -37,7 +37,7 @@ class SharedRuntimeTests(unittest.TestCase):
         self.assertIn(".claude/agents/", (self.target / "AGENTS.md").read_text())
         for name, role in {"ship": "architect", "architect": "architect", "spec": "planner",
                            "plan": "planner", "tasks": "planner", "implement": "executor",
-                           "critique": "critic", "qa": "tester", "qa-explore": "qa-engineer",
+                           "critique": "critic", "qa": "tester", "qa-explore": "qa-engineer", "bug-hunt": "qa-engineer",
                            "publish": "publisher",
                            "audit": "archivist"}.items():
             instructions = (self.target / f".agents/skills/{name}/SKILL.md").read_text()

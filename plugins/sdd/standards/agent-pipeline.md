@@ -188,6 +188,7 @@ slower ship; leave it off for a quick one.
 | `/sdd:publish <domain>` | Stage 5 — verify docs, open PR, monitor CI |
 | `/sdd:prepare-docs <domain>` | Stage 5 (sub-step) — doc checkpoint commit |
 | `/sdd:audit [domain]` | On-demand — doc conformance check |
+| `/sdd:bug-hunt <area \| --all> [--report-only] [--autonomous]` | Outside the pipeline — static audit (critic, `bugs`) + runtime pass (qa-engineer, report-only), prioritised report, gate, fixes, one PR |
 | `/sdd:qa-explore <feature-or-flow> [--report-only]` | Stage 4b on its own, or ad hoc — exploratory QA that fixes confirmed bugs with a regression test each |
 
 ---

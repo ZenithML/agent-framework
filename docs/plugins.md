@@ -24,7 +24,7 @@ plugins/sdd/
 |---|---|---|
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
-| `implement` · `critique` · `qa` · `qa-explore` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
+| `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 | `architect` (internal) | | |
 
@@ -43,6 +43,13 @@ regression test, a minimal fix and proof the test bites. UX friction is reported
 publish, only when asked: `/sdd:ship <feature> --explore`, or `"pipeline": {"explore": true}`
 in `.claude/sdd/config.json` (`--no-explore` turns it off for one run). It is off by default,
 because it makes a ship slower and costlier; turn it on for a careful ship.
+
+`/sdd:bug-hunt <area | --all> [--report-only] [--autonomous]` goes deeper over a whole area: the
+critic reads all of its code for bugs (`bugs` context, read-only), `qa-engineer` uses it in the
+running app in report-only mode, and both are merged into one prioritised report under
+`.review/bug-hunt/`. After you approve the list (or unattended with `--autonomous`, for
+scheduled runs), `qa-engineer --fix-list` fixes each bug test-first, the critic checks the fixes,
+and one PR is opened.
 
 How the stages hand off to each other is in
 [`plugins/sdd/standards/agent-pipeline.md`](../plugins/sdd/standards/agent-pipeline.md). The

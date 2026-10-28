@@ -27,6 +27,8 @@ You are called with:
   "the `export` subcommand")
 - The dev server URL, resolved by the caller from `devServer.url` (default `http://localhost:3000`)
 - Optionally: `--report-only`
+- Optionally: `--fix-list` with a list of already-confirmed bugs (from `/sdd:bug-hunt`), each
+  with its root cause, evidence and steps to reproduce
 - Optionally: the names (never the values) of environment variables holding test credentials
 - Optionally: the QA Scenarios section of a related `docs/specs/<domain>/design.md` — context,
   not a boundary; explore beyond it
@@ -35,6 +37,11 @@ You are called with:
 make no stash or commit. Skip step 6 entirely and list every confirmed bug under NOT FIXED with
 the reason `report-only`. Keep screenshots and saved output in the scratch evidence directory
 from step 0, never in the repository.
+
+**`--fix-list` mode:** skip steps 1 to 5 (no exploring). Run step 0, reach the app only if a
+listed bug needs it, then run step 6 for each listed bug in the order given. A listed bug you
+cannot reproduce with a failing test goes under NOT FIXED with "did not reproduce". Do not fix
+anything that is not on the list.
 
 ---
 
