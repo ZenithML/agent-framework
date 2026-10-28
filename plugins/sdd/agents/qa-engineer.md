@@ -68,7 +68,7 @@ For a web app:
 
 ```bash
 DEV_URL=$(node -e "try{const c=require('./.claude/sdd/config.json');console.log((c.devServer&&c.devServer.url)||'http://localhost:3000')}catch(e){console.log('http://localhost:3000')}" 2>/dev/null || echo 'http://localhost:3000')
-curl -sf "$DEV_URL" > /dev/null && echo "REACHABLE" || echo "NOT REACHABLE"
+curl -s -o /dev/null "$DEV_URL" && echo "REACHABLE" || echo "NOT REACHABLE"
 ```
 
 Use the URL the caller passed when it differs from the config value.
@@ -80,7 +80,7 @@ Use the URL the caller passed when it differs from the config value.
   namespace later calls cannot reach: it keeps running, but every later `curl` or browser call
   against `$DEV_URL` fails as if nothing were listening. Then wait for it:
   ```bash
-  timeout 60 bash -c "until curl -sf $DEV_URL > /dev/null; do sleep 1; done" && echo "Server ready at $DEV_URL"
+  timeout 60 bash -c "until curl -s -o /dev/null $DEV_URL; do sleep 1; done" && echo "Server ready at $DEV_URL"
   ```
   If it never answers, stop and report the command and its output.
 - **Not reachable and no `<DEV_HOST_CMD>` is configured:** **stop.** Report what is missing
@@ -163,15 +163,14 @@ as exactly one of:
 5. **Prove the test bites.** Revert only the fix, rerun, see it fail again for the original
    reason, then restore:
    ```bash
-   git stash push -m qa-explore-proof -- <fixed-file> [<fixed-file> ...]
+   git stash push -u -m qa-explore-proof -- <fixed-file> [<fixed-file> ...]
    <TEST_CMD> <test-file>; echo "exit $?"   # must FAIL, for the original reason
    git stash pop "$(git stash list | grep -m1 qa-explore-proof | cut -d: -f1)"
    git diff --stat -- <fixed-file> ...      # the fix must be back
    <TEST_CMD> <test-file>                   # must PASS again
    ```
-   Run the steps so a failing test never skips the pop (`;`, not `&&`). The pathspec only
-   stashes tracked files: if the fix created a new file, move it aside (`mv` it into
-   `$EVIDENCE_DIR`) for the failing run and move it back afterwards. If the pop conflicts,
+   Run the steps so a failing test never skips the pop (`;`, not `&&`). `-u` makes the
+   stash take a new file the fix created, too. If the pop conflicts,
    stop, restore the fix by hand from the stash and report it. A test that passes against both
    the buggy and the fixed code is worthless. This step is not optional.
 6. **Broader suite.** Run `<TEST_CMD>` (and `<LINT_CMD>` when configured). If something
