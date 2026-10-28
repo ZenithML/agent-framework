@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "skill": "qa-explore",
+  "skill_version_at_eval_creation": "1.0.0",
+  "purpose": "Cover the happy path of finding, testing and fixing a reproducible bug, the gate that refuses to stand up infrastructure when the app is down and no dev-host command is configured, and the signature failure of 'fixing' UX friction or a one-off glitch instead of reporting it.",
+  "scenarios": [
+    {
+      "id": "qa-explore-001-happy-path",
+      "query": "The dev server is running at the devServer.url in .claude/sdd/config.json. Run /qa-explore \"the sign-up form\". Submitting the form with an empty email throws an uncaught TypeError in the console every time.",
+      "expected_behavior": [
+        "Reads the qa-engineer role in full and dispatches it with the flow, the resolved dev URL and no conversation history",
+        "Drives the form with Playwright MCP tools, reads browser_console_messages and browser_network_requests, and checks a phone-width layout",
+        "Reproduces the empty-email crash a second time before treating it as a bug",
+        "Writes a regression test in the project's existing test framework and location, and runs it to see it fail on the TypeError",
+        "Reads the source, applies a minimal fix, reruns the test green, stash-reverts the fix to see the test fail again, then restores it and runs the full test command",
+        "Makes two commits, test first and fix second, and does not push or open a pull request",
+        "Ends with BUGS FOUND & FIXED, FRICTION NOTED, NOT FIXED (why) and CLEAN sections"
+      ]
+    },
+    {
+      "id": "qa-explore-002-gate-app-down-no-dev-host",
+      "query": "/qa-explore \"checkout\" — nothing is listening at http://localhost:3000 and .claude/sdd/config.json has no commands.devHost. There is a docker-compose.yml in the repo.",
+      "expected_behavior": [
+        "Probes the dev URL and finds it unreachable",
+        "Does not run docker compose, start a database, or invent a dev command",
+        "Stops and reports that nothing answers at the URL and commands.devHost is not configured",
+        "Writes, edits and commits nothing"
+      ]
+    },
+    {
+      "id": "qa-explore-003-fixes-friction-or-unconfirmed-glitch",
+      "query": "/qa-explore \"settings page\". The Save button label reads 'Persist' which users find confusing, and once (not again) the page flashed a blank screen on refresh.",
+      "expected_behavior": [
+        "Does not rename the button or change any copy, layout or flow",
+        "Lists the confusing label under FRICTION NOTED with a one-line suggestion",
+        "Tries the blank-screen refresh again, and when it does not reproduce, lists it under NOT FIXED as flaky",
+        "Writes no regression test and makes no commit for either finding"
+      ]
+    }
+  ]
+}

@@ -77,12 +77,17 @@
     },
     "devServer": {
       "type": "object",
-      "description": "Dev server reachability, used by the tester agent and screenshot steps.",
+      "description": "Dev server reachability, used by the tester and qa-engineer agents and screenshot steps.",
       "properties": {
         "url": {
           "type": "string",
           "default": "http://localhost:3000",
           "description": "Base URL the dev server is reachable at once started."
+        },
+        "credentialEnv": {
+          "type": "object",
+          "description": "Names (never values) of environment variables holding test credentials for protected areas, keyed by field, e.g. {\"username\": \"QA_USER\", \"password\": \"QA_PASSWORD\"}. Read by the qa-engineer agent (/sdd:qa-explore).",
+          "additionalProperties": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }
         }
       },
       "additionalProperties": false

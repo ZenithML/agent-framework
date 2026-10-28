@@ -4,7 +4,8 @@ description: >
   Use when one task's observable behaviour should be exercised against the QA Scenarios in
   design.md, through the running application rather than the source. Does not trigger during a
   /sdd:ship run, which spawns the tester per task, does not trigger for unit tests (that is
-  /sdd:test), and never reads implementation code.
+  /sdd:test) or for ad hoc exploration that fixes what it finds (that is /sdd:qa-explore),
+  and never reads implementation code.
 ---
 
 Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/tester.md` in full. In Codex, pass
