@@ -54,7 +54,8 @@ You are called with: `<feature-description> [--autonomous]`
 For every invocation, use the target role's declared tier and provider default:
 
 - `frontier`: architect — pipeline control and complex reasoning.
-- `workhorse`: planner, critic, archivist, publisher — planning, review and publication.
+- `workhorse`: planner, critic, archivist, publisher — planning, review and publication
+  (`qa-engineer` shares this tier but is dispatched by `/sdd:qa-explore`, not by this pipeline).
 - `fast`: executor, tester — implementation and observable behaviour checks.
 
 Read `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`. Resolve the target role's optional

@@ -34,7 +34,7 @@ IDs for all providers. In a flat install it lives at `.claude/sdd/model-tiers.js
 | Tier | Roles |
 |---|---|
 | frontier | architect |
-| workhorse | planner, critic, archivist, publisher |
+| workhorse | planner, critic, archivist, publisher, qa-engineer |
 | fast | executor, tester |
 
 Before every invocation, the caller reads the catalog and identifies the active host
@@ -175,6 +175,7 @@ residual hole. On FAIL, gives behavioural feedback to the executor (max 3 cycles
 | `/sdd:publish <domain>` | Stage 5 — verify docs, open PR, monitor CI |
 | `/sdd:prepare-docs <domain>` | Stage 5 (sub-step) — doc checkpoint commit |
 | `/sdd:audit [domain]` | On-demand — doc conformance check |
+| `/sdd:qa-explore <feature-or-flow> [--report-only]` | Outside the pipeline — exploratory QA that fixes confirmed bugs with a regression test each |
 
 ---
 
@@ -189,6 +190,7 @@ residual hole. On FAIL, gives behavioural feedback to the executor (max 3 cycles
 | `tester` | Adversarial QA — behaviour testing, no source read |
 | `publisher` | Docs verification, PR authoring, CI monitoring |
 | `archivist` | Documentation audit (read-only, on-demand) |
+| `qa-engineer` | Exploratory QA outside the pipeline — plays with the running app, fixes confirmed bugs test-first, reports friction (`/sdd:qa-explore`) |
 
 Every agent declares a `role:` whose tool contract is defined in
 [harness.md](harness.md#agent-roles-and-tool-contracts). The contract is what actually binds:

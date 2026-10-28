@@ -472,6 +472,7 @@ with skill discovery through `.agents/skills`; onboarding creates no Codex agent
 | Review a PR | `/sdd:review-pr` |
 | Review the local change before it goes public | `/sdd:review-diff` |
 | Triage a large PR before reviewing it | `/sdd:triage-pr` |
+| Play with the running app, find and fix bugs | `/sdd:qa-explore` |
 ```
 
 ---

@@ -11,9 +11,9 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 20 slash commands (invoked as /sdd:<name>)
-  agents/<name>.md              — 7 pipeline agents (architect, planner, critic,
-                                  executor, tester, publisher, archivist)
+  skills/<name>/SKILL.md        — 21 slash commands (invoked as /sdd:<name>)
+  agents/<name>.md              — 8 agents (architect, planner, critic, executor,
+                                  tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
   templates/docs/               — canonical requirements/design/tasks/ADR templates
   standards/                    — harness, doc-structure, branching-model, agent-pipeline
@@ -25,6 +25,7 @@ plugins/sdd/
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
 | `implement` · `critique` · `qa` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
+| `qa-explore` (ad hoc, fixes what it finds) | | |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 | `architect` (internal) | | |
 
@@ -32,6 +33,12 @@ plugins/sdd/
 > prepare-release, back-merge, version bumping) are **intentionally excluded**. They are too
 > tied to each repository's GitHub Actions workflows, so each consuming repo owns its release
 > workflow.
+
+`qa-explore` sits outside the pipeline. `/sdd:qa` dispatches the sealed `tester`: one task's QA
+Scenarios, no source access, report-only. `/sdd:qa-explore <feature-or-flow> [--report-only]`
+dispatches `qa-engineer` to play with the running app like a human tester (a browser for web
+apps, the shell for CLI and TUI apps), and for each bug that reproduces it lands a failing
+regression test, a minimal fix and proof the test bites. UX friction is reported, not changed.
 
 How the stages hand off to each other is in
 [`plugins/sdd/standards/agent-pipeline.md`](../plugins/sdd/standards/agent-pipeline.md). The

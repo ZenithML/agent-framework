@@ -35,6 +35,7 @@ There is no `CLAUDE.md` — Claude Code falls back to this file when it is absen
 | Respond to PR review feedback | `/fix-pr` |
 | Review a pull request | `/review-pr` |
 | Review the local change before it goes public (findings to `.review/findings.json`) | `/review-diff` |
+| Play with a running app like a human tester — find bugs and UX friction, fix bugs with a regression test each (`--report-only` to change nothing) | `/qa-explore` |
 | Triage a large PR — which parts need a human, which can be skipped | `/triage-pr` |
 | Lint skills / agents / standards (judgment half) | `/lint-harness` |
 | Run every mechanical gate before marking an MR ready | `./scripts/check-all.sh` (and `./tests/run-fixtures.sh`, and `./tests/install-paths.sh` when installers or manifests change, and `./tests/ci-runner.sh` when `plugins/ci-runner/` changes, and `./tests/triage-pr.sh` when `plugins/sdd/skills/triage-pr/` changes) |

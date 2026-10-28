@@ -64,6 +64,22 @@ Skills use placeholders that map to config keys:
 | `<ADR_DIR>` | `docs.adrDir` (default `<docs.root>/decisions`) |
 | `<MAIN_BRANCH>` · `<DEV_BRANCH>` | `branching.mainBranch` · `branching.devBranch` |
 | `<feature-branch>` | `branching.featurePrefix` + `<domain>` |
+| dev URL | `devServer.url` (default `http://localhost:3000`) |
+
+### Test credentials for exploratory QA
+
+`/sdd:qa-explore` signs in to protected areas only with credentials from environment variables.
+Name the variables, never the values, in `devServer.credentialEnv`:
+
+```json
+"devServer": {
+  "url": "http://localhost:3000",
+  "credentialEnv": { "username": "QA_USER", "password": "QA_PASSWORD" }
+}
+```
+
+You can also name them in the invocation. When none are named or set, the agent tests only the
+public surface and reports the protected area as not tested.
 
 ## ADR directory
 
