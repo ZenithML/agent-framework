@@ -24,7 +24,7 @@ plugins/sdd/
 |---|---|---|
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
-| `implement` · `critique` · `qa` · `qa-explore` (ad hoc) | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
+| `implement` · `critique` · `qa` · `qa-explore` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 | `architect` (internal) | | |
 
@@ -33,11 +33,16 @@ plugins/sdd/
 > tied to each repository's GitHub Actions workflows, so each consuming repo owns its release
 > workflow.
 
-`qa-explore` sits outside the pipeline. `/sdd:qa` dispatches the sealed `tester`: one task's QA
+`/sdd:qa` dispatches the sealed `tester`: one task's QA
 Scenarios, no source access, report-only. `/sdd:qa-explore <feature-or-flow> [--report-only]`
 dispatches `qa-engineer` to play with the running app like a human tester (a browser for web
 apps, the shell for CLI and TUI apps), and for each bug that reproduces it lands a failing
 regression test, a minimal fix and proof the test bites. UX friction is reported, not changed.
+
+`/sdd:ship` runs the same agent once per feature, after every task passes QA and before
+publish, only when asked: `/sdd:ship <feature> --explore`, or `"pipeline": {"explore": true}`
+in `.claude/sdd/config.json` (`--no-explore` turns it off for one run). It is off by default,
+because it makes a ship slower and costlier; turn it on for a careful ship.
 
 How the stages hand off to each other is in
 [`plugins/sdd/standards/agent-pipeline.md`](../plugins/sdd/standards/agent-pipeline.md). The

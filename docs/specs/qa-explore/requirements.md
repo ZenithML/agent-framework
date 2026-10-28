@@ -38,7 +38,7 @@ backends and test file names, so the workflow cannot be shared.
 ## Out of Scope
 
 - Replacing `/sdd:qa` or the sealed `tester`. The pipeline's QA stage is unchanged.
-- Running inside `/sdd:ship`. `qa-explore` is ad hoc and user-invoked.
+- Running inside `/sdd:ship` by default. Story 9 adds it there only as an opt-in stage.
 - Starting infrastructure the config does not name (databases, containers, backends).
 - Product decisions: wording, layout and flow changes are reported, not made.
 
@@ -98,6 +98,19 @@ NOT FIXED (why), CLEAN.
 **Then** the skill states that `/sdd:qa` is the task-scoped sealed verifier (`tester`, no source
 access, report-only), while `/sdd:qa-explore` is ad hoc, covers any flow, reads source and fixes
 code; and each description names the other as a non-trigger.
+
+### Story 9: Optional stage in `/sdd:ship`
+As a developer, I want to choose between a careful, slower ship and a quicker one, so that
+exploratory QA runs only when I want to pay for it.
+
+- Given a `/sdd:ship` run with neither `--explore` nor `pipeline.explore: true`, Then no
+  exploratory QA runs (off by default).
+- Given `/sdd:ship <feature> --explore`, or `pipeline.explore: true` without `--no-explore`,
+  When every task has passed QA, Then `qa-engineer` explores the feature once before publish,
+  its fix commits pass the code critic (else they are reverted) and the test suite, and its
+  report appears in the PR description.
+- Given exploratory QA cannot reach the app, Then the pipeline still publishes and the PR says
+  why exploration was skipped.
 
 ## Constraints
 

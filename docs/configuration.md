@@ -66,6 +66,17 @@ Skills use placeholders that map to config keys:
 | `<feature-branch>` | `branching.featurePrefix` + `<domain>` |
 | dev URL | `devServer.url` (default `http://localhost:3000`) |
 
+### Exploratory QA in `/sdd:ship`
+
+Off by default. To have every `/sdd:ship` run end with an exploratory QA pass by the
+`qa-engineer` (bugs fixed test-first, friction listed in the PR), set:
+
+```json
+"pipeline": { "explore": true }
+```
+
+`/sdd:ship --explore` or `--no-explore` overrides the setting for one run.
+
 ### Test credentials for exploratory QA
 
 `/sdd:qa-explore` signs in to protected areas only with credentials from environment variables.

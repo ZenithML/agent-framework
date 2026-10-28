@@ -75,6 +75,18 @@
       },
       "additionalProperties": false
     },
+    "pipeline": {
+      "type": "object",
+      "description": "Optional stages of the ship pipeline.",
+      "properties": {
+        "explore": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on every ship run. Off by default; the ship flags --explore and --no-explore override it for one run."
+        }
+      },
+      "additionalProperties": false
+    },
     "devServer": {
       "type": "object",
       "description": "Dev server reachability, used by the tester and qa-engineer agents and screenshot steps.",
