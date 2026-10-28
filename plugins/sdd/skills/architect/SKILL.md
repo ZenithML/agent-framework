@@ -38,6 +38,7 @@ Invoke the architect directly only to resume a failed pipeline or debug a specif
 | 3 — Implement | `/implement <domain> <task-id>` | `executor` | Tests + implementation (TDD) |
 | 3b — Code critique | `/critique code <domain>` | `critic` | PASS/REVISE |
 | 4 — QA | `/qa <domain> <task-id>` | `tester` | PASS/FAIL report |
+| 4b — Explore (only with `--explore`) | `/qa-explore <feature-or-flow>` | `qa-engineer` | Bugs fixed test-first, friction report |
 | 5 — Publish | `/publish <domain>` | `publisher` | docs verified, PR opened, CI passing |
 
 Each stage is self-contained and can be run independently. The architect runs them in sequence with context isolation between stages.
@@ -46,6 +47,6 @@ Each stage is self-contained and can be run independently. The architect runs th
 
 Spawn the `architect` agent with the feature description and flags provided.
 
-Pass the full feature description and `--autonomous` flag (if provided) to the architect agent.
+Pass the full feature description, the `--autonomous` flag and the `--explore` flag (each only if provided) to the architect agent. Without `--explore`, Stage 4b is skipped.
 
 See `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` for the full orchestration spec.

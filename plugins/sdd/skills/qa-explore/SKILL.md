@@ -48,7 +48,7 @@ and a fix behind for every bug it confirms.
 | Agent | `tester` — sealed verifier: no source access, no writes | `qa-engineer` — reads source and fixes code |
 | On a bug | Reports behavioural feedback; the pipeline hands it to `executor` | Failing regression test (red), minimal fix (green), proof the test bites, separate commits |
 | Independence | Independent verdict: it cannot see the code it grades | Not independent; the red → green → revert proof stands in for it |
-| Use when | Inside `/sdd:ship`, task-scoped | Ad hoc: "go poke at this and find problems" |
+| Use when | Inside `/sdd:ship`, task-scoped | Ad hoc: "go poke at this and find problems"; `/sdd:ship --explore` runs the same agent once before publish |
 
 ## Steps
 

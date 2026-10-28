@@ -203,7 +203,7 @@ slower ship; leave it off for a quick one.
 | `tester` | Adversarial QA — behaviour testing, no source read |
 | `publisher` | Docs verification, PR authoring, CI monitoring |
 | `archivist` | Documentation audit (read-only, on-demand) |
-| `qa-engineer` | Exploratory QA — Stage 4b when `--explore` is on, or ad hoc via `/sdd:qa-explore` — plays with the running app, fixes confirmed bugs test-first, reports friction (`/sdd:qa-explore`) |
+| `qa-engineer` | Exploratory QA — Stage 4b when `--explore` is on, or ad hoc — plays with the running app, fixes confirmed bugs test-first, reports friction (`/sdd:qa-explore`) |
 
 Every agent declares a `role:` whose tool contract is defined in
 [harness.md](harness.md#agent-roles-and-tool-contracts). The contract is what actually binds:

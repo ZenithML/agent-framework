@@ -35,6 +35,34 @@ class ShipExploreTests(unittest.TestCase):
         self.assertIn("Stage 4b — Explore", pipeline)
         self.assertIn("--explore", pipeline)
 
+    def test_state_machine_keeps_qa_failures_under_qa(self):
+        architect = (PLUGIN / "agents/architect.md").read_text()
+        machine = architect.split("## State Machine", 1)[1].split("## Context Engineering Rules", 1)[0]
+        qa = machine.split("\nQA ", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("FAIL (cycle < 3)", qa)
+        self.assertIn("FAIL (cycle == 3)", qa)
+        exploring = machine.split("\nEXPLORING ", 1)[1].split("\n\n", 1)[0]
+        self.assertNotIn("FAIL (cycle", exploring)
+
+    def test_context_rules_cover_stage_4b(self):
+        architect = (PLUGIN / "agents/architect.md").read_text()
+        rules = architect.split("## Context Engineering Rules", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("| qa-engineer (Stage 4b) |", rules)
+        self.assertIn("| critic (code, Stage 4b) |", rules)
+        self.assertIn("| publisher |", rules)
+
+    def test_rejected_bugs_lose_both_test_and_fix_commits(self):
+        architect = (PLUGIN / "agents/architect.md").read_text()
+        stage = architect.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
+        self.assertIn("both its `test:` and `fix:` commits", stage)
+
+    def test_harness_and_architect_skill_know_about_stage_4b(self):
+        harness = (PLUGIN / "standards/harness.md").read_text()
+        self.assertNotIn("`/sdd:ship` never routes QA to `qa-engineer`", harness)
+        skill = (PLUGIN / "skills/architect/SKILL.md").read_text()
+        self.assertIn("4b — Explore", skill)
+        self.assertIn("--explore", skill)
+
 
 if __name__ == "__main__":
     unittest.main()

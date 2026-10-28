@@ -55,8 +55,8 @@ You are called with: `<feature-description> [--autonomous] [--explore]`
 For every invocation, use the target role's declared tier and provider default:
 
 - `frontier`: architect — pipeline control and complex reasoning.
-- `workhorse`: planner, critic, archivist, publisher — planning, review and publication
-  and `qa-engineer` — dispatched by Stage 4b only when `--explore` is on.
+- `workhorse`: planner, critic, archivist, publisher — planning, review and publication;
+  qa-engineer — exploratory QA, dispatched by Stage 4b only when `--explore` is on.
 - `fast`: executor, tester — implementation and observable behaviour checks.
 
 Read `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`. Resolve the target role's optional
@@ -241,10 +241,14 @@ Do NOT pass: code, diffs, executor reasoning, source file paths.
 ## Stage 4b: Explore (optional)
 
 Skip this stage unless you were called with `--explore`; log `[Architect] Explore: off` and go
-to Stage 5. Skip it too, with the reason logged, when the change has nothing to run (docs,
-config or harness only).
+to Stage 5. When `--explore` is on but the change has nothing to run (docs, config or harness
+only), skip it too and keep the line `Exploratory QA skipped: <reason>` for the publisher.
 
-After every task has passed QA, spawn `qa-engineer` once, in fix mode, with **only**:
+**Before spawning:** the working tree must be clean — commit or discard anything earlier stages
+left uncommitted, because `qa-engineer` treats every dirty file as the user's work and will not
+fix it. Record `START=$(git rev-parse HEAD)`; it is your record, independent of the agent's own.
+
+Spawn `qa-engineer` once, in fix mode, with **only**:
 - The feature description and the domain name
 - The QA Scenarios section of design.md, as context, not a boundary
 - The dev URL resolved from `devServer.url`, and the credential variable names from
@@ -252,33 +256,30 @@ After every task has passed QA, spawn `qa-engineer` once, in fix mode, with **on
 
 Do NOT pass: diffs, executor reasoning, tester or critic history.
 
-Record `git rev-parse HEAD` before spawning. When it reports back:
-1. If it committed fixes, spawn `critic` (`context: "code"`) on the files changed in
-   `<start>..HEAD` with the Architecture section of design.md. On REVISE, send the feedback to
-   `qa-engineer` (max 2 cycles); if still REVISE, revert its fix commits (`git revert`, never a
-   history rewrite) and move those bugs to the report's NOT FIXED section.
-2. Run `<TEST_CMD>`; a failure here is a code issue for `qa-engineer` within the same 2 cycles.
-3. Keep its report (BUGS FOUND & FIXED, FRICTION NOTED, NOT FIXED, CLEAN) for Stage 5.
+**What comes back** is the agent's plain-text report (qa-engineer.md step 7): `MODE`,
+`COMMITS`, then BUGS FOUND & FIXED (each with its test file and its `test:` and `fix:`
+commits), FRICTION NOTED, NOT FIXED (why), CLEAN. There is no JSON handoff. If the report says
+it stopped because nothing answered at the dev URL and no `<DEV_HOST_CMD>` is configured,
+treat the stage as blocked: keep `Exploratory QA skipped: <its reason>` for the publisher and go
+to Stage 5.
 
-Exploration findings never send the pipeline back to the planner: a bug that needs a product
-decision stays in the report.
+**Checking its fixes** (only when `<START>..HEAD` is not empty):
+1. Spawn `critic` (`context: "code"`) with the files changed in `<START>..HEAD`, the
+   Architecture and Test Scenarios sections of design.md, and these criteria: each fix is
+   minimal and targets one reported bug; each bug has a regression test; nothing else changed.
+   These are bug fixes found by exploration, so "scope limited to the assigned task" means
+   "limited to the reported bug".
+2. On REVISE there is no second round with `qa-engineer` (it has no resume input and would
+   re-explore from scratch). For each bug the critic rejects, revert
+   both its `test:` and `fix:` commits (`git revert --no-edit <fix> <test>`, never a history rewrite; revert all of
+   `<START>..HEAD` if the commits cannot be told apart) and move the bug to NOT FIXED with the
+   critic's reason.
+3. Run `<TEST_CMD>`. If it fails, revert the commits of the bug whose test or fix breaks it the
+   same way, and re-run until green; if it still fails, revert all of `<START>..HEAD`.
+4. Keep the final report, with those moves applied, for Stage 5.
 
-```json
-// Handoff expected:
-{
-  "stage": "qa-engineer",
-  "status": "SUCCESS | BLOCKED",
-  "artifacts": {
-    "fixed": ["<bug> — <test file> — <commits>"],
-    "friction": ["<where>: <what>"],
-    "not_fixed": ["<finding>: <reason>"],
-    "report": "<the full report text>"
-  }
-}
-```
-
-`BLOCKED` (the app could not be reached and no `<DEV_HOST_CMD>` is configured) does not stop
-the pipeline: note it in the report and continue to Stage 5.
+Exploration findings never send the pipeline back to the planner or the executor: a bug that
+needs a product decision stays in the report.
 
 ---
 
@@ -287,7 +288,8 @@ the pipeline: note it in the report and continue to Stage 5.
 Spawn `publisher` agent with:
 - Domain name
 - Domain path (`docs/specs/<domain>/`)
-- When Stage 4b ran: its report, to add to the PR description as an "Exploratory QA" section
+- When `--explore` was on: the Stage 4b report, or its `Exploratory QA skipped: <reason>` line,
+  for an "Exploratory QA" section of the PR description
 
 ```json
 // SUCCESS:
@@ -327,11 +329,13 @@ CODE_CRITIQUE    → PASS             → QA(task N)
 
 QA               → PASS + more tasks → IMPLEMENTATION(task N+1)
                  → PASS + done       → EXPLORING (--explore) | PUBLISHING
-
-EXPLORING        → SUCCESS | BLOCKED → PUBLISHING (report attached)
-                 → critic REVISE ×2  → revert its fixes → PUBLISHING
                  → FAIL (cycle < 3)  → IMPLEMENTATION(task N, retry)
                  → FAIL (cycle == 3) → ESCALATION
+
+EXPLORING        → skipped / blocked → PUBLISHING (skip reason attached)
+                 → report            → CHECK_FIXES (critic + <TEST_CMD>)
+CHECK_FIXES      → PASS              → PUBLISHING (report attached)
+                 → REVISE / red      → revert those bugs' test + fix commits → PUBLISHING
 
 PUBLISHING       → SUCCESS           → DONE
                  → CI_FAIL (code)    → IMPLEMENTATION(fix) → PUBLISHING
@@ -349,6 +353,9 @@ PUBLISHING       → SUCCESS           → DONE
 | executor | design.md (Architecture + Test Scenarios), tasks.md, one task ID | other tasks' diffs, tester history |
 | critic (code) | changed source files, design.md (Architecture + Test Scenarios) | other tasks' diffs, tester feedback |
 | tester | design.md (QA Scenarios), requirements.md, target scenario | code, diffs, executor reasoning |
+| qa-engineer (Stage 4b) | feature description, domain, design.md (QA Scenarios, as context), dev URL, credential variable names | diffs, executor reasoning, tester or critic history |
+| critic (code, Stage 4b) | files changed in `<START>..HEAD`, design.md (Architecture + Test Scenarios), bug-fix criteria | the exploration transcript |
+| publisher | domain, domain path, Stage 4b report or skip reason when `--explore` was on | agent transcripts |
 
 ---
 
