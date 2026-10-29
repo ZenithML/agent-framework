@@ -24,13 +24,19 @@ BLOCK_END = "# <<< sdd-harness mcp <<<"
 ENV = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}")
 
 
+class Unsupported(ValueError):
+    """A valid Claude server that Codex config cannot express; it is skipped with a warning."""
+
+
 def literal(value):
     return json.dumps(value, ensure_ascii=False)
 
 
 def string(value):
-    if not isinstance(value, str) or "${" in value:
-        raise ValueError("expected a string without interpolation")
+    if not isinstance(value, str):
+        raise ValueError("expected a string")
+    if "${" in value:
+        raise Unsupported("interpolation Codex cannot express")
     return value
 
 
@@ -59,11 +65,11 @@ def server_table(name, config):
     kind = config.get("type", "http" if url else "stdio")
     allowed = {"type", "url", "serverUrl", "headers"} if url else {"type", "command", "args", "env"}
     if set(config) - allowed:
-        raise ValueError("unsupported fields: " + ", ".join(sorted(set(config) - allowed)))
+        raise Unsupported("unsupported fields: " + ", ".join(sorted(set(config) - allowed)))
     lines = [f"[mcp_servers.{literal(name)}]"]
     if url:
         if kind != "http":
-            raise ValueError("only Streamable HTTP and stdio transports are supported")
+            raise Unsupported(f"transport {kind!r} (only Streamable HTTP and stdio are supported)")
         if config.get("url") and config.get("serverUrl") and config["url"] != config["serverUrl"]:
             raise ValueError("url and serverUrl disagree")
         lines.append("url = " + literal(string(url)))
@@ -105,7 +111,10 @@ def server_table(name, config):
 
 
 def plan(target):
-    """Validate everything and return (destination, previous bytes, desired bytes)."""
+    """Validate everything and return (destination, previous bytes, desired bytes, skipped).
+
+    skipped lists (server name, reason) for servers Codex cannot express; malformed
+    input still raises ValueError before anything is written."""
     if tomllib is None:
         raise ValueError("MCP sync requires Python 3.11+ or the 'tomli' package (for TOML validation)")
     source = target / ".mcp.json"
@@ -133,16 +142,19 @@ def plan(target):
     configured = manual.get("mcp_servers", {})
     if not isinstance(configured, dict):
         raise ValueError("manual mcp_servers must be a table")
-    collisions = set(servers) & set(configured)
-    if collisions:
-        raise ValueError("manual Codex MCP entries conflict with .mcp.json: " + ", ".join(sorted(collisions)) +
-                         "; reconcile them into .mcp.json before syncing")
-    tables = []
+    tables, skipped = [], []
     for name, config in sorted(servers.items()):
         try:
             tables.append(server_table(name, config))
+        except Unsupported as reason:
+            skipped.append((name, str(reason)))
         except ValueError as error:
             raise ValueError(f"server {name}: {error}") from error
+    # A skipped server may be hand-written in Codex config, so it is not a collision.
+    collisions = (set(servers) - {name for name, _ in skipped}) & set(configured)
+    if collisions:
+        raise ValueError("manual Codex MCP entries conflict with .mcp.json: " + ", ".join(sorted(collisions)) +
+                         "; reconcile them into .mcp.json before syncing")
     if tables:
         # Put tables at the end so following root keys cannot inherit their scope.
         separator = "\n" if rest.endswith("\n") else "\n\n" if rest else ""
@@ -150,11 +162,16 @@ def plan(target):
     else:
         desired = rest
     tomllib.loads(desired)
-    return destination, previous, desired.encode("utf-8")
+    return destination, previous, desired.encode("utf-8"), skipped
 
 
 def sync(target, check=False):
-    destination, previous, desired = plan(target)
+    destination, previous, desired, skipped = plan(target)
+    for name, reason in skipped:
+        # Names and field names only: never echo values, which may hold credentials.
+        print(f"MCP sync warning: skipped server {name} for Codex: {reason}; "
+              "add it to .codex/config.toml by hand outside the managed block if Codex needs it.",
+              file=sys.stderr)
     if previous == desired:
         print("MCP configuration is in sync.")
         return 0

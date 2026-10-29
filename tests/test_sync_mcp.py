@@ -78,18 +78,16 @@ class MCPSyncTests(unittest.TestCase):
         self.run_sync(success=False)
         self.assertEqual(self.config.read_text(), manual)
 
-    def test_invalid_or_unsupported_input_keeps_previous_output(self):
+    def test_invalid_input_keeps_previous_output(self):
         self.source_servers({"good": {"url": "https://good.test"}})
         self.run_sync()
         before = self.config.read_bytes()
         bad_servers = [
-            {"bad": {"type": "sse", "url": "https://example.test/sse"}},
-            {"bad": {"url": "https://example.test", "headersHelper": "echo secret"}},
-            {"bad": {"command": "node", "env": {"TOKEN": "${OTHER_TOKEN}"}}},
-            {"bad": {"url": "https://${HOST}/mcp"}},
-            {"bad": {"url": "https://example.test", "headers": {"X-Key": "prefix ${TOKEN}"}}},
-            {"bad": {"command": "node", "unknownOption": True}},
             {"bad": {}},
+            {"bad": {"url": "https://a.test", "serverUrl": "https://b.test"}},
+            {"bad": {"command": "node", "args": "not-a-list"}},
+            {"bad": {"command": "node", "env": {"N": ["list"]}}},
+            {"bad": "not an object"},
         ]
         for servers in bad_servers:
             with self.subTest(servers=servers):
@@ -99,6 +97,46 @@ class MCPSyncTests(unittest.TestCase):
         self.source.write_text("{broken")
         self.run_sync(success=False)
         self.assertEqual(self.config.read_bytes(), before)
+
+    def test_servers_codex_cannot_express_are_skipped_with_a_warning(self):
+        unsupported = [
+            {"type": "sse", "url": "https://example.test/sse"},
+            {"url": "https://example.test", "headersHelper": "echo secret"},
+            {"command": "node", "env": {"TOKEN": "${OTHER_TOKEN}"}},
+            {"url": "https://${HOST}/mcp"},
+            {"url": "https://example.test", "headers": {"X-Key": "prefix ${TOKEN}"}},
+            {"command": "node", "unknownOption": True},
+        ]
+        for config in unsupported:
+            with self.subTest(config=config):
+                self.config.unlink(missing_ok=True)
+                self.source_servers({"good": {"url": "https://good.test"}, "skipped": config})
+                result = self.run_sync()
+                self.assertIn("skipped server skipped for Codex", result.stderr)
+                self.assertNotIn("secret", result.stderr)
+                self.assertNotIn("OTHER_TOKEN", result.stderr)
+                servers = tomllib.loads(self.config.read_text())["mcp_servers"]
+                self.assertEqual(set(servers), {"good"})
+                self.run_sync("--check")
+
+    def test_skipped_server_may_be_configured_by_hand(self):
+        manual = '[mcp_servers.github]\nurl = "https://manual.test"\nbearer_token_env_var = "GH_TOKEN"\n'
+        self.config.parent.mkdir()
+        self.config.write_text(manual)
+        self.source_servers({"github": {"url": "https://api.test", "headersHelper": "gh auth token"},
+                             "good": {"url": "https://good.test"}})
+        self.run_sync()
+        servers = tomllib.loads(self.config.read_text())["mcp_servers"]
+        self.assertEqual(servers["github"]["url"], "https://manual.test")
+        self.assertEqual(servers["good"]["url"], "https://good.test")
+        self.assertTrue(self.config.read_text().startswith(manual))
+        self.run_sync("--check")
+
+    def test_only_unsupported_servers_write_nothing(self):
+        self.source_servers({"skipped": {"type": "sse", "url": "https://example.test/sse"}})
+        result = self.run_sync()
+        self.assertIn("skipped server skipped", result.stderr)
+        self.assertFalse(self.config.exists())
 
     def test_missing_source_is_noop_and_empty_source_retires_managed_config(self):
         self.run_sync("--check")
