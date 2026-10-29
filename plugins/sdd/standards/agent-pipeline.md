@@ -34,7 +34,7 @@ IDs for all providers. In a flat install it lives at `.claude/sdd/model-tiers.js
 | Tier | Roles |
 |---|---|
 | frontier | architect |
-| workhorse | planner, critic, archivist, publisher |
+| workhorse | planner, critic, archivist, publisher, qa-engineer |
 | fast | executor, tester |
 
 Before every invocation, the caller reads the catalog and identifies the active host
@@ -130,6 +130,9 @@ Code Critique         critic (code)                → PASS / REVISE (routes bac
 Stage 4 — QA          tester (adversarial)         → PASS / FAIL (no source read; up to 3 cycles)
     │
     ▼
+Stage 4b — Explore    qa-engineer (once, opt-in)   → fixes + friction report  [--explore only]
+    │
+    ▼
 Stage 5 — Publish     publisher                    → docs verified, PR opened, CI monitored
 ```
 
@@ -157,6 +160,16 @@ this is enforced by the `tester` agent declaring no `Read`, `Grep`, or `Glob` to
 by instruction. See the verifier seal in [harness.md](harness.md) for why, and for the one
 residual hole. On FAIL, gives behavioural feedback to the executor (max 3 cycles).
 
+### Stage 4b — Explore (optional, off by default)
+Runs only with `/sdd:ship --explore`, or when `.claude/sdd/config.json` sets
+`"pipeline": {"explore": true}` (`--no-explore` turns it off for one run). After every task has
+passed QA, the `qa-engineer` plays with the whole feature once in the running app, fixes each
+bug it confirms test-first, and reports UX friction without changing it. Its fix commits go
+through the code critic (max 2 cycles, else they are reverted) and the full test suite; its
+report goes into the PR description. It does not replace Stage 4: the tester stays the
+independent verdict, because the explorer reads and edits the code. Choose it for a careful,
+slower ship; leave it off for a quick one.
+
 ### Stage 5: Publish
 `/sdd:prepare-docs` (verify tasks, update INDEX, audit, commit checkpoint) → draft PR description from specs → `/sdd:create-pr` → monitor CI; route code failures back to the executor, retry infra flakes once.
 
@@ -175,6 +188,8 @@ residual hole. On FAIL, gives behavioural feedback to the executor (max 3 cycles
 | `/sdd:publish <domain>` | Stage 5 — verify docs, open PR, monitor CI |
 | `/sdd:prepare-docs <domain>` | Stage 5 (sub-step) — doc checkpoint commit |
 | `/sdd:audit [domain]` | On-demand — doc conformance check |
+| `/sdd:bug-hunt <area \| --all> [--report-only] [--autonomous]` | Outside the pipeline — static audit (critic, `bugs`) + runtime pass (qa-engineer, report-only), prioritised report, gate, fixes, one PR |
+| `/sdd:qa-explore <feature-or-flow> [--report-only]` | Stage 4b on its own, or ad hoc — exploratory QA that fixes confirmed bugs with a regression test each |
 
 ---
 
@@ -184,11 +199,12 @@ residual hole. On FAIL, gives behavioural feedback to the executor (max 3 cycles
 |---|---|
 | `architect` | Pipeline orchestrator / control plane |
 | `planner` | Spec and task authoring (with embedded critic loops) |
-| `critic` | Adversarial reviewer — requirements, design, and code |
+| `critic` | Adversarial reviewer — requirements, design, and code; read-only static bug audit (`bugs`) for `/sdd:bug-hunt` |
 | `executor` | TDD implementation |
 | `tester` | Adversarial QA — behaviour testing, no source read |
 | `publisher` | Docs verification, PR authoring, CI monitoring |
 | `archivist` | Documentation audit (read-only, on-demand) |
+| `qa-engineer` | Exploratory QA — Stage 4b when `--explore` is on, `/sdd:bug-hunt` (report-only pass, `--fix-list` fixes), or ad hoc — plays with the running app, fixes confirmed bugs test-first, reports friction (`/sdd:qa-explore`) |
 
 Every agent declares a `role:` whose tool contract is defined in
 [harness.md](harness.md#agent-roles-and-tool-contracts). The contract is what actually binds:

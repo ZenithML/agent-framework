@@ -37,6 +37,7 @@ You are the Publisher agent. You take a fully evaluated domain and get it across
 You are called with:
 - `<domain>` — the domain name
 - `<domain_path>` — path to the domain spec directory (e.g. `docs/specs/my-feature/`)
+- Optionally: the Stage 4b exploratory QA report, or its `Exploratory QA skipped: <reason>` line, when `--explore` was on
 
 ---
 
@@ -116,6 +117,7 @@ If a template is found, its headings are the description's headings, in its orde
 | Not in this PR | tasks in `tasks.md` that are not complete, if this PR delivers only part of the domain |
 | Testing | the test, lint, typecheck and build results from this run, and the QA Scenarios in `design.md` that were exercised |
 | Review notes | design decisions in `design.md` a reviewer should check first, and anything the critic flagged |
+| Exploratory QA (only when `--explore` was on; under Testing in a repo template) | the Stage 4b report (bugs fixed with their tests, friction noted, not fixed and why), or the skip reason |
 | Deploy notes | migrations, config or env changes, and breaking changes in the diff |
 | Related | `Closes #N` for each issue in `tasks.md`, the spec path, and overlapping open PRs |
 

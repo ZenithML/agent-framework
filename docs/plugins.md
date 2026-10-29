@@ -11,9 +11,9 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 20 slash commands (invoked as /sdd:<name>)
-  agents/<name>.md              — 7 pipeline agents (architect, planner, critic,
-                                  executor, tester, publisher, archivist)
+  skills/<name>/SKILL.md        — 21 slash commands (invoked as /sdd:<name>)
+  agents/<name>.md              — 8 agents (architect, planner, critic, executor,
+                                  tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
   templates/docs/               — canonical requirements/design/tasks/ADR templates
   standards/                    — harness, doc-structure, branching-model, agent-pipeline
@@ -24,7 +24,7 @@ plugins/sdd/
 |---|---|---|
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
-| `implement` · `critique` · `qa` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
+| `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 | `architect` (internal) | | |
 
@@ -32,6 +32,24 @@ plugins/sdd/
 > prepare-release, back-merge, version bumping) are **intentionally excluded**. They are too
 > tied to each repository's GitHub Actions workflows, so each consuming repo owns its release
 > workflow.
+
+`/sdd:qa` dispatches the sealed `tester`: one task's QA
+Scenarios, no source access, report-only. `/sdd:qa-explore <feature-or-flow> [--report-only]`
+dispatches `qa-engineer` to play with the running app like a human tester (a browser for web
+apps, the shell for CLI and TUI apps), and for each bug that reproduces it lands a failing
+regression test, a minimal fix and proof the test bites. UX friction is reported, not changed.
+
+`/sdd:ship` runs the same agent once per feature, after every task passes QA and before
+publish, only when asked: `/sdd:ship <feature> --explore`, or `"pipeline": {"explore": true}`
+in `.claude/sdd/config.json` (`--no-explore` turns it off for one run). It is off by default,
+because it makes a ship slower and costlier; turn it on for a careful ship.
+
+`/sdd:bug-hunt <area | --all> [--report-only] [--autonomous]` goes deeper over a whole area: the
+critic reads all of its code for bugs (`bugs` context, read-only), `qa-engineer` uses it in the
+running app in report-only mode, and both are merged into one prioritised report under
+`.review/bug-hunt/`. After you approve the list (or unattended with `--autonomous`, for
+scheduled runs), `qa-engineer --fix-list` fixes each bug test-first, the critic checks the fixes,
+and one PR is opened.
 
 How the stages hand off to each other is in
 [`plugins/sdd/standards/agent-pipeline.md`](../plugins/sdd/standards/agent-pipeline.md). The

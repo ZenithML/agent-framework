@@ -25,18 +25,25 @@ model and any fallback reason. Never translate Claude model labels across provid
 Read and apply the Cross-harness delegation
 contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
 
-**Usage:** `/sdd:ship <feature-description> [--autonomous]`
+**Usage:** `/sdd:ship <feature-description> [--autonomous] [--explore | --no-explore]`
 
 The primary entry point for all code changes. Spawns the `architect` agent to run the full pipeline:
 
 ```
-spec → plan → (implement → critique → qa) per task → publish
+spec → plan → (implement → critique → qa) per task → [explore] → publish
 ```
 
 **Modes:**
 - **interactive** (default): human approval gate after `/spec` phase, before design begins
 - **autonomous** (`--autonomous`): no human gates; runs to completion
 
-Pass the full feature description and `--autonomous` flag (if provided) to the architect agent. The architect logs model selection reasoning at each stage and reports back with a completion summary or escalation.
+**Exploratory QA (`--explore`), off by default:** after every task has passed QA, the
+`qa-engineer` plays with the whole feature in the running app once, fixes the bugs it confirms
+(each with a regression test, reviewed by the critic) and lists UX friction in the PR. It makes
+a run slower and costlier and catches what the per-task scenarios miss; choose it for a careful
+ship. A repo can turn it on for every run with `"pipeline": {"explore": true}` in
+`.claude/sdd/config.json`; `--explore` or `--no-explore` overrides that setting for one run.
+
+Resolve explore: `--explore` or `--no-explore` when given, otherwise `pipeline.explore` from `.claude/sdd/config.json`, otherwise off. Pass the full feature description, the `--autonomous` flag (if provided) and `--explore` (only when explore resolved to on) to the architect agent. The architect logs model selection reasoning at each stage and reports back with a completion summary or escalation.
 
 See `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md` for the full pipeline architecture.

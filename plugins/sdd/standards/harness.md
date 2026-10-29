@@ -157,10 +157,18 @@ Every agent therefore declares a `role:`, and each role carries a tool contract:
 | Role | Agents | Contract |
 |---|---|---|
 | `orchestrator` | `architect`, `publisher` | Runs a pipeline; must declare `Agent`. Broad access by nature. |
-| `author` | `planner`, `executor` | Writes specs, plans, or code. Needs `Read` and `Write`. |
+| `author` | `planner`, `executor`, `qa-engineer` | Writes specs, plans, or code. Needs `Read` and `Write`. |
 | `reviewer` | `critic` | Must declare no write tool — it cannot be able to change what it judges. |
 | `verifier` | `tester` | Must declare no `Read`, `Grep`, or `Glob`. |
 | `auditor` | `archivist` | Read-only inspection and reporting. |
+
+`qa-engineer` (dispatched by `/sdd:qa-explore`, by `/sdd:ship`'s opt-in Stage 4b, and by
+`/sdd:bug-hunt` for its report-only pass and `--fix-list` fixes) is an `author`, not a second verifier: it plays
+with the running app, then reads source and fixes the bugs it confirms, so it needs `Read`,
+`Edit` and `Write` alongside its browser tools. It makes no independence claim. Its evidence is
+a regression test shown failing, then passing, then failing again with the fix reverted. The
+`tester` seal is unchanged, and `/sdd:ship` never uses `qa-engineer` in place of the tester's
+QA verdict: Stage 4b runs after it, and only when `--explore` is on.
 
 ### Why the verifier is sealed
 

@@ -8,6 +8,8 @@
 | Write requirements or design | `/spec` or `/plan` (Codex: `$spec`, `$plan`) |
 | Implement a task | `/implement` (Codex: `$implement`) |
 | Independent review or observable QA | `/critique` or `/qa` (Codex: `$critique`, `$qa`) |
+| Explore a running app, find and fix bugs | `/qa-explore` (Codex: `$qa-explore`); `--report-only` changes nothing |
+| Hunt an area for bugs, report, then fix in one PR | `/bug-hunt` (Codex: `$bug-hunt`); `--report-only`, `--autonomous` |
 | Open or review a pull request | `/create-pr` or `/review-pr` (Codex: `$create-pr`, `$review-pr`) |
 | Bootstrap project configuration | `/sdd-init` (Codex: `$sdd-init`) |
 | Inspect pipeline rules and delegation | `.claude/standards/agent-pipeline.md` |
