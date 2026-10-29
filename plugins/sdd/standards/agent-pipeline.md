@@ -141,7 +141,7 @@ Stage 5 — Publish     publisher                    → docs verified, PR opene
 The planner (inline: the `/sdd:ship` session) writes `requirements.md`; critic reviews (completeness, Given/When/Then, no ambiguity) and loops until PASS. In interactive mode, surfaces the approved spec for human sign-off; `--autonomous` skips the gate.
 
 ### Stage 2: Plan
-Reads approved `requirements.md`; the planner (inline: the `/sdd:ship` session) writes `design.md` (decisions, architecture, test + QA scenarios); critic reviews inline (no TBDs, scenario coverage, consistency) and loops until PASS; planner then writes `tasks.md` (and GitHub issues with `--issues`).
+Reads approved `requirements.md`; the planner (inline: the `/sdd:ship` session) writes `design.md` (decisions, architecture, test + QA scenarios); critic reviews (no TBDs, scenario coverage, consistency) and loops until PASS; planner then writes `tasks.md` (and GitHub issues with `--issues`).
 
 **Acceptance criteria are frozen at design approval.** The QA Scenarios in `design.md` are what
 the sealed verifier later checks, and the planner is the agent that wrote them. A `DESIGN_GAP`

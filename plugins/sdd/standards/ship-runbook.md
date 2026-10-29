@@ -311,9 +311,9 @@ Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` yourself with the inp
 }
 ```
 
-**If CI_FAIL (code issue):** route to executor for fixes, then re-run the publish stage. Where
-publisher.md says to hand a code failure to the Architect, that means the orchestrator: inline,
-this session routes it to the executor itself.
+**If CI_FAIL (code issue):** route to executor for fixes, then re-run the publish stage. publisher.md
+hands a code failure to the orchestrator; inline, that is this session, which routes it to the
+executor itself.
 
 ## State Machine
 
