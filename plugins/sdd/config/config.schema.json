@@ -83,6 +83,12 @@
           "type": "boolean",
           "default": false,
           "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on every ship run. Off by default; the ship flags --explore and --no-explore override it for one run."
+        },
+        "orchestrator": {
+          "type": "string",
+          "enum": ["inline", "architect"],
+          "default": "inline",
+          "description": "Who follows the ship runbook. inline (default): the calling session. architect: the architect subagent, one per mission in its own git worktree, for starting several missions from one session. The ship flags --inline and --architect override it for one run."
         }
       },
       "additionalProperties": false

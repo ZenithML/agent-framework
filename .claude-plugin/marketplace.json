@@ -4,13 +4,13 @@
     "name": "zenithml"
   },
   "description": "Agent harness \u2014 a stack-agnostic spec-driven pipeline (spec \u2192 plan \u2192 implement \u2192 QA \u2192 publish), plus a verification harness for perceptual work, packaged as reusable Claude Code plugins.",
-  "version": "0.14.2",
+  "version": "0.15.0",
   "plugins": [
     {
       "name": "sdd",
       "source": "./plugins/sdd",
       "description": "Spec-driven development pipeline: orchestrator + planner/executor/critic/tester/publisher/archivist agents, TDD implement loop, exploratory QA and bug hunts that fix what they find, doc-audit, and PR workflow. Stack-agnostic via .claude/sdd/config.json.",
-      "version": "0.14.2",
+      "version": "0.15.0",
       "author": {
         "name": "zenithml"
       },
