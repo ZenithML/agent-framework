@@ -173,7 +173,7 @@ The executor owns the full TDD cycle: writes failing tests (red), implements (gr
 }
 ```
 
-**If DESIGN_GAP:** Route back to the spec or plan stage (`--spec-only` or `--design-and-tasks`; inline, revise it yourself by following planner.md, architect, spawn the planner) for targeted revision, then resume executor.
+**If DESIGN_GAP:** Route back to the spec or plan stage (`--spec-only` or `--design-and-tasks`; inline: revise it yourself by following planner.md; architect: spawn the planner) for targeted revision, then resume executor.
 
 ---
 
