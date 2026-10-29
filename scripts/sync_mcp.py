@@ -14,7 +14,10 @@ from pathlib import Path
 try:
     import tomllib
 except ImportError:
-    tomllib = None
+    try:
+        import tomli as tomllib  # backport for Python < 3.11
+    except ImportError:
+        tomllib = None
 
 BLOCK_START = "# >>> sdd-harness mcp (generated from .mcp.json; do not edit) >>>"
 BLOCK_END = "# <<< sdd-harness mcp <<<"
@@ -104,7 +107,7 @@ def server_table(name, config):
 def plan(target):
     """Validate everything and return (destination, previous bytes, desired bytes)."""
     if tomllib is None:
-        raise ValueError("MCP sync requires Python 3.11+ (for TOML validation)")
+        raise ValueError("MCP sync requires Python 3.11+ or the 'tomli' package (for TOML validation)")
     source = target / ".mcp.json"
     destination = target / ".codex/config.toml"
     if source.is_symlink() or destination.is_symlink() or destination.parent.is_symlink():

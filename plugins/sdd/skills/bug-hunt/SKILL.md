@@ -131,7 +131,7 @@ list (they may drop bugs). With `--autonomous`, the fix list is every bug marked
    which replace the design.md Test Scenarios check for this call: each fix is minimal and
    targets one listed bug; each bug has a regression test; nothing else changed. Each feedback
    item must name the bug id it rejects. Here REVISE means "revert those bugs", not "revise":
-   for each named bug, revert both its `test:` and `fix:` commits (`git revert --no-edit`) and
+   for each named bug, revert both its `test:` and `fix:` commits (`git revert --no-edit <fix> <test>`) and
    move it to "Not fixing" with the reason. An item naming no bug is logged and ignored. There
    is no second round.
 5. Run `<TEST_CMD>` (and `<LINT_CMD>` when configured). If it fails, revert the commits of the

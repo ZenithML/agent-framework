@@ -76,12 +76,14 @@ after `git add <paths>`), so files the user had staged stay out of your commits.
 
 For a web app:
 
+Use the dev URL the caller passed. Only when none was passed, read `devServer.url` from the
+config (default `http://localhost:3000`):
+
 ```bash
-DEV_URL=$(node -e "try{const c=require('./.claude/sdd/config.json');console.log((c.devServer&&c.devServer.url)||'http://localhost:3000')}catch(e){console.log('http://localhost:3000')}" 2>/dev/null || echo 'http://localhost:3000')
+DEV_URL="<the URL you were called with>"
+[ -n "$DEV_URL" ] || DEV_URL=$(node -e "try{const c=require('./.claude/sdd/config.json');console.log((c.devServer&&c.devServer.url)||'http://localhost:3000')}catch(e){console.log('http://localhost:3000')}" 2>/dev/null || echo 'http://localhost:3000')
 curl -s -o /dev/null "$DEV_URL" && echo "REACHABLE" || echo "NOT REACHABLE"
 ```
-
-Use the URL the caller passed when it differs from the config value.
 
 - **Reachable:** go to step 3.
 - **Not reachable and `<DEV_HOST_CMD>` is configured** (`commands.devHost`): start it with the
@@ -174,12 +176,12 @@ as exactly one of:
    reason, then restore:
    ```bash
    git stash push -u -m qa-explore-proof -- <fixed-file> [<fixed-file> ...]
-   <TEST_CMD> <test-file>; echo "exit $?"   # must FAIL, for the original reason
+   <TEST_CMD> <test-file> || echo "exit $?"   # must FAIL, for the original reason
    git stash pop "$(git stash list | grep -m1 qa-explore-proof | cut -d: -f1)"
    git diff --stat -- <fixed-file> ...      # the fix must be back
    <TEST_CMD> <test-file>                   # must PASS again
    ```
-   Run the steps so a failing test never skips the pop (`;`, not `&&`). `-u` makes the
+   Run the steps so a failing test never skips the pop (`||`, never `&&`; it also holds under `set -e`). `-u` makes the
    stash take a new file the fix created, too. If the pop conflicts,
    stop, restore the fix by hand from the stash and report it. A test that passes against both
    the buggy and the fixed code is worthless. This step is not optional.
