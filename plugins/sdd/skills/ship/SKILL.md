@@ -71,8 +71,9 @@ This session is the orchestrator. Follow the runbook stage by stage. Do the plan
 `qa-engineer` (when explore is on) as separate agents with exactly the scoped inputs the runbook
 lists, under the delegation contract above. This session
 writes no product code or tests: implementation comes only from the executor, verdicts only from the
-critic and tester. It may run git and the configured commands, edit spec status lines and
-`tasks.md` checkboxes, and talk to the user.
+critic and tester. It may write the spec, design and tasks, create issues, open the PR, run git
+and the configured commands, edit spec status lines and `tasks.md` checkboxes, and talk to the
+user.
 
 - **Spec gate** (interactive): once the spec has passed the critic (`AWAITING_SPEC_APPROVAL`),
   ask the user as the runbook's **Spec gate** says, and continue in this session.

@@ -9,7 +9,8 @@ procedure; neither the ship skill nor the architect restates it.
 The orchestrator coordinates and writes no product code or tests itself. Implementation comes
 only from the executor, verdicts only from the critic and tester. It may spawn stage agents, run
 git and the configured commands, edit spec status lines and `tasks.md` checkboxes, and talk to
-the user (inline) or return a handoff (architect).
+the user (inline) or return a handoff (architect). Inline, it also does the authoring stages
+below: writes requirements.md, design.md and tasks.md, creates issues, and opens the PR.
 
 **Who does the authoring stages.** Planning (Stages 1 and 2) and publishing (Stage 5) need
 continuity with the user, not independence, so in **inline** mode the orchestrator does them
@@ -60,16 +61,19 @@ Reason: Supported target-role default
 ## Pipeline
 
 ```
-Stage 1: Spec    → planner (--spec-only)         → requirements.md [critic embedded]
-Stage 2: Plan    → planner (--design-and-tasks)  → design.md + tasks.md [critic embedded]
+Stage 1: Spec    → planner (--spec-only)*        → requirements.md [critic embedded]
+Stage 2: Plan    → planner (--design-and-tasks)* → design.md + tasks.md [critic embedded]
 Stage 3: Implement → executor (per task)         → tests + implementation (TDD)
          ↓
          Code Critique → critic (code context)   → PASS / REVISE
          ↓
 Stage 4: QA      → tester (per task)             → PASS / FAIL
 Stage 4b: Explore → qa-engineer (once, --explore only) → fixes + friction report
-Stage 5: Publish → publisher                     → docs verified, PR opened, CI passing
+Stage 5: Publish → publisher*                    → docs verified, PR opened, CI passing
 ```
+
+\* Inline, the orchestrator does this stage itself by following the role file; architect mode
+spawns the agent. Every other stage is always a separate agent.
 
 ---
 
@@ -104,7 +108,7 @@ separate agent). In interactive mode the stage ends at `AWAITING_SPEC_APPROVAL`;
 ```
 
 In autonomous mode, set the `**Status:**` line of `requirements.md` to `Approved` as soon as the
-planner returns SUCCESS, so a later resume knows the critic passed.
+spec stage ends with SUCCESS, so a later resume knows the critic passed.
 
 After this stage (once the spec is approved, or at once in autonomous mode): in inline mode,
 create feature branch `<feature-branch>` from `<DEV_BRANCH>` and commit the spec to it. In
@@ -121,8 +125,9 @@ Architect: spawn the `planner` agent with:
 - `--issues` flag to create GitHub issues
 
 Either way requirements.md is read, design.md is written and passes the critic review loop, then
-tasks.md is written and issues are created. While planning, do not open implementation or test
-files (planner.md step 1), even inline.
+tasks.md is written and issues are created. While planning (Stages 1 and 2), do not open
+implementation or test files, even inline: plan from the docs, as planner.md Phase 1 says. If
+code is already in this conversation, do not base the spec or design on it.
 
 ```json
 // Handoff expected:
@@ -168,7 +173,7 @@ The executor owns the full TDD cycle: writes failing tests (red), implements (gr
 }
 ```
 
-**If DESIGN_GAP:** Route back to planner (`--spec-only` or `--design-and-tasks`) for targeted revision, then resume executor.
+**If DESIGN_GAP:** Route back to the spec or plan stage (`--spec-only` or `--design-and-tasks`; inline, revise it yourself by following planner.md, architect, spawn the planner) for targeted revision, then resume executor.
 
 ---
 
@@ -306,7 +311,9 @@ Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` yourself with the inp
 }
 ```
 
-**If CI_FAIL (code issue):** route to executor for fixes, then re-run the publish stage.
+**If CI_FAIL (code issue):** route to executor for fixes, then re-run the publish stage. Where
+publisher.md says to hand a code failure to the Architect, that means the orchestrator: inline,
+this session routes it to the executor itself.
 
 ## State Machine
 
