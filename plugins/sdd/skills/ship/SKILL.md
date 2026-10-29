@@ -74,7 +74,8 @@ critic and tester. It may run git and the configured commands, edit spec status 
 
 - **Spec gate** (interactive): when the planner returns `AWAITING_SPEC_APPROVAL`, ask the user
   as the runbook's **Spec gate** says, and continue in this session.
-- **Resume:** with `--resume <domain>`, pick the stage from the runbook's **Resume** table.
+- **Resume:** with `--resume <domain>`, check out `<feature-branch>` first, then pick the stage
+  from the runbook's **Resume** table.
 - **End:** report the PR link, or the escalation and what the user needs to decide.
 
 ## Architect mode

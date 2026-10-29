@@ -72,7 +72,7 @@ Python `unittest` in `tests/`, no provider calls.
 | T4 | architect role | References `ship-runbook.md`, `--resume`, `--worktree`, `--approved`, `worktree_path`, `AWAITING_SPEC_APPROVAL`, `git worktree add`, `.git/info/exclude`; its escalation handoff carries `worktree_path` and `branch`; tier `workhorse`, model `sonnet`; no State Machine copy |
 | T5 | `test_ship_explore.py` | Stage 4b assertions read the runbook instead of `architect.md` |
 | T6 | `test_agent_tiers.py` | Architect expected tier is `workhorse`; `agent-pipeline.md` tier table lists architect under `workhorse` |
-| T7 | `test_shared_runtime.py` flat install | Installed ship skill and architect reference `.claude/standards/ship-runbook.md` |
+| T7 | `test_ship_orchestration.py` flat install | Installed ship skill and architect reference `.claude/standards/ship-runbook.md` |
 | T8 | `./scripts/check-all.sh`, `./tests/run-fixtures.sh`, `./tests/install-paths.sh` | All pass |
 
 ## QA Scenarios

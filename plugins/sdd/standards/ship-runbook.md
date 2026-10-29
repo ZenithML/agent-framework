@@ -213,7 +213,7 @@ Do NOT pass: code, diffs, executor reasoning, source file paths.
 
 **Fix cycles:**
 - On FAIL: pass feedback to executor for fixes (max 3 cycles per task)
-- After 3 failures: escalate to user
+- After 3 failures: escalate (see **Escalation** below)
 
 ---
 
@@ -347,6 +347,11 @@ PUBLISHING       → SUCCESS           → DONE
 - TDD is embedded in executor — red → green → refactor per task
 - Tester is adversarial — its job is to find problems
 - Domain specs are the single source of truth; route gaps back to spec, never resolve silently
+- CI must pass before reporting DONE
+
+**Escalation** (any `ESCALATION` in the state machine): inline, tell the user which budget ran
+out or which design gap needs a decision, and wait for them. In architect mode, return the
+escalation handoff from `${CLAUDE_PLUGIN_ROOT}/agents/architect.md`; the calling session tells the user.
 
 ---
 
@@ -368,7 +373,9 @@ Interactive mode only; `--autonomous` has no gate. The planner has set `requirem
 ## Resume
 
 With `--resume <domain>`, derive the next stage from what is on disk, never from memory of an
-earlier run. Take the **first matching row**; rows run from the most advanced state down.
+earlier run. First get onto the mission's branch: inline, check out `<feature-branch>` when it
+exists (stop and ask if the working tree has uncommitted changes); in architect mode, work in the
+given worktree. Take the **first matching row**; rows run from the most advanced state down.
 Cycle counts restart at zero.
 
 | # | On disk | Next stage |
