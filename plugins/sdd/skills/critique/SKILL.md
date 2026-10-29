@@ -39,6 +39,6 @@ Spawn the `critic` agent with the appropriate artifacts and criteria:
 
 The critic is **read-only** and returns a structured PASS/REVISE handoff. It never modifies files.
 
-> In the pipeline, critic review is embedded within `/spec` (requirements) and `/plan` (design). Code critique after each executor task is managed by the architect. Run `/critique` manually to re-check a specific artifact.
+> In the pipeline, critic review is embedded within `/spec` (requirements) and `/plan` (design). Code critique after each executor task is managed by the `/ship` orchestrator (the calling session, or the architect in architect mode). Run `/critique` manually to re-check a specific artifact.
 
 See `${CLAUDE_PLUGIN_ROOT}/agents/critic.md` for the full review spec.

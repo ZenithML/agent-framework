@@ -25,6 +25,7 @@
 | review-triage: risk triage for large PRs (0.11.0) | [`requirements.md`](specs/review-triage/requirements.md), [`design.md`](specs/review-triage/design.md), [`tasks.md`](specs/review-triage/tasks.md) | Approved |
 | qa-explore: exploratory QA that finds and fixes bugs (0.14.0) | [`requirements.md`](specs/qa-explore/requirements.md), [`design.md`](specs/qa-explore/design.md), [`tasks.md`](specs/qa-explore/tasks.md) | Approved |
 | bug-hunt: static + runtime bug hunt with a gated fix PR (0.14.0) | [`requirements.md`](specs/bug-hunt/requirements.md), [`design.md`](specs/bug-hunt/design.md), [`tasks.md`](specs/bug-hunt/tasks.md) | Approved |
+| ship-orchestration: inline by default, architect per mission in its own worktree (0.15.0) | [`requirements.md`](specs/ship-orchestration/requirements.md), [`design.md`](specs/ship-orchestration/design.md), [`tasks.md`](specs/ship-orchestration/tasks.md) | Approved |
 
 ## Research
 

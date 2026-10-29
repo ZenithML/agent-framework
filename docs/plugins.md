@@ -26,7 +26,7 @@ plugins/sdd/
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
 | `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
-| `architect` (internal) | | |
+| `architect` (architect mode, debugging) | | |
 
 > Repository-specific release skills and release/CI-automation layers (tag-release,
 > prepare-release, back-merge, version bumping) are **intentionally excluded**. They are too

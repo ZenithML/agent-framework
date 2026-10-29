@@ -1,10 +1,10 @@
 ---
 name: architect
 description: >
-  Use when resuming a pipeline that halted or escalated, or when debugging one stage's handoff
-  in isolation — the internal control plane, invoked directly rather than through /sdd:ship.
-  Does not trigger for a normal change (use /sdd:ship, which spawns it with the right
-  arguments), and does not trigger to run a single stage cleanly (use that stage's skill).
+  Use when debugging one architect-mode run directly — the subagent that follows the ship
+  runbook in its own worktree, invoked here rather than through /sdd:ship. Does not trigger for
+  a normal change or a resume (use /sdd:ship, or /sdd:ship --resume), and does not
+  trigger to run a single stage cleanly (use that stage's skill).
 ---
 
 Before delegating, Read `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` in full. In Codex, pass
@@ -24,9 +24,10 @@ model and any fallback reason. Never translate Claude model labels across provid
 Read and apply the Cross-harness delegation
 contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
 
-**Note:** This is the internal pipeline orchestrator. For normal use, invoke `/ship` instead — it calls this skill automatically.
+**Note:** This is the orchestrator for `/ship` in architect mode. For normal use, and to resume
+a run in either mode, invoke `/ship` (`/ship --resume <domain>`) instead.
 
-Invoke the architect directly only to resume a failed pipeline or debug a specific stage.
+Invoke the architect directly only to debug one architect-mode run.
 
 ## Pipeline stages
 
@@ -41,12 +42,16 @@ Invoke the architect directly only to resume a failed pipeline or debug a specif
 | 4b — Explore (only with `--explore`) | `/qa-explore <feature-or-flow>` | `qa-engineer` | Bugs fixed test-first, friction report |
 | 5 — Publish | `/publish <domain>` | `publisher` | docs verified, PR opened, CI passing |
 
-Each stage is self-contained and can be run independently. The architect runs them in sequence with context isolation between stages.
+Each stage is self-contained and can be run independently. The orchestrator runs them in sequence with context isolation between stages, following `${CLAUDE_PLUGIN_ROOT}/standards/ship-runbook.md`.
 
 ## Invocation
 
 Spawn the `architect` agent with the feature description and flags provided.
 
-Pass the full feature description, the `--autonomous` flag and the `--explore` flag (each only if provided) to the architect agent. Without `--explore`, Stage 4b is skipped.
+Pass the full feature description, and `--autonomous`, `--explore`, and
+`--resume <domain> --worktree <path> [--approved | --notes "..."]` (each only if provided) to the
+architect agent. Without `--explore`, Stage 4b is skipped. Handle its handoff as the ship skill's
+**Architect mode** section says.
 
-See `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` for the full orchestration spec.
+See `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` for the architect's own rules and
+`${CLAUDE_PLUGIN_ROOT}/standards/ship-runbook.md` for the procedure.

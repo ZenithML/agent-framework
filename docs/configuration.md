@@ -77,6 +77,21 @@ Off by default. To have every `/sdd:ship` run end with an exploratory QA pass by
 
 `/sdd:ship --explore` or `--no-explore` overrides the setting for one run.
 
+### Who orchestrates `/sdd:ship`
+
+By default the session that ran `/sdd:ship` follows the pipeline itself (`inline`), spawning the
+stage agents with the same scoped inputs. Choose `architect` when you stay in one session and
+start several missions from it: each mission then runs in an `architect` subagent in its own
+git worktree under `.claude/worktrees/<domain>` (in the background in Claude Code), and the
+worktree stays until you remove it with `git worktree remove`.
+
+```json
+"pipeline": { "orchestrator": "architect" }
+```
+
+`/sdd:ship --inline` or `--architect` overrides the setting for one run. `/sdd:ship --resume
+<domain>` resumes a stopped run in either mode.
+
 ### Test credentials for exploratory QA
 
 `/sdd:qa-explore` signs in to protected areas only with credentials from environment variables.

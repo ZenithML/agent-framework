@@ -33,8 +33,8 @@ IDs for all providers. In a flat install it lives at `.claude/sdd/model-tiers.js
 
 | Tier | Roles |
 |---|---|
-| frontier | architect |
-| workhorse | planner, critic, archivist, publisher, qa-engineer |
+| frontier | (none shipped; available for a consumer to move a role up) |
+| workhorse | architect, planner, critic, archivist, publisher, qa-engineer |
 | fast | executor, tester |
 
 Before every invocation, the caller reads the catalog and identifies the active host
@@ -104,7 +104,8 @@ installed by this harness. The Claude enforcement claims below apply to Claude C
 - **Spec-driven development (SDD) is middleware**, not an entry point. Every stage reads existing specs and keeps them up to date.
 - **Critics are embedded in planning.** The planner self-verifies requirements and design before handing off.
 - **Test-driven development (TDD) is embedded** in the implement stage — red → green → refactor in one agent invocation.
-- **Code critique runs after every implement task**, before QA. The architect manages this loop.
+- **Code critique runs after every implement task**, before QA. The orchestrator manages this loop.
+- **One runbook, two orchestrators.** [ship-runbook.md](ship-runbook.md) is the procedure. By default the session that ran `/sdd:ship` follows it (`inline`); with `--architect` or `pipeline.orchestrator: "architect"`, an `architect` subagent follows it in its own git worktree, so several missions can be started from one session.
 - **Context isolation** between stages: no stage receives another stage's internals.
 
 ---
@@ -149,10 +150,10 @@ retry. If a scenario changes, say so in the design's Decisions table and re-appr
 moves to accommodate the code it is grading has stopped being a test.
 
 ### Stage 3: Implement
-The executor is the only agent that writes code. Full TDD per task: red (failing tests from design.md Test Scenarios) → green (minimum code) → refactor → one commit. On a design gap it reports `DESIGN_GAP` and the architect routes back to the planner.
+The executor is the only agent that writes code. Full TDD per task: red (failing tests from design.md Test Scenarios) → green (minimum code) → refactor → one commit. On a design gap it reports `DESIGN_GAP` and the orchestrator routes back to the planner.
 
 ### Code Critique
-After each task, the critic checks design adherence (no unspecced keys/modules/components), test quality (behaviour-focused, covers design scenarios), and code quality. On REVISE the architect routes back to the executor (max 2 cycles).
+After each task, the critic checks design adherence (no unspecced keys/modules/components), test quality (behaviour-focused, covers design scenarios), and code quality. On REVISE the orchestrator routes back to the executor (max 2 cycles).
 
 ### Stage 4: QA
 Tests observable behaviour against `design.md` QA Scenarios. **Never reads source code** — and
@@ -197,7 +198,7 @@ slower ship; leave it off for a quick one.
 
 | Agent | Role |
 |---|---|
-| `architect` | Pipeline orchestrator / control plane |
+| `architect` | Pipeline orchestrator in architect mode: one mission, its own worktree |
 | `planner` | Spec and task authoring (with embedded critic loops) |
 | `critic` | Adversarial reviewer — requirements, design, and code; read-only static bug audit (`bugs`) for `/sdd:bug-hunt` |
 | `executor` | TDD implementation |
@@ -211,4 +212,4 @@ Every agent declares a `role:` whose tool contract is defined in
 context isolation stated in prose is an instruction a model can exceed, whereas a tool that is
 not declared cannot be called.
 
-**`/sdd:ship`** runs the full multi-agent pipeline with context isolation, using Claude Code's Agent/Task tool to spawn each agent above.
+**`/sdd:ship`** runs the full multi-agent pipeline with context isolation, using Claude Code's Agent/Task tool (or Codex native subagents) to spawn each agent above. Inline, the calling session spawns them; in architect mode, the architect does.

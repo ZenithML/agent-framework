@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins/sdd"
 PROVIDERS = {"anthropic", "openai", "google"}
 ROLES = {
-    "architect": "frontier", "planner": "workhorse", "executor": "fast",
+    "architect": "workhorse", "planner": "workhorse", "executor": "fast",
     "critic": "workhorse", "tester": "fast", "archivist": "workhorse", "publisher": "workhorse",
     "qa-engineer": "workhorse",
 }
@@ -19,7 +19,9 @@ class AgentTierTests(unittest.TestCase):
         self.catalog = json.loads((PLUGIN / "config/model-tiers.json").read_text())
 
     def test_catalog_defines_every_tier_and_provider(self):
-        self.assertEqual(set(self.catalog), set(ROLES.values()))
+        # frontier stays in the catalog with no shipped role, so a consumer can move a role
+        # (for example the architect) back up by editing its tier.
+        self.assertEqual(set(self.catalog), set(ROLES.values()) | {"frontier"})
         for tier, defaults in self.catalog.items():
             with self.subTest(tier=tier):
                 self.assertEqual(set(defaults), PROVIDERS)
