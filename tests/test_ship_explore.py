@@ -21,14 +21,14 @@ class ShipExploreTests(unittest.TestCase):
         self.assertIn("off by default", ship)
 
     def test_runbook_runs_explore_once_before_publish_and_only_when_on(self):
-        architect = (PLUGIN / "standards/ship-runbook.md").read_text()
-        self.assertIn("## Stage 4b: Explore (optional)", architect)
-        self.assertIn("qa-engineer", architect)
-        self.assertIn("EXPLORING", architect)
-        stage = architect.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
+        runbook = (PLUGIN / "standards/ship-runbook.md").read_text()
+        self.assertIn("## Stage 4b: Explore (optional)", runbook)
+        self.assertIn("qa-engineer", runbook)
+        self.assertIn("EXPLORING", runbook)
+        stage = runbook.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
         self.assertIn("Skip this stage", stage)
         self.assertIn("critic", stage)
-        self.assertLess(architect.index("## Stage 4b"), architect.index("## Stage 5: Publish"))
+        self.assertLess(runbook.index("## Stage 4b"), runbook.index("## Stage 5: Publish"))
 
     def test_pipeline_standard_documents_the_stage(self):
         pipeline = (PLUGIN / "standards/agent-pipeline.md").read_text()
@@ -36,8 +36,8 @@ class ShipExploreTests(unittest.TestCase):
         self.assertIn("--explore", pipeline)
 
     def test_state_machine_keeps_qa_failures_under_qa(self):
-        architect = (PLUGIN / "standards/ship-runbook.md").read_text()
-        machine = architect.split("## State Machine", 1)[1].split("## Context Engineering Rules", 1)[0]
+        runbook = (PLUGIN / "standards/ship-runbook.md").read_text()
+        machine = runbook.split("## State Machine", 1)[1].split("## Context Engineering Rules", 1)[0]
         qa = machine.split("\nQA ", 1)[1].split("\n\n", 1)[0]
         self.assertIn("FAIL (cycle < 3)", qa)
         self.assertIn("FAIL (cycle == 3)", qa)
@@ -45,15 +45,15 @@ class ShipExploreTests(unittest.TestCase):
         self.assertNotIn("FAIL (cycle", exploring)
 
     def test_context_rules_cover_stage_4b(self):
-        architect = (PLUGIN / "standards/ship-runbook.md").read_text()
-        rules = architect.split("## Context Engineering Rules", 1)[1].split("\n## ", 1)[0]
+        runbook = (PLUGIN / "standards/ship-runbook.md").read_text()
+        rules = runbook.split("## Context Engineering Rules", 1)[1].split("\n## ", 1)[0]
         self.assertIn("| qa-engineer (Stage 4b) |", rules)
         self.assertIn("| critic (code, Stage 4b) |", rules)
         self.assertIn("| publisher |", rules)
 
     def test_rejected_bugs_lose_both_test_and_fix_commits(self):
-        architect = (PLUGIN / "standards/ship-runbook.md").read_text()
-        stage = architect.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
+        runbook = (PLUGIN / "standards/ship-runbook.md").read_text()
+        stage = runbook.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
         self.assertIn("both its `test:` and `fix:` commits", stage)
 
     def test_harness_and_architect_skill_know_about_stage_4b(self):

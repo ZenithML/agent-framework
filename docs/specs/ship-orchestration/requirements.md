@@ -3,8 +3,8 @@
 **Status:** Approved
 **Last Updated:** 2026-10-29
 
-Scope: `plugins/sdd` 0.15.0. Changes who coordinates a `/sdd:ship` run. No stage agent changes
-what it does.
+Scope: `plugins/sdd` 0.15.0 (Stories 1–6) and 0.16.0 (Story 7). Changes who coordinates a
+`/sdd:ship` run, and in inline mode who does the planning and publishing.
 
 ## Problem Statement
 
@@ -41,9 +41,9 @@ from one session cannot run side by side: both would create branches in the same
 ## Out of Scope
 
 - Changing what any stage agent does, its tools, or its inputs.
-- Moving the critic loop out of the planner. With inline as the default, the chain is
-  main → planner → critic (depth 2). In architect mode it stays at depth 3, which the default
-  limit allows, and moving the loop would cost an extra planner spawn for every revision.
+- Moving the critic loop out of the planner agent. Since 0.16.0, inline planning runs in the
+  calling session, so the chain is main → critic (depth 1). In architect mode it stays at depth 3,
+  which the default limit allows.
 - A persisted progress file. Resume derives the stage from the spec documents and git.
 - Changes in consumer repos. Each consumer picks the mode in its own config after it upgrades.
 
@@ -122,6 +122,25 @@ on disk, logs the row, and restarts cycle counts at zero.
 **Given** the role catalog
 **Then** `architect` declares `tier: workhorse` and `model: sonnet`, and the tier tables in
 `agent-pipeline.md` and the runbook list it under `workhorse`.
+
+### Story 7: Inline mode writes the spec, plan and PR itself (0.16.0)
+
+**Given** inline mode
+**When** a run reaches Stage 1, 2 or 5
+**Then** the calling session follows `agents/planner.md` (Phase 1 or 2) or `agents/publisher.md`
+itself instead of spawning those agents, and the critic loop it runs spawns the critic directly
+from the calling session.
+
+**Given** inline mode and the spec gate
+**When** the user asks for changes
+**Then** the calling session revises `requirements.md` itself, re-runs the critic loop and asks
+again.
+
+**Given** architect mode
+**Then** the architect still spawns the `planner` and `publisher` agents.
+
+**Given** either mode
+**Then** critic, tester, qa-engineer and the per-task executor remain separate agents.
 
 ## Constraints
 

@@ -105,7 +105,7 @@ installed by this harness. The Claude enforcement claims below apply to Claude C
 - **Critics are embedded in planning.** The planner self-verifies requirements and design before handing off.
 - **Test-driven development (TDD) is embedded** in the implement stage — red → green → refactor in one agent invocation.
 - **Code critique runs after every implement task**, before QA. The orchestrator manages this loop.
-- **One runbook, two orchestrators.** [ship-runbook.md](ship-runbook.md) is the procedure. By default the session that ran `/sdd:ship` follows it (`inline`); with `--architect` or `pipeline.orchestrator: "architect"`, an `architect` subagent follows it in its own git worktree, so several missions can be started from one session.
+- **One runbook, two orchestrators.** [ship-runbook.md](ship-runbook.md) is the procedure. By default the session that ran `/sdd:ship` follows it (`inline`) and writes the spec, plan and PR itself, while the critic, executor, tester and qa-engineer stay separate agents; with `--architect` or `pipeline.orchestrator: "architect"`, an `architect` subagent follows it in its own git worktree, so several missions can be started from one session.
 - **Context isolation** between stages: no stage receives another stage's internals.
 
 ---

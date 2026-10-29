@@ -11,6 +11,15 @@ only from the executor, verdicts only from the critic and tester. It may spawn s
 git and the configured commands, edit spec status lines and `tasks.md` checkboxes, and talk to
 the user (inline) or return a handoff (architect).
 
+**Who does the authoring stages.** Planning (Stages 1 and 2) and publishing (Stage 5) need
+continuity with the user, not independence, so in **inline** mode the orchestrator does them
+itself: it reads the role file (`${CLAUDE_PLUGIN_ROOT}/agents/planner.md`, `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md`) in full and
+follows its steps and constraints in this session. Where the role file says to output a handoff
+and stop, take that handoff as the stage's result and go on with this runbook. The role's own
+critic loop spawns the critic straight from this session. In **architect** mode the architect spawns the
+`planner` and `publisher` agents as below. Stages that need independence (critic, tester,
+qa-engineer) and the per-task executor are always separate agents, in both modes.
+
 **Configuration:** resolve `<TEST_CMD>`, `<LINT_CMD>`, `<BUILD_CMD>`, `<DEV_CMD>`, `<DEV_HOST_CMD>`, `<INSTALL_CMD>`, `<DEV_BRANCH>`, `<MAIN_BRANCH>`, `<SOURCE_DIR>`, and `<feature-branch>` from `.claude/sdd/config.json` at the repo root; if absent, auto-detect from `package.json`/`pyproject.toml` and default branches to `main`/`development` and source dir to `src`.
 
 **Working directory:** in architect mode every command runs in the mission's worktree, and every
@@ -69,14 +78,16 @@ Stage 5: Publish → publisher                     → docs verified, PR opened,
 First name the domain: a short kebab-case slug of the feature (reuse an existing
 `docs/specs/<name>/` when the change belongs to it). `<feature-branch>` follows from it.
 
-Spawn `planner` agent with:
+Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/planner.md` Phase 1 (`--spec-only`) yourself with the domain name,
+feature description and mode. Architect: spawn the `planner` agent with:
 - `--spec-only` flag
 - Domain name
 - Feature description
 - Mode (interactive or autonomous)
 
-The planner writes requirements.md and runs an embedded critic review loop. In interactive mode
-it returns `AWAITING_SPEC_APPROVAL` once the critic passes; handle it as in **Spec gate** below.
+Either way requirements.md is written and passes the critic review loop (the critic is always a
+separate agent). In interactive mode the stage ends at `AWAITING_SPEC_APPROVAL`; handle it as in
+**Spec gate** below.
 
 ```json
 // Handoff expected:
@@ -103,12 +114,15 @@ architect mode the branch already exists in the mission's worktree; commit the s
 
 ## Stage 2: Plan
 
-Spawn `planner` agent with:
+Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/planner.md` Phase 2 (`--design-and-tasks`, `--issues`) yourself.
+Architect: spawn the `planner` agent with:
 - `--design-and-tasks` flag
 - Domain name
 - `--issues` flag to create GitHub issues
 
-The planner reads requirements.md, writes design.md, runs an embedded critic review loop on the design, then writes tasks.md and creates issues.
+Either way requirements.md is read, design.md is written and passes the critic review loop, then
+tasks.md is written and issues are created. While planning, do not open implementation or test
+files (planner.md step 1), even inline.
 
 ```json
 // Handoff expected:
@@ -265,7 +279,8 @@ needs a product decision stays in the report.
 
 ## Stage 5: Publish
 
-Spawn `publisher` agent with:
+Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` yourself with the inputs below. Architect: spawn the
+`publisher` agent with:
 - Domain name
 - Domain path (`docs/specs/<domain>/`)
 - When `--explore` was on: the Stage 4b report, or its `Exploratory QA skipped: <reason>` line,
@@ -291,7 +306,7 @@ Spawn `publisher` agent with:
 }
 ```
 
-**If CI_FAIL (code issue):** route to executor for fixes, then re-run publisher.
+**If CI_FAIL (code issue):** route to executor for fixes, then re-run the publish stage.
 
 ## State Machine
 
@@ -329,21 +344,21 @@ PUBLISHING       → SUCCESS           → DONE
 
 | Stage | Receives | Never receives |
 |-------|----------|----------------|
-| planner (spec) | feature description, mode, existing docs | code, test files |
-| planner (plan) | requirements.md, mode, existing docs | code, test files |
+| planner (spec) | feature description, mode, existing docs (inline: also this conversation) | code, test files |
+| planner (plan) | requirements.md, mode, existing docs (inline: also this conversation) | code, test files |
 | executor | design.md (Architecture + Test Scenarios), tasks.md, one task ID | other tasks' diffs, tester history |
 | critic (code) | changed source files, design.md (Architecture + Test Scenarios) | other tasks' diffs, tester feedback |
 | tester | design.md (QA Scenarios), requirements.md, target scenario | code, diffs, executor reasoning |
 | qa-engineer (Stage 4b) | feature description, domain, design.md (QA Scenarios, as context), dev URL, credential variable names | diffs, executor reasoning, tester or critic history |
 | critic (code, Stage 4b) | `git diff <START>..HEAD` inline, bug list, design.md (Architecture + Test Scenarios), bug-fix criteria | the exploration transcript |
-| publisher | domain, domain path, Stage 4b report or skip reason when `--explore` was on | agent transcripts |
+| publisher | domain, domain path, Stage 4b report or skip reason when `--explore` was on | agent transcripts (inline: it has none) |
 
 ---
 
 ## Rules
 
 - Specs always come first — no code before Stage 2 completes
-- Critic is embedded in planner for spec/design; the orchestrator manages code critique directly
+- Critic review is embedded in the planning stages for spec/design; the orchestrator manages code critique directly
 - TDD is embedded in executor — red → green → refactor per task
 - Tester is adversarial — its job is to find problems
 - Domain specs are the single source of truth; route gaps back to spec, never resolve silently
@@ -357,13 +372,13 @@ escalation handoff from `${CLAUDE_PLUGIN_ROOT}/agents/architect.md`; the calling
 
 ## Spec gate
 
-Interactive mode only; `--autonomous` has no gate. The planner has set `requirements.md` to
-`Review` and returned `AWAITING_SPEC_APPROVAL`.
+Interactive mode only; `--autonomous` has no gate. `requirements.md` is at `Review` and has
+passed the critic (`AWAITING_SPEC_APPROVAL`).
 
 - **Inline:** show the user the requirements path and a short summary, and ask them to approve
-  or say what to change. On changes, spawn the planner again (`--spec-only`, the domain, the
-  user's notes); it revises, re-runs its critic loop and returns to the gate. On approval, set
-  the `**Status:**` line of `requirements.md` to `Approved` yourself and continue with Stage 2.
+  or say what to change. On changes, revise requirements.md yourself, re-run the critic loop and
+  ask again. On approval, set the `**Status:**` line of `requirements.md` to `Approved` and
+  continue with Stage 2.
 - **Architect:** stop and return the gate handoff from `${CLAUDE_PLUGIN_ROOT}/agents/architect.md`. The calling
   session asks the user and starts a fresh architect with `--resume`; that run continues from
   **Resume** below.
