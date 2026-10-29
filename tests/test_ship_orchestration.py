@@ -16,6 +16,11 @@ def read(rel):
     return (PLUGIN / rel).read_text()
 
 
+def flat(text):
+    """Collapse whitespace so prose assertions survive re-wrapping."""
+    return " ".join(text.split())
+
+
 class ShipOrchestrationTests(unittest.TestCase):
     def test_config_defaults_to_inline(self):
         schema = json.loads(read("config/config.schema.json"))
@@ -41,6 +46,23 @@ class ShipOrchestrationTests(unittest.TestCase):
         self.assertIn("--foreground", ship)
         self.assertIn("git worktree remove", ship)
         self.assertIn("Never remove it yourself", ship)
+
+    def test_inline_does_planning_and_publishing_itself(self):
+        ship = flat(read("skills/ship/SKILL.md"))
+        self.assertIn("Do the planning stages (spec, plan, tasks) and publishing yourself", ship)
+        self.assertIn("agents/planner.md", ship)
+        self.assertIn("agents/publisher.md", ship)
+        runbook = read("standards/ship-runbook.md")
+        for heading, role in [("## Stage 1: Spec", "planner.md"), ("## Stage 2: Plan", "planner.md"),
+                              ("## Stage 5: Publish", "publisher.md")]:
+            stage = runbook.split(heading, 1)[1].split("\n## ", 1)[0]
+            self.assertIn(f"Inline: follow `${{CLAUDE_PLUGIN_ROOT}}/agents/{role}`", stage, heading)
+            self.assertIn("Architect: spawn", stage, heading)
+        gate = runbook.split("## Spec gate", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("revise requirements.md yourself", gate)
+        # Independence stays where it matters: these are always separate agents.
+        self.assertIn("critic, tester, qa-engineer) and the per-task executor are always separate agents",
+                      flat(runbook))
 
     def test_runbook_holds_the_whole_procedure(self):
         runbook = read("standards/ship-runbook.md")

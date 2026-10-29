@@ -55,7 +55,7 @@ Resolve explore: `--explore` or `--no-explore` when given, otherwise `pipeline.e
 
 | Mode | Who follows the runbook | Choose it when |
 |---|---|---|
-| `inline` (default) | This session | One mission per session, or a host that gives each mission its own session or thread. Cheapest; the spec gate is a normal question to the user. |
+| `inline` (default) | This session, which also writes the spec, plan and PR | One mission per session, or a host that gives each mission its own session or thread. Cheapest; the spec is written in the conversation and the gate is a normal question to the user. |
 | `architect` | The `architect` subagent, in its own git worktree | You stay in one session and start several missions from it, and each mission's state must stay out of this session. |
 
 Resolve the orchestrator: `--inline` or `--architect` when given, otherwise
@@ -65,15 +65,18 @@ Resolve the orchestrator: `--inline` or `--architect` when given, otherwise
 
 ## Inline mode
 
-This session is the orchestrator. Follow the runbook stage by stage, spawning `planner`,
-`executor`, `critic`, `tester`, `qa-engineer` (when explore is on) and `publisher` with exactly
-the scoped inputs the runbook lists, under the delegation contract above. This session
+This session is the orchestrator. Follow the runbook stage by stage. Do the planning stages
+(spec, plan, tasks) and publishing yourself, following `${CLAUDE_PLUGIN_ROOT}/agents/planner.md` and
+`${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` as the runbook says. Spawn `critic`, `executor`, `tester` and
+`qa-engineer` (when explore is on) as separate agents with exactly the scoped inputs the runbook
+lists, under the delegation contract above. This session
 writes no product code or tests: implementation comes only from the executor, verdicts only from the
-critic and tester. It may run git and the configured commands, edit spec status lines and
-`tasks.md` checkboxes, and talk to the user.
+critic and tester. It may write the spec, design and tasks, create issues, open the PR, run git
+and the configured commands, edit spec status lines and `tasks.md` checkboxes, and talk to the
+user.
 
-- **Spec gate** (interactive): when the planner returns `AWAITING_SPEC_APPROVAL`, ask the user
-  as the runbook's **Spec gate** says, and continue in this session.
+- **Spec gate** (interactive): once the spec has passed the critic (`AWAITING_SPEC_APPROVAL`),
+  ask the user as the runbook's **Spec gate** says, and continue in this session.
 - **Resume:** with `--resume <domain>`, check out `<feature-branch>` first, then pick the stage
   from the runbook's **Resume** table.
 - **End:** report the PR link, or the escalation and what the user needs to decide.

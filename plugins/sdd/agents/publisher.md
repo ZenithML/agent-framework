@@ -151,7 +151,7 @@ Wait for all checks to complete.
 **A check fails:**
 1. Fetch the failure log: `gh run view <run-id> --log-failed`
 2. Analyze the failure — is it a test regression, build error, or flaky infra?
-3. If it's a code issue: hand off to the Architect with failure details for executor routing
+3. If it's a code issue: hand off to the orchestrator (the architect, or the `/ship` session in inline mode) with failure details for executor routing
 4. If it's an infra/flake issue: re-trigger the run and re-poll (max 1 retry)
 5. After 1 retry or if cause is unclear: escalate to user with run ID, log excerpt, and diagnosis
 

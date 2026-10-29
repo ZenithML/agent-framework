@@ -102,10 +102,10 @@ installed by this harness. The Claude enforcement claims below apply to Claude C
 
 - **`/sdd:ship` is the single entry point** for all code changes — feature, fix, or refactor.
 - **Spec-driven development (SDD) is middleware**, not an entry point. Every stage reads existing specs and keeps them up to date.
-- **Critics are embedded in planning.** The planner self-verifies requirements and design before handing off.
+- **Critics are embedded in planning.** The planning stage (the planner agent, or the inline `/sdd:ship` session) has requirements and design reviewed by the critic before moving on.
 - **Test-driven development (TDD) is embedded** in the implement stage — red → green → refactor in one agent invocation.
 - **Code critique runs after every implement task**, before QA. The orchestrator manages this loop.
-- **One runbook, two orchestrators.** [ship-runbook.md](ship-runbook.md) is the procedure. By default the session that ran `/sdd:ship` follows it (`inline`); with `--architect` or `pipeline.orchestrator: "architect"`, an `architect` subagent follows it in its own git worktree, so several missions can be started from one session.
+- **One runbook, two orchestrators.** [ship-runbook.md](ship-runbook.md) is the procedure. By default the session that ran `/sdd:ship` follows it (`inline`) and writes the spec, plan and PR itself, while the critic, executor, tester and qa-engineer stay separate agents; with `--architect` or `pipeline.orchestrator: "architect"`, an `architect` subagent follows it in its own git worktree, so several missions can be started from one session.
 - **Context isolation** between stages: no stage receives another stage's internals.
 
 ---
@@ -138,10 +138,10 @@ Stage 5 — Publish     publisher                    → docs verified, PR opene
 ```
 
 ### Stage 1: Spec
-Planner writes `requirements.md`; critic reviews inline (completeness, Given/When/Then, no ambiguity) and loops until PASS. In interactive mode, surfaces the approved spec for human sign-off; `--autonomous` skips the gate.
+The planner (inline: the `/sdd:ship` session) writes `requirements.md`; critic reviews (completeness, Given/When/Then, no ambiguity) and loops until PASS. In interactive mode, surfaces the approved spec for human sign-off; `--autonomous` skips the gate.
 
 ### Stage 2: Plan
-Reads approved `requirements.md`; planner writes `design.md` (decisions, architecture, test + QA scenarios); critic reviews inline (no TBDs, scenario coverage, consistency) and loops until PASS; planner then writes `tasks.md` (and GitHub issues with `--issues`).
+Reads approved `requirements.md`; the planner (inline: the `/sdd:ship` session) writes `design.md` (decisions, architecture, test + QA scenarios); critic reviews (no TBDs, scenario coverage, consistency) and loops until PASS; planner then writes `tasks.md` (and GitHub issues with `--issues`).
 
 **Acceptance criteria are frozen at design approval.** The QA Scenarios in `design.md` are what
 the sealed verifier later checks, and the planner is the agent that wrote them. A `DESIGN_GAP`
