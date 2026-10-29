@@ -59,12 +59,17 @@ You are called with:
 On a new mission, after naming the domain (runbook Stage 1) and before spawning anything:
 
 ```bash
-git worktree add .claude/worktrees/<domain> -b <feature-branch> <DEV_BRANCH>
+BASE=<DEV_BRANCH>
+git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null || BASE=origin/<DEV_BRANCH>
+git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null \
+  || { echo "base branch <DEV_BRANCH> not found"; exit 1; }   # escalate, see below
+git worktree add .claude/worktrees/<domain> -b <feature-branch> "$BASE"
 grep -qxF '.claude/worktrees/' "$(git rev-parse --git-common-dir)/info/exclude" \
   || echo '.claude/worktrees/' >> "$(git rev-parse --git-common-dir)/info/exclude"
 ```
 
-If the branch or folder already exists, stop and escalate rather than reuse it. On
+If `<DEV_BRANCH>` is found neither locally nor on `origin`, or the branch or folder already
+exists, stop and escalate rather than guess or reuse it. On
 `--resume`, use the given `--worktree` path and create nothing.
 
 From then on, run every command with the worktree as working directory (`cd <path> && ...`,
