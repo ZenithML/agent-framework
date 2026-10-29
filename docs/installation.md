@@ -146,8 +146,8 @@ no model call is needed. CI installs Claude before running this regression test.
 
 Keep server definitions in the project's `.mcp.json`; it is the single source of truth.
 With `--harness codex`, installation synchronizes those definitions into a marked block of
-`.codex/config.toml` and installs a reusable helper. MCP sync requires Python 3.11+ and no
-third-party packages. It makes no connections and does not authenticate.
+`.codex/config.toml` and installs a reusable helper. MCP sync requires Python 3.11+ (or the `tomli`
+package on older Pythons) and no other packages. It makes no connections and does not authenticate.
 
 After editing, adding or removing servers in `.mcp.json`, run from the consumer root:
 
@@ -158,11 +158,14 @@ python3 .claude/sdd/sync_mcp.py --check  # nonzero on drift; writes nothing
 
 The helper preserves unrelated Codex settings and manual servers. Same-name manual entries
 must be reconciled into `.mcp.json` first; they are never overwritten. Missing/empty source
-removes only the managed servers. Malformed input or unsupported fields fail before writing.
+removes only the managed servers. Malformed input fails before writing.
 HTTP and stdio are supported. `Bearer ${TOKEN}` becomes `bearer_token_env_var`, bare
 header `${TOKEN}` becomes `env_http_headers`, and stdio `TOKEN: "${TOKEN}"` becomes
-`env_vars`. No environment values are read or written. Other interpolation and dynamic
-header commands require explicit reconciliation; they are not silently passed through.
+`env_vars`. No environment values are read or written. A server Codex cannot express
+(another transport such as SSE, a field such as `headersHelper`, or other interpolation) is
+left out of the managed block with a warning naming the server, and the rest still sync. If
+Codex needs that server, write its `[mcp_servers.<name>]` table by hand outside the managed
+block; a hand-written entry for a skipped server is not treated as a conflict.
 Keep credentials outside committed configuration. OAuth login remains per client, for example
 `codex mcp login atlassian`. Trust the project so Codex loads `.codex/config.toml`, then restart
 or reload the client to pick up changed servers. Commit the helper and generated MCP block;

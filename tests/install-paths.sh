@@ -114,12 +114,19 @@ PY
   check "codex: re-run is idempotent" test -z "$(git -C "$c" status --porcelain)"
   rm "$c/.mcp.json"; "$install" --harness codex "$c" >/dev/null 2>&1
   check "codex: dropping .mcp.json removes the generated block" bash -c "! grep -q mcp_servers '$c/.codex/config.toml' && grep -q foo '$c/.codex/config.toml'"
-  # Unsupported translation fails before writing any consumer snapshot.
+  # Malformed MCP input fails before writing any consumer snapshot.
   local u; u="$(new_project codex-odd)"
-  printf '%s\n' '{"mcpServers":{"dyn":{"url":"https://d.test/mcp","headersHelper":"echo {}"}}}' > "$u/.mcp.json"
-  check "codex: unsupported MCP input fails without mutation" bash -c '
+  printf '%s\n' '{"mcpServers":{"broken":{"args":["no command"]}}}' > "$u/.mcp.json"
+  check "codex: malformed MCP input fails without mutation" bash -c '
     ! "$1" --harness codex "$2" >/dev/null 2>&1 && test ! -e "$2/.claude" && test ! -e "$2/.codex"
   ' _ "$install" "$u"
+  # A server Codex cannot express is skipped with a warning; the install still succeeds.
+  local w; w="$(new_project codex-skip)"
+  printf '%s\n' '{"mcpServers":{"dyn":{"url":"https://d.test/mcp","headersHelper":"echo {}"},"ok":{"url":"https://o.test/mcp"}}}' > "$w/.mcp.json"
+  check "codex: unsupported MCP server is skipped with a warning" bash -c '
+    out="$("$1" --harness codex "$2" 2>&1)" && printf "%s" "$out" | grep -q "skipped server dyn" &&
+    python3 -c "import tomllib,sys; m=tomllib.load(open(sys.argv[1],\"rb\"))[\"mcp_servers\"]; sys.exit(set(m)!={\"ok\"})" "$2/.codex/config.toml"
+  ' _ "$install" "$w"
   printf '%s\n' '{"mcpServers":{"hosted":{"serverUrl":"https://s.test/mcp"}}}' > "$u/.mcp.json"
   "$install" --harness codex "$u" >/dev/null 2>&1
   check "codex: installed standalone sync helper detects no drift" python3 "$u/.claude/sdd/sync_mcp.py" --target "$u" --check

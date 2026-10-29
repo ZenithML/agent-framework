@@ -370,7 +370,7 @@ echo "  git commit -m 'chore: install sdd harness (flat) v${HARNESS_VERSION}'"
 echo ""
 if [ "$WANT_CODEX" = true ]; then
   echo "Commit .codex/ and .agents/ too. Codex loads project .codex/ config only for a trusted project."
-  echo "After changing .mcp.json: python3 .claude/sdd/sync_mcp.py (or --check for drift). Requires Python 3.11+."
+  echo "After changing .mcp.json: python3 .claude/sdd/sync_mcp.py (or --check for drift). Requires Python 3.11+ or tomli; servers Codex cannot express are skipped with a warning."
   echo "Then open Claude Code or Codex and run /sdd-init (Codex: \$sdd-init)."
 else
   echo "Then open Claude Code and run /sdd-init."
