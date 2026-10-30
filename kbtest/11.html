@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Keyboard test 11</title>
+<style>body{font:18px system-ui,sans-serif;padding:16px}textarea{display:block;width:100%;box-sizing:border-box;font-size:16px}#log{font:12px monospace;white-space:pre-wrap;margin-top:12px}a{display:block;margin:12px 0}</style></head>
+<body><p><b>Test 11</b>: tries to reopen the keyboard after the language picker closes.</p>
+<textarea id="t" rows="3" placeholder="Tap here, then long-press space"></textarea>
+<p><a href="index.html">Back to all tests</a></p><div id="log"></div>
+<script>
+const t = document.getElementById("t"), out = document.getElementById("log"), vv = visualViewport;
+const t0 = performance.now(); let maxH = innerHeight, kbOpen = false, wasFocused = false;
+const log = (m) => out.textContent = `${Math.round(performance.now() - t0)}ms ${m} h=${Math.round(vv.height)} active=${document.activeElement.id || document.activeElement.tagName}\n` + out.textContent;
+function reopen(why) {
+  if (document.activeElement !== t && !wasFocused) return;
+  log(`reopen (${why})`);
+  t.blur(); t.focus();
+  if (navigator.virtualKeyboard) navigator.virtualKeyboard.show();
+}
+t.addEventListener("focus", () => { wasFocused = true; log("focus"); });
+t.addEventListener("blur", () => log("blur"));
+addEventListener("blur", () => log("window blur"));
+addEventListener("focus", () => { log("window focus"); setTimeout(() => reopen("window focus"), 50); });
+vv.addEventListener("resize", () => {
+  maxH = Math.max(maxH, vv.height);
+  const open = vv.height < maxH * 0.8;
+  if (open !== kbOpen) { kbOpen = open; log(open ? "keyboard up" : "keyboard down"); }
+  // Keyboard went away while the box is still focused and nobody blurred it: ask for it again.
+  if (!open && document.activeElement === t) setTimeout(() => { if (!kbOpen && document.activeElement === t) reopen("keyboard down while focused"); }, 300);
+});
+t.addEventListener("pointerdown", () => { wasFocused = false; });
+</script></body></html>
