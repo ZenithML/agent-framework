@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Keyboard test 12</title>
+<style>body{font:18px system-ui,sans-serif;padding:16px}textarea{display:block;width:100%;box-sizing:border-box;font-size:16px}#log{font:12px monospace;white-space:pre-wrap;margin-top:12px}a{display:block;margin:12px 0}</style></head>
+<body><p><b>Test 12</b>: puts the cursor back when the box loses focus without you tapping anywhere.</p>
+<textarea id="t" rows="3" placeholder="Tap here, then long-press space"></textarea>
+<p><a href="index.html">Back to all tests</a></p><div id="log"></div>
+<script>
+const t = document.getElementById("t"), out = document.getElementById("log"), vv = visualViewport;
+const t0 = performance.now(); let maxH = innerHeight, kbOpen = false, lastTap = 0, refocused = 0;
+const now = () => performance.now();
+const log = (m) => out.textContent = `${Math.round(now() - t0)}ms ${m} h=${Math.round(vv.height)} active=${document.activeElement.id || document.activeElement.tagName}\n` + out.textContent;
+addEventListener("pointerdown", () => { lastTap = now(); }, true);
+t.addEventListener("focus", () => log("focus"));
+t.addEventListener("blur", (e) => {
+  const byUser = e.relatedTarget || now() - lastTap < 600 || document.hidden;
+  log(`blur ${byUser ? "(by you)" : "(not by you)"}`);
+  if (byUser || now() - refocused < 1500) return;
+  refocused = now();
+  setTimeout(() => { log("refocus"); t.focus(); }, 150);
+});
+addEventListener("blur", () => log("window blur"));
+addEventListener("focus", () => log("window focus"));
+vv.addEventListener("resize", () => {
+  maxH = Math.max(maxH, vv.height);
+  const open = vv.height < maxH * 0.8;
+  if (open !== kbOpen) { kbOpen = open; log(open ? "keyboard up" : "keyboard down"); }
+});
+</script></body></html>
