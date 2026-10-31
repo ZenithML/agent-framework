@@ -73,7 +73,12 @@ fi
 # Install gh CLI if not present
 if ! command -v gh &> /dev/null; then
   echo "Installing gh CLI from GitHub Releases..."
-  if GH_VERSION=$(curl -sf https://api.github.com/repos/cli/cli/releases/latest \
+  # Authenticate the lookup when a token is available: anonymous API calls are rate-limited.
+  GH_API_AUTH=()
+  if [ -n "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]; then
+    GH_API_AUTH=(-H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN")
+  fi
+  if GH_VERSION=$(curl -sf ${GH_API_AUTH[@]+"${GH_API_AUTH[@]}"} https://api.github.com/repos/cli/cli/releases/latest \
       | node -e "const d=[];process.stdin.on('data',c=>d.push(c));process.stdin.on('end',()=>console.log(JSON.parse(Buffer.concat(d).toString()).tag_name.slice(1)))"); then
     TARBALL="gh_${GH_VERSION}_linux_amd64.tar.gz"
     GH_INSTALL_DIR="${HOME}/.local/bin"
@@ -84,6 +89,13 @@ if ! command -v gh &> /dev/null; then
       mv "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" "$GH_INSTALL_DIR/gh"
       rm -rf "/tmp/${TARBALL}" "/tmp/gh_${GH_VERSION}_linux_amd64"
       export PATH="$GH_INSTALL_DIR:$PATH"
+      # Keep gh on PATH for the rest of the session, not only this script.
+      if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+        if [ -f "$CLAUDE_ENV_FILE" ]; then
+          sed -i -e '/^export PATH=.*# sdd-gh$/d' "$CLAUDE_ENV_FILE"
+        fi
+        printf 'export PATH=%q:"$PATH" # sdd-gh\n' "$GH_INSTALL_DIR" >> "$CLAUDE_ENV_FILE"
+      fi
       echo "gh $(gh --version | head -1) installed to $GH_INSTALL_DIR."
     else
       echo "Warning: failed to download gh tarball — continuing without gh CLI." >&2
@@ -96,12 +108,17 @@ fi
 # Wire up GitHub token and repo for gh CLI.
 # GH_REPO is needed because the git remote may point to a local proxy, not github.com.
 if [ -n "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  REPO=$(git -C "$PROJECT_DIR" remote get-url origin \
-    | sed -e 's|^git@github\.com:||' -e 's|^https://github\.com/||' -e 's|\.git$||' -e 's|.*/git/||')
+  # No origin remote (a local test clone, say) must not fail the hook under set -e.
+  REPO=$(git -C "$PROJECT_DIR" remote get-url origin 2>/dev/null \
+    | sed -e 's|^git@github\.com:||' -e 's|^https://github\.com/||' -e 's|\.git$||' -e 's|.*/git/||') || REPO=""
   # Remove any existing entries first to stay idempotent across restarts
-  sed -i -e '/^export GH_TOKEN=/d' -e '/^export GH_REPO=/d' "$CLAUDE_ENV_FILE"
+  if [ -f "$CLAUDE_ENV_FILE" ]; then
+    sed -i -e '/^export GH_TOKEN=/d' -e '/^export GH_REPO=/d' "$CLAUDE_ENV_FILE"
+  fi
   printf 'export GH_TOKEN=%q\n' "$GITHUB_PERSONAL_ACCESS_TOKEN" >> "$CLAUDE_ENV_FILE"
-  printf 'export GH_REPO=%q\n' "$REPO" >> "$CLAUDE_ENV_FILE"
+  if [ -n "$REPO" ]; then
+    printf 'export GH_REPO=%q\n' "$REPO" >> "$CLAUDE_ENV_FILE"
+  fi
 fi
 
 echo "SDD SessionStart hook: done."
