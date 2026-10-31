@@ -91,7 +91,9 @@ if ! command -v gh &> /dev/null; then
       export PATH="$GH_INSTALL_DIR:$PATH"
       # Keep gh on PATH for the rest of the session, not only this script.
       if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-        sed -i -e '/^export PATH=.*# sdd-gh$/d' "$CLAUDE_ENV_FILE" 2>/dev/null || true
+        if [ -f "$CLAUDE_ENV_FILE" ]; then
+          sed -i -e '/^export PATH=.*# sdd-gh$/d' "$CLAUDE_ENV_FILE"
+        fi
         printf 'export PATH=%q:"$PATH" # sdd-gh\n' "$GH_INSTALL_DIR" >> "$CLAUDE_ENV_FILE"
       fi
       echo "gh $(gh --version | head -1) installed to $GH_INSTALL_DIR."
