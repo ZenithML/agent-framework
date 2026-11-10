@@ -6,7 +6,7 @@ for driving software work with an agent.
 | Plugin | For |
 |---|---|
 | **`sdd`** | The pipeline — **spec → plan → implement → QA → publish**, with embedded critic gates and a TDD implement loop |
-| **`render`** | Perceptual work — domains where a failure is something you *see* rather than something that throws |
+| **`render`** | Perceptual work — visual verification (capture, frames, tune, traps) and code-driven 3D & audio digital content generation (DCG) |
 | **`ci-runner`** | CI on your own machine — a `ci-runner` command that installs a self-hosted GitHub Actions runner and switches a repo between it and GitHub-hosted runners |
 
 **Framework, not a hosted service.** Everything runs inside your own Claude Code sessions and
