@@ -54,9 +54,14 @@ Each domain has up to three files: `requirements.md`, `design.md`, `tasks.md`. N
 
 #### `design.md`
 - **Status values:** `Draft` → `Review` → `Approved`
-- **Required sections:** Architecture, Decisions, Test Scenarios (Unit Tests, BDD Scenarios, BDD Traceability, QA Scenarios), Edge Cases & Error Handling
+- **Required sections:** Architecture, Decisions, Failure Modes & Degradation Matrix, Test Scenarios (Unit Tests, BDD Scenarios, BDD Traceability, QA Scenarios), Edge Cases & Error Handling
 - Decisions table must have no unresolved rows (no TBD)
-- BDD scenarios must trace to acceptance criteria in requirements.md
+- **Failure Modes & Degradation Matrix** table is mandatory and must contain at least:
+  - **Transport/Network** (timeouts, connection drop, 429 rate limit backoff)
+  - **Concurrency/State** (race conditions, dirty reads, idempotent re-try)
+  - **Boundary & Payloads** (nulls, empty collections, oversized payloads, schema violations)
+  - Each entry must specify: **Failure Condition**, **Expected System Behavior**, and **Test Scenario** (mapped to BDD test scenarios)
+- BDD scenarios must trace to acceptance criteria in requirements.md and failure modes in the Failure Modes & Degradation Matrix
 - QA scenarios must be executable without reading source code
 
 #### `tasks.md`

@@ -1,4 +1,4 @@
-"""Guard the optional exploratory QA stage in /sdd:ship: off by default, opt in per run or per repo."""
+"""Guard the exploratory QA stage in /sdd:ship (on by default, --no-explore to opt out) and the upstream failure matrix."""
 import json
 import unittest
 from pathlib import Path
@@ -8,17 +8,36 @@ PLUGIN = ROOT / "plugins/sdd"
 
 
 class ShipExploreTests(unittest.TestCase):
-    def test_config_flag_exists_and_defaults_to_false(self):
+    def test_config_flag_exists_and_defaults_to_true(self):
         schema = json.loads((PLUGIN / "config/config.schema.json").read_text())
         explore = schema["properties"]["pipeline"]["properties"]["explore"]
         self.assertEqual(explore["type"], "boolean")
-        self.assertIs(explore["default"], False)
+        self.assertIs(explore["default"], True)
+        self.assertIn("On by default", explore["description"])
+        self.assertIn("--no-explore", explore["description"])
 
-    def test_ship_skill_offers_the_flag_and_passes_it_on(self):
+    def test_ship_skill_offers_the_flag_and_defaults_to_on(self):
         ship = (PLUGIN / "skills/ship/SKILL.md").read_text()
         self.assertIn("/sdd:ship <feature-description> [--autonomous] [--explore | --no-explore]", ship)
         self.assertIn("pipeline.explore", ship)
-        self.assertIn("off by default", ship)
+        self.assertIn("on by default", ship)
+        self.assertIn("--no-explore", ship)
+
+    def test_failure_modes_and_degradation_matrix_in_doc_structure_planner_and_critic(self):
+        doc_structure = (PLUGIN / "standards/doc-structure.md").read_text()
+        self.assertIn("Failure Modes & Degradation Matrix", doc_structure)
+        for category in ["Transport/Network", "Concurrency/State", "Boundary & Payloads"]:
+            self.assertIn(category, doc_structure)
+        for field in ["Failure Condition", "Expected System Behavior", "Test Scenario"]:
+            self.assertIn(field, doc_structure)
+
+        planner = (PLUGIN / "agents/planner.md").read_text()
+        self.assertIn("Failure Modes & Degradation Matrix", planner)
+
+        critic = (PLUGIN / "agents/critic.md").read_text()
+        design_section = critic.split("### `design`", 1)[1].split("### `code`", 1)[0]
+        self.assertIn("Failure Modes & Degradation Matrix", design_section)
+        self.assertIn("BDD", design_section)
 
     def test_runbook_runs_explore_once_before_publish_and_only_when_on(self):
         runbook = (PLUGIN / "standards/ship-runbook.md").read_text()

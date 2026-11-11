@@ -18,6 +18,16 @@
 | # | Question | Options Considered | Decision | Rationale |
 |---|----------|--------------------|----------|-----------|
 
+## Failure Modes & Degradation Matrix
+
+<!-- Mandatory. Cover at least Transport/Network, Concurrency/State, and Boundary & Payloads. Each entry must specify Failure Condition, Expected System Behavior, and Test Scenario (mapped to BDD Scenarios). -->
+
+| Category | Failure Condition | Expected System Behavior | Test Scenario |
+|---|---|---|---|
+| Transport/Network | <timeouts, connection drop, 429 rate limit backoff> | <expected degradation/retry behavior> | <BDD scenario> |
+| Concurrency/State | <race conditions, dirty reads, idempotent re-try> | <expected state consistency behavior> | <BDD scenario> |
+| Boundary & Payloads | <nulls, empty collections, oversized payloads, schema violations> | <expected validation/rejection behavior> | <BDD scenario> |
+
 ## Test Scenarios
 
 ### Unit Tests

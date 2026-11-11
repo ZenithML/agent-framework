@@ -35,7 +35,7 @@ For every invocation, use the target role's declared tier and provider default:
 
 - `workhorse`: architect (architect mode only) — pipeline control; planner, critic, archivist,
   publisher — planning, review and publication;
-  qa-engineer — exploratory QA; in this pipeline only Stage 4b dispatches it, when `--explore` is on.
+  qa-engineer — exploratory QA; in this pipeline only Stage 4b dispatches it, when explore is on (on by default; `--no-explore` opts out).
 - `fast`: executor, tester — implementation and observable behaviour checks.
 
 Read `${CLAUDE_PLUGIN_ROOT}/config/model-tiers.json`. Resolve the target role's optional
@@ -68,7 +68,7 @@ Stage 3: Implement → executor (per task)         → tests + implementation (T
          Code Critique → critic (code context)   → PASS / REVISE
          ↓
 Stage 4: QA      → tester (per task)             → PASS / FAIL
-Stage 4b: Explore → qa-engineer (once, --explore only) → fixes + friction report
+Stage 4b: Explore → qa-engineer (once, default; --no-explore skips) → fixes + friction report
 Stage 5: Publish → publisher*                    → docs verified, PR opened, CI passing
 ```
 
@@ -238,9 +238,11 @@ Do NOT pass: code, diffs, executor reasoning, source file paths.
 
 ## Stage 4b: Explore (optional)
 
-Skip this stage unless you were called with `--explore`; log `[Orchestrator] Explore: off` and go
-to Stage 5. When `--explore` is on but the change has nothing to run (docs, config or harness
-only), skip it too and keep the line `Exploratory QA skipped: <reason>` for the publisher.
+Exploratory QA is on by default (`pipeline.explore` defaults to `true`). Skip this stage only when
+explore is off (`--no-explore`, or `pipeline.explore: false` without `--explore`); log
+`[Orchestrator] Explore: off` and go to Stage 5. When explore is on (`--explore` or by default)
+but the change has nothing to run (docs, config or harness only), skip it too and keep the line
+`Exploratory QA skipped: <reason>` for the publisher.
 
 **Before spawning:** the working tree must be clean — commit or discard anything earlier stages
 left uncommitted, because `qa-engineer` treats every dirty file as the user's work and will not
@@ -288,7 +290,7 @@ Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` yourself with the inp
 `publisher` agent with:
 - Domain name
 - Domain path (`docs/specs/<domain>/`)
-- When `--explore` was on: the Stage 4b report, or its `Exploratory QA skipped: <reason>` line,
+- When explore was on (default, unless `--no-explore` was used): the Stage 4b report, or its `Exploratory QA skipped: <reason>` line,
   for an "Exploratory QA" section of the PR description
 
 ```json
@@ -331,7 +333,7 @@ CODE_CRITIQUE    → PASS             → QA(task N)
                  → REVISE (cycle=2) → ESCALATION
 
 QA               → PASS + more tasks → IMPLEMENTATION(task N+1)
-                 → PASS + done       → EXPLORING (--explore) | PUBLISHING
+                 → PASS + done       → EXPLORING (default / --explore) | PUBLISHING (--no-explore)
                  → FAIL (cycle < 3)  → IMPLEMENTATION(task N, retry)
                  → FAIL (cycle == 3) → ESCALATION
 
@@ -358,7 +360,7 @@ PUBLISHING       → SUCCESS           → DONE
 | tester | design.md (QA Scenarios), requirements.md, target scenario | code, diffs, executor reasoning |
 | qa-engineer (Stage 4b) | feature description, domain, design.md (QA Scenarios, as context), dev URL, credential variable names | diffs, executor reasoning, tester or critic history |
 | critic (code, Stage 4b) | `git diff <START>..HEAD` inline, bug list, design.md (Architecture + Test Scenarios), bug-fix criteria | the exploration transcript |
-| publisher | domain, domain path, Stage 4b report or skip reason when `--explore` was on | agent transcripts (inline: it has none) |
+| publisher | domain, domain path, Stage 4b report or skip reason when explore was on | agent transcripts (inline: it has none) |
 
 ---
 
@@ -403,7 +405,7 @@ Cycle counts restart at zero.
 | # | On disk | Next stage |
 |---|---|---|
 | R1 | A PR is open for `<feature-branch>` | Stage 5 (CI watch) |
-| R2 | Every task in `tasks.md` checked | Stage 4b (when explore is on), then Stage 5 |
+| R2 | Every task in `tasks.md` checked | Stage 4b (when explore is on, the default), then Stage 5 |
 | R3 | `tasks.md` has an unchecked task | Code critique and QA for the last checked task (if any), then Stage 3 at the first unchecked task |
 | R4 | `requirements.md` `Approved`, and `design.md` or `tasks.md` missing | Stage 2 |
 | R5 | Revision notes given (`--notes`) | Stage 1 with the notes, then the spec gate |

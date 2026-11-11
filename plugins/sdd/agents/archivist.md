@@ -54,6 +54,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/standards/doc-structure.md` for the required section
 - `Status:` field
 - `## Architecture`
 - `## Decisions`
+- `## Failure Modes & Degradation Matrix`
 - `## Test Scenarios`
 - `### Unit Tests`
 - `### BDD Scenarios`

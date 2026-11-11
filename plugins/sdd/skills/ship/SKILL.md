@@ -3,9 +3,9 @@ name: ship
 description: >
   Use when a code change should run the whole pipeline end to end without stopping at each stage
   — a feature, fix or refactor described in one sentence — or to resume such a run with --resume.
-  Runs spec, plan, implement, critique, QA and publish inline in this session by default, or
-  through the architect subagent with --architect. Does not trigger when the caller names a
-  single stage (use that stage's own skill) or when no change is described yet.
+  Runs spec, plan, implement, critique, QA, exploratory QA (unless --no-explore) and publish inline
+  in this session by default, or through the architect subagent with --architect. Does not trigger
+  when the caller names a single stage (use that stage's own skill) or when no change is described yet.
 ---
 
 Before every delegation (the architect in architect mode, each stage agent in inline mode), Read
@@ -41,15 +41,15 @@ first stage. This skill only decides who follows it.
 - **interactive** (default): human approval gate after the spec, before design begins
 - **autonomous** (`--autonomous`): no human gates; runs to completion
 
-**Exploratory QA (`--explore`), off by default:** after every task has passed QA, the
+**Exploratory QA (`--explore`), on by default:** after every task has passed QA, the
 `qa-engineer` plays with the whole feature in the running app once, fixes the bugs it confirms
-(each with a regression test, reviewed by the critic) and lists UX friction in the PR. It makes
-a run slower and costlier and catches what the per-task scenarios miss; choose it for a careful
-ship. A repo can turn it on for every run with `"pipeline": {"explore": true}` in
-`.claude/sdd/config.json`; `--explore` or `--no-explore` overrides that setting for one run.
+(each with a regression test, reviewed by the critic) and lists UX friction in the PR. Pass
+`--no-explore` to opt out for one run, or set `"pipeline": {"explore": false}` in
+`.claude/sdd/config.json` to turn it off by default for a repo; `--explore` or `--no-explore`
+overrides that setting for one run.
 
 Resolve explore: `--explore` or `--no-explore` when given, otherwise `pipeline.explore` from
-`.claude/sdd/config.json`, otherwise off.
+`.claude/sdd/config.json`, otherwise on.
 
 ## Who orchestrates: inline by default
 
@@ -83,7 +83,7 @@ user.
 
 ## Architect mode
 
-Read `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` in full, then spawn the `architect` agent with the feature description and `--autonomous` / `--explore` as
+Read `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` in full, then spawn the `architect` agent with the feature description and `--autonomous` and `--explore` / `--no-explore` as
 resolved. Do not pass this conversation.
 
 - **Claude Code:** spawn it with `run_in_background: true` and **without**

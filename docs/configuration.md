@@ -68,11 +68,11 @@ Skills use placeholders that map to config keys:
 
 ### Exploratory QA in `/sdd:ship`
 
-Off by default. To have every `/sdd:ship` run end with an exploratory QA pass by the
-`qa-engineer` (bugs fixed test-first, friction listed in the PR), set:
+On by default. Every `/sdd:ship` run ends with an exploratory QA pass by the
+`qa-engineer` (bugs fixed test-first, friction listed in the PR). To turn it off by default for a repo, set:
 
 ```json
-"pipeline": { "explore": true }
+"pipeline": { "explore": false }
 ```
 
 `/sdd:ship --explore` or `--no-explore` overrides the setting for one run.

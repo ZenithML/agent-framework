@@ -39,7 +39,7 @@ Invoke the architect directly only to debug one architect-mode run.
 | 3 — Implement | `/implement <domain> <task-id>` | `executor` | Tests + implementation (TDD) |
 | 3b — Code critique | `/critique code <domain>` | `critic` | PASS/REVISE |
 | 4 — QA | `/qa <domain> <task-id>` | `tester` | PASS/FAIL report |
-| 4b — Explore (only with `--explore`) | `/qa-explore <feature-or-flow>` | `qa-engineer` | Bugs fixed test-first, friction report |
+| 4b — Explore (`--explore` default; `--no-explore` skips) | `/qa-explore <feature-or-flow>` | `qa-engineer` | Bugs fixed test-first, friction report |
 | 5 — Publish | `/publish <domain>` | `publisher` | docs verified, PR opened, CI passing |
 
 Each stage is self-contained and can be run independently. The orchestrator runs them in sequence with context isolation between stages, following `${CLAUDE_PLUGIN_ROOT}/standards/ship-runbook.md`.
@@ -48,9 +48,9 @@ Each stage is self-contained and can be run independently. The orchestrator runs
 
 Spawn the `architect` agent with the feature description and flags provided.
 
-Pass the full feature description, and `--autonomous`, `--explore`, and
-`--resume <domain> --worktree <path> [--approved | --notes "..."]` (each only if provided) to the
-architect agent. Without `--explore`, Stage 4b is skipped. Handle its handoff as the ship skill's
+Pass the full feature description, and `--autonomous`, `--explore` / `--no-explore`, and
+`--resume <domain> --worktree <path> [--approved | --notes "..."]` (each as resolved) to the
+architect agent. With `--no-explore`, Stage 4b is skipped. Handle its handoff as the ship skill's
 **Architect mode** section says.
 
 See `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` for the architect's own rules and
