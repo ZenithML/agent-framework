@@ -105,6 +105,12 @@ Pushing back is not rejection — it's a response. The author can follow up.
 
 ## Step 5: Make fixes
 
+Fix in priority order: High issues that carry a reproduction (a failing test, script or
+command) first, then other valid bugs. For each reproducible High issue, add the reproduction
+as a test if it is not one already, confirm it fails, fix, and confirm the same reproduction
+now passes. Do not churn on non-reproducible or stylistic suggestions: apply one only if it
+is trivial and clearly right, otherwise reply that it is an optional follow-up.
+
 For comments that require code changes:
 
 1. Make the fix
@@ -112,6 +118,11 @@ For comments that require code changes:
 3. Push to the branch
 
 Batch all fixes into as few commits as is sensible. Complete all fixes before replying, so replies can reference commit SHAs.
+
+**One fix cycle per review pass.** After the reproducible issues are fixed, run the full test
+suite once, push, and hand the update back for a verification pass (which checks only the
+earlier reproductions and regressions). Do not start another round of fixes for new
+non-reproducible comments.
 
 ---
 
@@ -189,6 +200,8 @@ Update the PR title only if the current title no longer reflects the primary pur
 - Address every open comment — no silent skips
 - Reply individually, never with a single catch-all summary
 - Evaluate suggestions; push back when warranted
+- Reproducible High issues first, verified by running their reproduction; no churn on non-reproducible suggestions
+- One fix cycle per review pass: fix, run the suite, push, request verification
 - Fixes go in their own commit before the reply is posted
 - Outdated comments still get a reply acknowledging the change
 - PR description is the release record: audit against the full commit list at the end — fill `_None_` placeholders, surface fixes made during review, remove anything no longer true
