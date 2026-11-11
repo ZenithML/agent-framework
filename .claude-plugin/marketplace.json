@@ -27,8 +27,8 @@
     {
       "name": "render",
       "source": "./plugins/render",
-      "description": "Verification harness for perceptual work: capture endpoint, named observation set, numeric proxies, symptom-keyed traps. For domains where a failure is something you see rather than something that throws.",
-      "version": "0.1.0",
+      "description": "Verification and digital content generation harness for perceptual work: capture endpoint, named observation set, numeric proxies, symptom-keyed traps, and programmatic 3D/audio asset pipelines (DCG). For domains where a failure is something you see rather than something that throws.",
+      "version": "0.2.0",
       "author": {
         "name": "zenithml"
       },
@@ -40,7 +40,10 @@
         "screenshot",
         "art-direction",
         "game",
-        "determinism"
+        "determinism",
+        "dcg",
+        "3d",
+        "audio"
       ]
     },
     {

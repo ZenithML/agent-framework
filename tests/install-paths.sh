@@ -94,6 +94,8 @@ PY
   local r; r="$(new_project render)"
   "$install" --with-render "$r" >/dev/null 2>&1
   check "--with-render adds render skills" test -f "$r/.claude/skills/frames/SKILL.md"
+  check "--with-render adds dcg skill" test -f "$r/.claude/skills/dcg/SKILL.md"
+  check "--with-render adds dcg standard" test -f "$r/.claude/standards/digital-content-generation.md"
 
   local d; d="$(new_project dry)"
   "$install" --dry-run --harness codex "$d" >/dev/null 2>&1
