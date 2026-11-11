@@ -290,7 +290,7 @@ Inline: follow `${CLAUDE_PLUGIN_ROOT}/agents/publisher.md` yourself with the inp
 `publisher` agent with:
 - Domain name
 - Domain path (`docs/specs/<domain>/`)
-- When explore was on (default, unless `--no-explore` was used): the Stage 4b report, or its `Exploratory QA skipped: <reason>` line,
+- When explore was resolved as on (default, unless `--no-explore` or `pipeline.explore: false` without `--explore`): the Stage 4b report, or its `Exploratory QA skipped: <reason>` line,
   for an "Exploratory QA" section of the PR description
 
 ```json

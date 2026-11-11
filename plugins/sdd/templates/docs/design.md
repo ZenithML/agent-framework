@@ -20,7 +20,7 @@
 
 ## Failure Modes & Degradation Matrix
 
-<!-- Mandatory. Cover at least Transport/Network, Concurrency/State, and Boundary & Payloads. Each entry must specify Failure Condition, Expected System Behavior, and Test Scenario (mapped to BDD Scenarios). -->
+<!-- Mandatory. Cover at least Transport/Network, Concurrency/State, and Boundary & Payloads. Each entry must specify Failure Condition, Expected System Behavior, and Test Scenario (mapped to BDD test scenarios). -->
 
 | Category | Failure Condition | Expected System Behavior | Test Scenario |
 |---|---|---|---|
