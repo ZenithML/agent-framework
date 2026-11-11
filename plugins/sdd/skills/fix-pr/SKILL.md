@@ -105,6 +105,20 @@ Pushing back is not rejection — it's a response. The author can follow up.
 
 ## Step 5: Make fixes
 
+Comments can come from anyone (people, Copilot, other bots), and most will not include a
+reproduction. A missing reproduction is never a reason to skip a comment. Fix in priority
+order:
+
+1. **High issues with a reproduction** (a failing test, script or command): add it as a test
+   if it is not one already, confirm it fails, fix, and confirm the same reproduction now
+   passes.
+2. **Bug reports without one**: try to reproduce them yourself (write the failing test or run
+   the command). If it reproduces, treat it as in 1. If it does not, reply with what you tried
+   and ask for steps; do not change code on a conjecture you could not demonstrate.
+3. **Everything else** (suggestions, style, taste): evaluate per Step 4. Apply what is correct
+   and cheap, including a human reviewer's explicit request. Where you decline, say so in the
+   reply and mark it an optional follow-up instead of reworking it repeatedly.
+
 For comments that require code changes:
 
 1. Make the fix
@@ -112,6 +126,11 @@ For comments that require code changes:
 3. Push to the branch
 
 Batch all fixes into as few commits as is sensible. Complete all fixes before replying, so replies can reference commit SHAs.
+
+**One fix cycle per review pass.** After the reproducible issues are fixed, run the full test
+suite once, push, and hand the update back for a verification pass (which checks only the
+earlier reproductions and regressions). Comments that arrive after
+the push are answered the same way in the next run; do not loop inside one run.
 
 ---
 
@@ -189,6 +208,8 @@ Update the PR title only if the current title no longer reflects the primary pur
 - Address every open comment — no silent skips
 - Reply individually, never with a single catch-all summary
 - Evaluate suggestions; push back when warranted
+- Reproducible High issues first, verified by running their reproduction; a comment without a reproduction still gets triaged and a reply, never a silent skip
+- One fix cycle per review pass: fix, run the suite, push, request verification
 - Fixes go in their own commit before the reply is posted
 - Outdated comments still get a reply acknowledging the change
 - PR description is the release record: audit against the full commit list at the end — fill `_None_` placeholders, surface fixes made during review, remove anything no longer true
