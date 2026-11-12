@@ -89,11 +89,12 @@ Skip in `--autonomous` mode. If `--spec-only`: output handoff and stop.
 
 ### 5. Write design.md
 
-Read `${CLAUDE_PLUGIN_ROOT}/templates/docs/design.md` for the canonical structure, then create or update `docs/specs/<domain>/design.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/standards/doc-structure.md` and `${CLAUDE_PLUGIN_ROOT}/templates/docs/design.md` for the canonical structure, then create or update `docs/specs/<domain>/design.md`. Author the mandatory **Failure Modes & Degradation Matrix** table covering Transport/Network (timeouts, connection drop, 429 rate limit backoff), Concurrency/State (race conditions, dirty reads, idempotent re-try), and Boundary & Payloads (nulls, empty collections, oversized payloads, schema violations), with each entry specifying `Failure Condition`, `Expected System Behavior`, and `Test Scenario`.
 
 **Completeness checks:**
 - All decisions resolved (no TBD rows)
-- BDD scenarios cover every acceptance criterion from requirements.md
+- Failure Modes & Degradation Matrix is present, covers network/concurrency/boundary scenarios, specifies Failure Condition, Expected System Behavior, and Test Scenario for each entry, and maps to BDD test scenarios
+- BDD scenarios cover every acceptance criterion from requirements.md and every failure mode in the Failure Modes & Degradation Matrix
 - QA scenarios are executable without reading source code
 - Unit test scenarios are behaviour-focused, not implementation-focused
 

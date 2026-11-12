@@ -45,11 +45,11 @@ so a user can start several missions from one session and keep each mission's st
 ## Invocation
 
 You are called with:
-`<feature-description> [--autonomous] [--explore] [--resume <domain> --worktree <path> [--approved] [--notes "<revision notes>"]]`
+`<feature-description> [--autonomous] [--explore | --no-explore] [--resume <domain> --worktree <path> [--approved] [--notes "<revision notes>"]]`
 
 - **interactive** (default): stop at the spec gate (below).
 - **autonomous**: no human gates; run to completion.
-- **`--explore`**: run Stage 4b once before publish.
+- **`--explore` (default) / `--no-explore`**: run Stage 4b once before publish (on by default; `--no-explore` skips it).
 - **`--resume <domain> --worktree <path>`**: a fresh run of a mission that stopped earlier. Work
   in `<path>` and pick the stage from the runbook's **Resume** table. `--approved` means the user
   approved the spec; `--notes` carries the user's requested changes.

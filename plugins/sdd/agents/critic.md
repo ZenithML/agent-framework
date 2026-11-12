@@ -41,6 +41,7 @@ Artifacts: requirements.md + design.md
 
 **design.md**
 - [ ] All Decision rows resolved — no TBD cells
+- [ ] Failure Modes & Degradation Matrix exists, covers network/concurrency/boundary scenarios (Transport/Network, Concurrency/State, Boundary & Payloads), specifies Failure Condition, Expected System Behavior, and Test Scenario for each entry, and maps to BDD test scenarios
 - [ ] Every acceptance criterion from requirements.md has at least one corresponding BDD scenario
 - [ ] QA scenarios are executable without reading source code (observable behavior only)
 - [ ] Test scenarios describe behavior, not implementation details

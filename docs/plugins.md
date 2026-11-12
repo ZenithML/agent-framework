@@ -39,10 +39,10 @@ dispatches `qa-engineer` to play with the running app like a human tester (a bro
 apps, the shell for CLI and TUI apps), and for each bug that reproduces it lands a failing
 regression test, a minimal fix and proof the test bites. UX friction is reported, not changed.
 
-`/sdd:ship` runs the same agent once per feature, after every task passes QA and before
-publish, only when asked: `/sdd:ship <feature> --explore`, or `"pipeline": {"explore": true}`
-in `.claude/sdd/config.json` (`--no-explore` turns it off for one run). It is off by default,
-because it makes a ship slower and costlier; turn it on for a careful ship.
+`/sdd:ship` runs the same agent once per feature by default, after every task passes QA and before
+publish (`"pipeline": {"explore": true}` is the default in `config.schema.json`). Pass
+`/sdd:ship <feature> --no-explore` to skip it for one run, or set `"pipeline": {"explore": false}`
+in `.claude/sdd/config.json` (`--explore` turns it back on for one run).
 
 `/sdd:bug-hunt <area | --all> [--report-only] [--autonomous]` goes deeper over a whole area: the
 critic reads all of its code for bugs (`bugs` context, read-only), `qa-engineer` uses it in the
