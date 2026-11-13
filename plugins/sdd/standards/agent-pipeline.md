@@ -122,7 +122,10 @@ Stage 1 — Spec        planner (--spec-only)        → requirements.md  [criti
 Stage 2 — Plan        planner (--design-and-tasks) → design.md + tasks.md  [critic embedded]
     │  (per task in tasks.md)
     ▼
-Stage 3 — Implement   executor (TDD)               → passing tests + implementation, commit
+Stage 3 — Implement   executor: Prosecutor → Defender → tests + implementation, commit
+    │                      (tests READ-ONLY to the Defender; TEST_DISPUTE to contest one)
+    ▼
+Mutation Gate         <MUTATE_CMD> on the diff     → surviving mutants killed by new tests  [opt-in: --mutate]
     │
     ▼
 Code Critique         critic (code)                → PASS / REVISE (routes back to executor)
@@ -152,8 +155,17 @@ moves to accommodate the code it is grading has stopped being a test.
 ### Stage 3: Implement
 The executor is the only agent that writes code. Full TDD per task: red (failing tests from design.md Test Scenarios) → green (minimum code) → refactor → one commit. On a design gap it reports `DESIGN_GAP` and the orchestrator routes back to the planner.
 
+#### Adversarial dual-agent TDD
+A single agent that writes both tests and code tends to write tests its own code already passes. Stage 3 therefore splits the executor into two invocations with opposed goals:
+
+- **Prosecutor** (`mode: test-author`) writes failing tests from the design's Test Scenarios and Failure Modes Matrix and touches no product code.
+- **Defender** (`mode: implement`) receives those tests as READ-ONLY and writes the minimum code to pass them. If a test contradicts the design it returns `TEST_DISPUTE` (test, design clause, reason) rather than editing it; the Prosecutor fixes or defends the test, and an unresolved dispute becomes a `DESIGN_GAP`.
+
+#### Mutation Testing Gate
+Opt-in via `pipeline.mutate` or `--mutate`, and requires `commands.mutate` (`<MUTATE_CMD>`). Once unit tests pass, mutation testing runs on the files in `git diff <base>..HEAD` only. Each surviving mutant is fed to the executor (`mode: kill-mutant`) to write a failing test that kills it, for at most 2 cycles, before Code Critique starts. Provably equivalent mutants are recorded and excluded.
+
 ### Code Critique
-After each task, the critic checks design adherence (no unspecced keys/modules/components), test quality (behaviour-focused, covers design scenarios), and code quality. On REVISE the orchestrator routes back to the executor (max 2 cycles).
+After each task, the critic checks design adherence (no unspecced keys/modules/components), test quality (behaviour-focused, covers design scenarios), mutant inversion (an existing test fails if a changed branch is inverted or a return nullified), and code quality. On REVISE the orchestrator routes back to the executor (max 2 cycles).
 
 ### Stage 4: QA
 Tests observable behaviour against `design.md` QA Scenarios. **Never reads source code** — and

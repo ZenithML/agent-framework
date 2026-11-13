@@ -26,7 +26,7 @@ model and any fallback reason. Never translate Claude model labels across provid
 Read and apply the Cross-harness delegation
 contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
 
-**Usage:** `/sdd:ship <feature-description> [--autonomous] [--explore | --no-explore] [--inline | --architect] [--foreground] [--resume <domain>]`
+**Usage:** `/sdd:ship <feature-description> [--autonomous] [--explore | --no-explore] [--mutate] [--inline | --architect] [--foreground] [--resume <domain>]`
 
 The primary entry point for all code changes:
 
@@ -50,6 +50,12 @@ ship. A repo can turn it on for every run with `"pipeline": {"explore": true}` i
 
 Resolve explore: `--explore` or `--no-explore` when given, otherwise `pipeline.explore` from
 `.claude/sdd/config.json`, otherwise off.
+
+**Mutation gate (`--mutate`), off by default:** after a task's unit tests pass, `commands.mutate`
+runs on the files changed since the base branch and every surviving mutant goes back to the
+executor to be killed by a new test before critique (see Stage 3 of the ship runbook). Resolve it:
+`--mutate` when given, otherwise `pipeline.mutate`, otherwise off; skipped with a warning when
+`commands.mutate` is unset.
 
 ## Who orchestrates: inline by default
 

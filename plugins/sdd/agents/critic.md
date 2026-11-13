@@ -67,6 +67,11 @@ Artifacts: changed source files + relevant design.md sections (Architecture + Te
 - [ ] No tests that only verify internal state shape or implementation details
 - [ ] No skipped or empty test cases
 
+**Mutant Inversion**
+- [ ] For each changed branch condition, invert it mentally (`<` to `>=`, `&&` to `||`, drop a negation); at least one existing test fails, and you can name it
+- [ ] For each changed return value, nullify it (`null`, `0`, empty collection, `false`); at least one existing test asserts on that value, not just that the call did not throw
+- [ ] Any branch or return that no test would notice is reported as REVISE with the file, line and the mutation that would survive
+
 **Code quality**
 - [ ] No type errors or unjustified type-escape casts
 - [ ] No obvious regressions in adjacent code

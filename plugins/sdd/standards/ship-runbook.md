@@ -63,7 +63,9 @@ Reason: Supported target-role default
 ```
 Stage 1: Spec    → planner (--spec-only)*        → requirements.md [critic embedded]
 Stage 2: Plan    → planner (--design-and-tasks)* → design.md + tasks.md [critic embedded]
-Stage 3: Implement → executor (per task)         → tests + implementation (TDD)
+Stage 3: Implement → executor (per task, two passes) → Prosecutor: failing tests; Defender: implementation
+         ↓
+         Mutation Gate → <MUTATE_CMD> (opt-in)   → surviving mutants fed back to executor
          ↓
          Code Critique → critic (code context)   → PASS / REVISE
          ↓
@@ -149,20 +151,37 @@ code is already in this conversation, do not base the spec or design on it.
 
 ## Stage 3: Implement
 
-For each task in tasks.md, spawn `executor` agent with **only**:
+Stage 3 is adversarial. Tests and implementation are written in two separate executor
+invocations so the code cannot be shaped around its own tests, and a mutation gate then checks
+the tests actually bite.
+
+Both passes receive **only**:
 - Domain name + task ID
-- Architecture + Test Scenarios sections of design.md
+- Architecture + Test Scenarios (and Failure Modes Matrix, when present) sections of design.md
 - Contents of tasks.md
 
 Do NOT pass: other tasks' diffs, tester history, your internal state.
 
-The executor owns the full TDD cycle: writes failing tests (red), implements (green), refactors, commits.
+### 3a. Prosecutor — author the failing tests
+
+Spawn `executor` in `mode: test-author`. It writes failing tests from the design's Test
+Scenarios and Failure Modes Matrix, confirms they fail for the right reason (missing
+implementation, not broken syntax), and commits tests only. It writes nothing under
+`<SOURCE_DIR>` except test files. Its goal is to break any implementation that does not honour
+the design.
+
+### 3b. Defender — implement against read-only tests
+
+Spawn a fresh `executor` in `mode: implement` with the committed test files marked
+**READ-ONLY**. It implements the minimum code to pass them, refactors, commits. It must not edit,
+delete, skip or weaken any assertion in those files. If it believes a test contradicts the
+design, it returns a `TEST_DISPUTE` handoff instead of changing the test.
 
 ```json
 // Handoff expected:
 {
   "stage": "executor",
-  "status": "SUCCESS | DESIGN_GAP",
+  "status": "SUCCESS | DESIGN_GAP | TEST_DISPUTE",
   "artifacts": {
     "task_id": 3,
     "test_files": ["src/lib/cart-total.test.ts"],
@@ -174,6 +193,27 @@ The executor owns the full TDD cycle: writes failing tests (red), implements (gr
 ```
 
 **If DESIGN_GAP:** Route back to the spec or plan stage (`--spec-only` or `--design-and-tasks`; inline: revise it yourself by following planner.md; architect: spawn the planner) for targeted revision, then resume executor.
+
+**If TEST_DISPUTE:** Re-run the Prosecutor with the dispute (test, quoted design clause, reason).
+The Prosecutor either fixes the test or defends it by citing the design clause. If the
+disagreement survives one round, treat it as a `DESIGN_GAP` and route to the planner. Max 1
+dispute round per task; the Defender never resolves a dispute by editing tests.
+
+### 3c. Mutation Testing Gate (opt-in)
+
+Runs after the unit tests pass, when `commands.mutate` (`<MUTATE_CMD>`) is configured and either
+`pipeline.mutate` is true or `--mutate` was passed. If `<MUTATE_CMD>` is unset, skip the gate
+and record the warning in the run notes.
+
+1. Compute the changed source files: `git diff --name-only <base>..HEAD -- <SOURCE_DIR>`,
+   excluding test files.
+2. Run `<MUTATE_CMD>` scoped to them (substitute `{changed_files}`), so only the diff is mutated.
+3. For each surviving mutant, pass the executor (`mode: kill-mutant`) the file, line, and mutation
+   description. It writes a failing test that kills the mutant (red), then confirms the mutant is
+   caught, with the production code unchanged unless the mutant exposed a real defect. Commit.
+4. Re-run the mutation command. Max 2 cycles. A mutant that is provably equivalent (no
+   observable behaviour change) is recorded as such, with its reason, and not counted.
+5. If mutants still survive after 2 cycles, escalate to the human; do not proceed to Critique.
 
 ---
 
@@ -199,7 +239,7 @@ Spawn `critic` agent with:
 }
 ```
 
-**If REVISE:** Pass feedback to executor for fixes (max 2 cycles). Do not proceed to QA until critic passes.
+**If REVISE:** Pass feedback to executor for fixes (max 2 cycles). Do not proceed to QA until critic passes. The critic runs after the Mutation Gate, so it reviews tests that have already survived mutation.
 
 ---
 

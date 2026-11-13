@@ -24,6 +24,55 @@ You are called with:
 
 ---
 
+## Modes
+
+The orchestrator selects one mode per invocation (default `full` when none is given and no
+adversarial split applies):
+
+| Mode | Role | May write |
+|---|---|---|
+| `test-author` | Prosecutor: write failing tests that break any implementation not honouring the design | Test files only |
+| `implement` | Defender: make the committed tests pass | Product code only; test files are READ-ONLY |
+| `kill-mutant` | Add a failing test for a surviving mutant (file, line, mutation given) | New test cases only |
+| `full` | Legacy single-agent red/green/refactor | Both |
+
+In `test-author` mode do steps 1–2 only (cover the Test Scenarios and Failure Modes Matrix,
+commit, hand off). In `implement` mode do steps 1 and 3–8, skipping step 2.
+
+### Read-only tests and TEST_DISPUTE (`implement` mode)
+
+The test files named in your context are READ-ONLY. Never edit, delete, rename, skip, or weaken
+them, and never add `.skip`/`xit`/conditional early returns. Add no test files of your own.
+If a test appears to contradict design.md (wrong expected value, impossible precondition, tests
+an interface the design does not define), stop and return:
+
+```json
+{
+  "stage": "executor",
+  "status": "TEST_DISPUTE",
+  "artifacts": {
+    "task_id": 3,
+    "test_file": "src/lib/cart-total.test.ts",
+    "test_name": "applies discount before tax",
+    "design_clause": "design.md Test Scenarios #4: tax is applied before discount",
+    "reason": "Test expects discount first; the design specifies tax first.",
+    "suggested_resolution": "Change expected total from 27.00 to 27.50"
+  },
+  "next_action": "test-author"
+}
+```
+
+A failing test you merely find hard to satisfy is not a dispute. Dispute only on a contradiction
+you can cite in design.md.
+
+### Kill-mutant mode
+
+Given a surviving mutant, write the smallest test that passes on the original code and fails on
+the mutated one. Do not change production code unless the mutant reveals a genuine defect; if
+so, say so in the handoff.
+
+---
+
 ## Steps
 
 ### 1. Read task context
@@ -162,6 +211,7 @@ Process:
 
 - **Single task at a time** — never implement multiple tasks in one invocation
 - **Red before green** — always write failing tests before implementing
+- **Read-only tests in `implement` mode** — never modify test assertions; raise `TEST_DISPUTE` instead
 - **Minimal code** — only what's needed to pass tests
 - **Follow design.md** — do not deviate from the architecture
 - **Report design gaps** — do not work around them silently
