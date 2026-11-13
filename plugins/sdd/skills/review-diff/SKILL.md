@@ -8,7 +8,10 @@ description: >
   artifacts (that is /sdd:critique), or to fix what it finds.
 ---
 
-**Usage:** `/sdd:review-diff [--base <ref>]`
+**Usage:** `/sdd:review-diff [--base <ref>] [--verify]`
+
+`--verify` selects the verification pass (see [Pass modes](#pass-modes)); without it the review
+is the audit pass.
 
 A read-only review of the change in the current worktree, written for the owner of the change to
 read before the change goes public. It works the same for any agent that can run `git` and write
@@ -16,6 +19,20 @@ one file: nothing in it depends on a particular provider or code host.
 
 **Read-only by contract.** Never edit, stage, commit, push or post anything. The only file this
 skill writes is `.review/findings.json` (and `.review/.gitignore`).
+
+## Pass modes
+
+A review converges in at most two passes, so fix and review never loop.
+
+- **`audit`** (pass 1, the default): the full review in Steps 2-4.
+- **`verification`** (pass 2, `--verify`, or when `.review/findings.json` already exists for an
+  earlier head of this branch and the change since then is the fix): read the previous
+  `findings.json`, then judge only (a) whether each previous `high` finding's `reproduction`
+  now passes against the current code and (b) whether the fix introduced a regression, shown
+  by a failing existing test or a concrete reproduction. **Reporting new speculative findings
+  in pass 2 is prohibited**; anything else you notice goes in `summary` as an optional
+  follow-up, never in `findings` and never in the verdict. A high finding whose reproduction
+  still fails stays `high`; otherwise the verdict is `pass`.
 
 ## Step 1: Find the change
 
@@ -57,6 +74,13 @@ the code as it is. If you cannot, drop it. Write at most 15 findings, most sever
 | `medium` | A real defect on a less likely path, or a missing test for changed behavior |
 | `low` | Worth fixing, harmless if not |
 
+**Proof of bug.** Every `high` finding (correctness or security) must carry a `reproduction`:
+a concrete, runnable test snippet or script that fails against the current code, or an exact
+deterministic trace (call chain with values, or the type error the compiler reports). Run the
+reproduction when you can and say what it printed. If you cannot produce a failing
+reproduction or exact trace, downgrade the finding to `medium` or `low`; it is then an
+optional suggestion and never blocks. Only reproducible `high` findings set the verdict.
+
 ## Step 4: Write the findings
 
 Create `.review/` with a `.gitignore` containing `*`, then write `.review/findings.json`:
@@ -67,6 +91,7 @@ Create `.review/` with a `.gitignore` containing `*`, then write `.review/findin
   "head": "<full sha of HEAD>",
   "base": "<full sha of the merge base>",
   "reviewer": { "agent": "<your agent, e.g. claude, agy, codex>", "model": "<your model if known>" },
+  "pass_mode": "audit",
   "verdict": "revise",
   "summary": "<one or two sentences on the change as a whole>",
   "findings": [
@@ -77,7 +102,8 @@ Create `.review/` with a `.gitignore` containing `*`, then write `.review/findin
       "severity": "high",
       "category": "correctness",
       "summary": "Retries a non-idempotent POST.",
-      "failure_scenario": "A timeout after the server stored the upload sends it again: the file is stored twice."
+      "failure_scenario": "A timeout after the server stored the upload sends it again: the file is stored twice.",
+      "reproduction": "test('does not retry a POST', async () => { server.failOnce(); await upload(f); expect(server.stored).toHaveLength(1); }) // fails: 2"
     }
   ]
 }
@@ -87,7 +113,10 @@ Create `.review/` with a `.gitignore` containing `*`, then write `.review/findin
   version for a removed line (`side: "old"`). For a finding about a whole file, use the first
   changed line.
 - `category` is one of `correctness`, `security`, `scope`, `tests`, `maintainability`.
-- `verdict` is `revise` when any finding is `high`, otherwise `pass`.
+- `reproduction` is required on every `high` finding and omitted otherwise.
+- `pass_mode` is `audit` or `verification` (see [Pass modes](#pass-modes)).
+- `verdict` is `revise` when any finding is `high`, otherwise `pass`. In `verification` mode
+  `findings` lists only previous highs that still fail and proven regressions.
 - Overwrite the file on each run; it describes one head.
 
 ## Step 5: Report
@@ -99,5 +128,7 @@ tool that asked you to hand the file back (for example with a report command), d
 
 - Never modify the code under review, stage, commit, push, or comment on the code host
 - Every finding names a file, a line and a concrete failure, verified against the code
+- No `high` finding without a failing reproduction or exact trace; downgrade instead
+- Pass 2 (`verification`) checks the earlier highs and regressions only; no new speculative findings
 - No style findings; at most 15 findings
 - The only files written are `.review/findings.json` and `.review/.gitignore`

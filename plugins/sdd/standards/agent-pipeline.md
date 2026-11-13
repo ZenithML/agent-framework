@@ -134,7 +134,7 @@ Code Critique         critic (code)                → PASS / REVISE (routes bac
 Stage 4 — QA          tester (adversarial)         → PASS / FAIL (no source read; up to 3 cycles)
     │
     ▼
-Stage 4b — Explore    qa-engineer (once, opt-in)   → fixes + friction report  [--explore only]
+Stage 4b — Explore    qa-engineer (once, default)  → fixes + friction report  [--no-explore skips]
     │
     ▼
 Stage 5 — Publish     publisher                    → docs verified, PR opened, CI monitored
@@ -173,15 +173,15 @@ this is enforced by the `tester` agent declaring no `Read`, `Grep`, or `Glob` to
 by instruction. See the verifier seal in [harness.md](harness.md) for why, and for the one
 residual hole. On FAIL, gives behavioural feedback to the executor (max 3 cycles).
 
-### Stage 4b — Explore (optional, off by default)
-Runs only with `/sdd:ship --explore`, or when `.claude/sdd/config.json` sets
-`"pipeline": {"explore": true}` (`--no-explore` turns it off for one run). After every task has
-passed QA, the `qa-engineer` plays with the whole feature once in the running app, fixes each
-bug it confirms test-first, and reports UX friction without changing it. Its fix commits go
-through the code critic (max 2 cycles, else they are reverted) and the full test suite; its
-report goes into the PR description. It does not replace Stage 4: the tester stays the
-independent verdict, because the explorer reads and edits the code. Choose it for a careful,
-slower ship; leave it off for a quick one.
+### Stage 4b — Explore (on by default; `--no-explore` opts out)
+Runs by default on `/sdd:ship` (`"pipeline": {"explore": true}` in `config.schema.json`), or when
+`/sdd:ship --explore` is passed; pass `--no-explore` to skip it for one run, or set
+`"pipeline": {"explore": false}` in `.claude/sdd/config.json` to turn it off by default for a repo.
+After every task has passed QA, the `qa-engineer` plays with the whole feature once in the running
+app, fixes each bug it confirms test-first, and reports UX friction without changing it. Its fix
+commits go through the code critic (max 2 cycles, else they are reverted) and the full test suite;
+its report goes into the PR description. It does not replace Stage 4: the tester stays the
+independent verdict, because the explorer reads and edits the code.
 
 ### Stage 5: Publish
 `/sdd:prepare-docs` (verify tasks, update INDEX, audit, commit checkpoint) → draft PR description from specs → `/sdd:create-pr` → monitor CI; route code failures back to the executor, retry infra flakes once.

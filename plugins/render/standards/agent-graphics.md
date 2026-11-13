@@ -9,9 +9,10 @@ Derived from a study of [Kenton-GMI/sakura-crossing](https://github.com/Kenton-G
 asset is a music file — and from applying its method to a repository that had
 none of it.
 
-The companion standard is `verification.md`, which generalises the same method
-beyond graphics. The skills that operate this standard are `/render:frames`,
-`/render:tune`, `/render:trap` and `/render:render-init`.
+The companion standards are `verification.md` (which generalises the same method
+beyond graphics) and `digital-content-generation.md` (standards for code-driven rigged 3D models,
+animation clips, and procedural audio). The skills that operate these standards are `/render:frames`,
+`/render:tune`, `/render:trap`, `/render:render-init`, and `/render:dcg`.
 
 ---
 

@@ -85,8 +85,8 @@
       "properties": {
         "explore": {
           "type": "boolean",
-          "default": false,
-          "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on every ship run. Off by default; the ship flags --explore and --no-explore override it for one run."
+          "default": true,
+          "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on every ship run. On by default; the ship flags --explore and --no-explore override it for one run."
         },
         "mutate": {
           "type": "boolean",
