@@ -41,6 +41,10 @@
           "type": "string",
           "description": "<DEV_HOST_CMD> \u2014 start the dev server bound to all interfaces. e.g. 'npm run dev -- --host'"
         },
+        "mutate": {
+          "type": "string",
+          "description": "<MUTATE_CMD> \u2014 run mutation testing on changed files or the test suite. Use {changed_files} as the placeholder for the diff-scoped file list. e.g. 'npx stryker run --mutate {changed_files}', 'cargo mutants --diff', 'mutmut run'"
+        },
         "shoot": {
           "type": "string",
           "description": "<SHOOT_CMD> \u2014 run the named observation set headless and exit non-zero on a budget breach. e.g. 'npm run shoot'. Read by the render plugin's skills."
@@ -83,6 +87,11 @@
           "type": "boolean",
           "default": true,
           "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on every ship run. On by default; the ship flags --explore and --no-explore override it for one run."
+        },
+        "mutate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run the Stage 3 Mutation Testing Gate (commands.mutate on the files changed since the base branch) after unit tests pass, on every ship run. Off by default; the ship flag --mutate enables it for one run. The gate is skipped, with a warning, when commands.mutate is not configured."
         },
         "orchestrator": {
           "type": "string",
