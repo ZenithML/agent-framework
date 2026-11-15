@@ -40,6 +40,12 @@ jobs:
       - name: Test triage-pr
         run: ./tests/triage-pr.sh
 
+      - name: Test gate scripts and ship runbook
+        run: |
+          python3 -m unittest discover -s tests -p test_gates.py
+          python3 -m unittest discover -s tests -p test_ship_orchestration.py
+          python3 -m unittest discover -s tests -p test_ship_explore.py
+
   ci-runner:
     runs-on: ubuntu-latest
     steps:

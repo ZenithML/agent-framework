@@ -11,8 +11,8 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 21 slash commands (invoked as /sdd:<name>)
-  agents/<name>.md              — 8 agents (architect, planner, critic, executor,
+  skills/<name>/SKILL.md        — 20 slash commands (invoked as /sdd:<name>)
+  agents/<name>.md              — 7 agents (planner, critic, executor,
                                   tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
   templates/docs/               — canonical requirements/design/tasks/ADR templates
@@ -26,7 +26,6 @@ plugins/sdd/
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
 | `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
-| `architect` (architect mode, debugging) | | |
 
 > Repository-specific release skills and release/CI-automation layers (tag-release,
 > prepare-release, back-merge, version bumping) are **intentionally excluded**. They are too

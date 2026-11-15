@@ -86,18 +86,18 @@
         "explore": {
           "type": "boolean",
           "default": true,
-          "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on every ship run. On by default; the ship flags --explore and --no-explore override it for one run."
+          "description": "Run Stage 4b (exploratory QA by the qa-engineer) once before publish on ship runs. On by default (standard and strict profiles; the fast profile turns it off unless this is set explicitly); the ship flags --explore and --no-explore override it for one run."
         },
         "mutate": {
           "type": "boolean",
           "default": false,
-          "description": "Run the Stage 3 Mutation Testing Gate (commands.mutate on the files changed since the base branch) after unit tests pass, on every ship run. Off by default; the ship flag --mutate enables it for one run. The gate is skipped, with a warning, when commands.mutate is not configured."
+          "description": "Run the Stage 3 Mutation Testing Gate (commands.mutate on the files changed since the base branch) after unit tests pass, on ship runs. Off by default except under the strict profile, which turns it on; the ship flag --mutate enables it for one run. The gate is skipped, with a warning, when commands.mutate is not configured."
         },
-        "orchestrator": {
+        "profile": {
           "type": "string",
-          "enum": ["inline", "architect"],
-          "default": "inline",
-          "description": "Who follows the ship runbook. inline (default): the calling session. architect: the architect subagent, one per mission in its own git worktree, for starting several missions from one session. The ship flags --inline and --architect override it for one run."
+          "enum": ["fast", "standard", "strict"],
+          "default": "standard",
+          "description": "Risk-based pipeline profile for the ship skill. fast: existing tests, review-diff and CI, for small bugfixes, UI tweaks and docs. standard (default): spec and design with critic, tests, exploratory QA and review-diff. strict: the full Failure Modes & Degradation Matrix, critic, Prosecutor/Defender tests, mutation gate, exploratory QA and review-diff. The ship flag --profile overrides it for one run."
         }
       },
       "additionalProperties": false

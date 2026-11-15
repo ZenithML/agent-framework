@@ -156,7 +156,7 @@ Every agent therefore declares a `role:`, and each role carries a tool contract:
 
 | Role | Agents | Contract |
 |---|---|---|
-| `orchestrator` | `architect`, `publisher` | Runs a pipeline; must declare `Agent`. Broad access by nature. |
+| `orchestrator` | `publisher` | Runs a pipeline; must declare `Agent`. Broad access by nature. |
 | `author` | `planner`, `executor`, `qa-engineer` | Writes specs, plans, or code. Needs `Read` and `Write`. |
 | `reviewer` | `critic` | Must declare no write tool — it cannot be able to change what it judges. |
 | `verifier` | `tester` | Must declare no `Read`, `Grep`, or `Glob`. |

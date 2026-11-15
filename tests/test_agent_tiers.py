@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins/sdd"
 PROVIDERS = {"anthropic", "openai", "google"}
 ROLES = {
-    "architect": "workhorse", "planner": "workhorse", "executor": "fast",
+    "planner": "workhorse", "executor": "fast",
     "critic": "workhorse", "tester": "fast", "archivist": "workhorse", "publisher": "workhorse",
     "qa-engineer": "workhorse",
 }
@@ -20,7 +20,7 @@ class AgentTierTests(unittest.TestCase):
 
     def test_catalog_defines_every_tier_and_provider(self):
         # frontier stays in the catalog with no shipped role, so a consumer can move a role
-        # (for example the architect) back up by editing its tier.
+        # (for example the planner) back up by editing its tier.
         self.assertEqual(set(self.catalog), set(ROLES.values()) | {"frontier"})
         for tier, defaults in self.catalog.items():
             with self.subTest(tier=tier):
@@ -59,7 +59,7 @@ class AgentTierTests(unittest.TestCase):
                 self.assertEqual(legacy[1], expected)
 
     def test_direct_dispatchers_resolve_models_and_preserve_fallback(self):
-        dispatchers = ["ship", "architect", "spec", "plan", "tasks", "implement",
+        dispatchers = ["ship", "spec", "plan", "tasks", "implement",
                        "critique", "qa", "qa-explore", "publish", "audit"]
         for name in dispatchers:
             with self.subTest(skill=name):
@@ -70,7 +70,7 @@ class AgentTierTests(unittest.TestCase):
                     self.assertIn(required, text)
 
     def test_nested_dispatchers_resolve_target_role_models(self):
-        for role in ["architect", "planner", "publisher"]:
+        for role in ["planner", "publisher"]:
             with self.subTest(role=role):
                 text = (PLUGIN / f"agents/{role}.md").read_text()
                 for required in ["target role's `tier`", "config/model-tiers.json",

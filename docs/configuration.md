@@ -77,21 +77,29 @@ On by default. Every `/sdd:ship` run ends with an exploratory QA pass by the
 
 `/sdd:ship --explore` or `--no-explore` overrides the setting for one run.
 
-### Who orchestrates `/sdd:ship`
+### Pipeline profile in `/sdd:ship`
 
-By default the session that ran `/sdd:ship` follows the pipeline itself (`inline`): it writes the
-spec, plan and PR in the conversation, and spawns the critic, executor, tester and qa-engineer as
-separate agents with the same scoped inputs. Choose `architect` when you stay in one session and
-start several missions from it: each mission then runs in an `architect` subagent in its own
-git worktree under `.claude/worktrees/<domain>` (in the background in Claude Code), and the
-worktree stays until you remove it with `git worktree remove`.
+`/sdd:ship` always runs inline: the session that ran it follows the pipeline, writes the spec,
+plan and PR, and spawns the critic, executor, tester and qa-engineer as separate agents with
+scoped inputs. To run several missions at once, start one session or thread per mission in your
+host (for example agent-anywhere); the pipeline does not orchestrate across missions.
+
+How much of the pipeline runs depends on the risk of the change:
+
+| Profile | Runs | Use for |
+|---|---|---|
+| `fast` | existing tests, `/sdd:review-diff` (proof of bug on high findings), CI | small bugfixes, UI tweaks, docs |
+| `standard` (default) | spec and design with critic, tests, exploratory QA, `/sdd:review-diff` | ordinary features and fixes |
+| `strict` | full Failure Modes & Degradation Matrix, critic, Prosecutor/Defender tests, mutation gate, exploratory QA, `/sdd:review-diff` | payments, auth, data loss, concurrency |
 
 ```json
-"pipeline": { "orchestrator": "architect" }
+"pipeline": { "profile": "strict" }
 ```
 
-`/sdd:ship --inline` or `--architect` overrides the setting for one run. `/sdd:ship --resume
-<domain>` resumes a stopped run in either mode.
+`/sdd:ship --profile fast|standard|strict` overrides the setting for one run. Two mechanical
+gate scripts back the profiles and run in any harness: `plugins/sdd/scripts/gate-design.py`
+(design.md matrix and BDD mapping) and `plugins/sdd/scripts/gate-review.py` (`.review/findings.json`
+rules); see the ship runbook.
 
 ### Test credentials for exploratory QA
 

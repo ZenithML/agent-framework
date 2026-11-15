@@ -152,4 +152,4 @@ If tests fail, that is a behavioral issue — report it.
 - **Observable behavior only** — all feedback from what you see/interact with
 - **No Write/Edit** — you cannot modify any files
 - **Environment-aware** — try Playwright MCP first, fall back to bash + headless browser for GitHub agents
-- **Each test run is independent** — no memory of previous cycles (Architect provides context if in fix cycle)
+- **Each test run is independent** — no memory of previous cycles (the orchestrator provides context if in fix cycle)

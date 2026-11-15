@@ -91,6 +91,9 @@ PY
   check "unedited retired file removed" test ! -e "$p/.claude/skills/retired"
   check "edited retired file kept" test -f "$p/.claude/agents/retired-agent.md"
 
+  check "gate scripts installed" test -x "$p/.claude/scripts/gate-design.py"
+  check "gate-review installed" test -x "$p/.claude/scripts/gate-review.py"
+
   local r; r="$(new_project render)"
   "$install" --with-render "$r" >/dev/null 2>&1
   check "--with-render adds render skills" test -f "$r/.claude/skills/frames/SKILL.md"

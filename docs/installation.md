@@ -96,7 +96,7 @@ Codex at once. Codex has no plugin marketplace path here; flat copy is the suppo
 
 Each dispatcher reads its canonical role Markdown in full before spawning. Codex uses fresh
 native context, passes the complete role including frontmatter and handoff contract, and
-supplies only the inputs permitted for that stage. Nested architect, planner and publisher
+supplies only the inputs permitted for that stage. Nested planner and publisher
 calls follow the same procedure. Claude tool names map to native operations, and Codex
 reads `.claude/sdd/model-tiers.json` and resolves the target role's tier for OpenAI,
 with an optional `provider_defaults.openai` role override, when the host supports it,
