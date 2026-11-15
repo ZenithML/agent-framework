@@ -52,12 +52,12 @@ class Base(unittest.TestCase):
 
     def run_script(self, name, *args):
         r = subprocess.run([sys.executable, str(SCRIPTS / name), *map(str, args)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8")
         return r.returncode, r.stdout + r.stderr
 
     def write(self, name, content):
         path = self.dir / name
-        path.write_text(content if isinstance(content, str) else json.dumps(content))
+        path.write_text(content if isinstance(content, str) else json.dumps(content), encoding="utf-8")
         return path
 
 
@@ -114,6 +114,12 @@ class GateDesignTests(Base):
 
     def test_scenario_cell_may_contain_the_scenario_text(self):
         text = DESIGN.replace("| Empty upload is rejected |", "| BDD: Empty upload is rejected (400) |")
+        code, out = self.run_script("gate-design.py", self.design(text), "--profile", "strict")
+        self.assertEqual(code, 0, out)
+
+    def test_hash_comment_in_code_fence_does_not_end_a_section(self):
+        text = DESIGN.replace("- **Scenario:** Empty upload is rejected",
+                              "```bash\n# not a heading\n```\n\n- **Scenario:** Empty upload is rejected")
         code, out = self.run_script("gate-design.py", self.design(text), "--profile", "strict")
         self.assertEqual(code, 0, out)
 

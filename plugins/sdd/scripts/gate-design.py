@@ -35,14 +35,25 @@ def norm(text):
 
 
 def section(text, heading, level=2):
-    """Body of the first heading with this title, up to the next heading of the same or higher level."""
-    hashes = "#" * level
-    m = re.search(rf"(?m)^{hashes}\s+{re.escape(heading)}\s*$", text)
-    if not m:
-        return None
-    rest = text[m.end():]
-    end = re.search(rf"(?m)^#{{1,{level}}}\s", rest)
-    return rest[:end.start()] if end else rest
+    """Body of the first heading with this title, up to the next heading of the same or higher
+    level. Lines inside fenced code blocks are never headings."""
+    lines = text.splitlines()
+    in_fence, start = False, None
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = re.match(r"(#{1,6})\s+(.*?)\s*$", line)
+        if not m:
+            continue
+        if start is None:
+            if len(m[1]) == level and m[2] == heading:
+                start = i + 1
+        elif len(m[1]) <= level:
+            return "\n".join(lines[start:i])
+    return None if start is None else "\n".join(lines[start:])
 
 
 def table_rows(body):
@@ -118,7 +129,7 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true", help="print a JSON result")
     args = ap.parse_args(argv)
     try:
-        text = Path(args.design).read_text()
+        text = Path(args.design).read_text(encoding="utf-8")
     except OSError as e:
         print(f"gate-design: cannot read {args.design}: {e}", file=sys.stderr)
         return 2

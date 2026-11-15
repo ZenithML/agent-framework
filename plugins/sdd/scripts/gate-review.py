@@ -30,7 +30,7 @@ MIN_REPRO = 12
 
 def load(path):
     try:
-        return json.loads(Path(path).read_text()), None
+        return json.loads(Path(path).read_text(encoding="utf-8")), None
     except OSError as e:
         return None, f"cannot read {path}: {e}"
     except json.JSONDecodeError as e:
