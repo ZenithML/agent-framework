@@ -189,7 +189,7 @@ Do not silently resolve design gaps. Route back to spec.
 
 ## Fix Cycle
 
-When called with evaluator feedback (retry), the Architect will provide:
+When called with evaluator feedback (retry), the orchestrator will provide:
 ```json
 {
   "evaluator_feedback": "Total not updating. Expected 30.00 after adding 3 items at 10.00.",

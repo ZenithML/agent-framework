@@ -18,9 +18,9 @@ class ShipExploreTests(unittest.TestCase):
 
     def test_ship_skill_offers_the_flag_and_defaults_to_on(self):
         ship = (PLUGIN / "skills/ship/SKILL.md").read_text()
-        self.assertIn("/sdd:ship <feature-description> [--autonomous] [--explore | --no-explore]", ship)
+        self.assertIn("/sdd:ship <feature-description> [--profile fast|standard|strict] [--autonomous] [--explore | --no-explore]", ship)
         self.assertIn("pipeline.explore", ship)
-        self.assertIn("on by default", ship)
+        self.assertIn("on in `standard` and `strict`, off in `fast`", ship)
         self.assertIn("--no-explore", ship)
 
     def test_failure_modes_and_degradation_matrix_in_doc_structure_planner_and_critic(self):
@@ -44,8 +44,8 @@ class ShipExploreTests(unittest.TestCase):
         self.assertIn("## Stage 4b: Explore (optional)", runbook)
         self.assertIn("qa-engineer", runbook)
         self.assertIn("EXPLORING", runbook)
-        stage = runbook.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
-        self.assertIn("Skip this stage", stage)
+        stage = runbook.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 4c", 1)[0]
+        self.assertIn("Skip this stage", " ".join(stage.split()))
         self.assertIn("critic", stage)
         self.assertLess(runbook.index("## Stage 4b"), runbook.index("## Stage 5: Publish"))
 
@@ -72,14 +72,14 @@ class ShipExploreTests(unittest.TestCase):
 
     def test_rejected_bugs_lose_both_test_and_fix_commits(self):
         runbook = (PLUGIN / "standards/ship-runbook.md").read_text()
-        stage = runbook.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 5", 1)[0]
+        stage = runbook.split("## Stage 4b: Explore (optional)", 1)[1].split("\n## Stage 4c", 1)[0]
         self.assertIn("both its `test:` and `fix:` commits", stage)
 
-    def test_harness_and_architect_skill_know_about_stage_4b(self):
+    def test_harness_and_ship_skill_know_about_stage_4b(self):
         harness = (PLUGIN / "standards/harness.md").read_text()
         self.assertNotIn("`/sdd:ship` never routes QA to `qa-engineer`", harness)
-        skill = (PLUGIN / "skills/architect/SKILL.md").read_text()
-        self.assertIn("4b — Explore", skill)
+        skill = (PLUGIN / "skills/ship/SKILL.md").read_text()
+        self.assertIn("Exploratory QA", skill)
         self.assertIn("--explore", skill)
 
 

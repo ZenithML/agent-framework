@@ -8,7 +8,7 @@ Canonical role instructions live only in `agents/<agent-name>.md` under the plug
 (or `.claude/agents/` in a flat consumer install). Discovery through `.agents/skills` is
 a symlink to the canonical skills; there are no Codex role copies or generated agents.
 
-Before every role invocation, including nested reviews and direct architect resumption:
+Before every role invocation, including nested reviews:
 
 1. Read the canonical role Markdown in full, including its frontmatter, tool contract,
    constraints and handoff schema. Read the scoped inputs required for the current stage.
@@ -34,7 +34,7 @@ IDs for all providers. In a flat install it lives at `.claude/sdd/model-tiers.js
 | Tier | Roles |
 |---|---|
 | frontier | (none shipped; available for a consumer to move a role up) |
-| workhorse | architect, planner, critic, archivist, publisher, qa-engineer |
+| workhorse | planner, critic, archivist, publisher, qa-engineer |
 | fast | executor, tester |
 
 Before every invocation, the caller reads the catalog and identifies the active host
@@ -105,7 +105,7 @@ installed by this harness. The Claude enforcement claims below apply to Claude C
 - **Critics are embedded in planning.** The planning stage (the planner agent, or the inline `/sdd:ship` session) has requirements and design reviewed by the critic before moving on.
 - **Test-driven development (TDD) is embedded** in the implement stage — red → green → refactor in one agent invocation.
 - **Code critique runs after every implement task**, before QA. The orchestrator manages this loop.
-- **One runbook, two orchestrators.** [ship-runbook.md](ship-runbook.md) is the procedure. By default the session that ran `/sdd:ship` follows it (`inline`) and writes the spec, plan and PR itself, while the critic, executor, tester and qa-engineer stay separate agents; with `--architect` or `pipeline.orchestrator: "architect"`, an `architect` subagent follows it in its own git worktree, so several missions can be started from one session.
+- **One runbook, one orchestrator.** [ship-runbook.md](ship-runbook.md) is the procedure. The session that ran `/sdd:ship` follows it and writes the spec, plan and PR itself, while the critic, executor, tester and qa-engineer stay separate agents. How much runs is set by the risk profile (`fast`, `standard`, `strict`), and two harness-agnostic scripts, `scripts/gate-design.py` and `scripts/gate-review.py`, check the design and review artifacts mechanically.
 - **Context isolation** between stages: no stage receives another stage's internals.
 
 ---
@@ -210,7 +210,6 @@ independent verdict, because the explorer reads and edits the code.
 
 | Agent | Role |
 |---|---|
-| `architect` | Pipeline orchestrator in architect mode: one mission, its own worktree |
 | `planner` | Spec and task authoring (with embedded critic loops) |
 | `critic` | Adversarial reviewer — requirements, design, and code; read-only static bug audit (`bugs`) for `/sdd:bug-hunt` |
 | `executor` | TDD implementation |
@@ -224,4 +223,4 @@ Every agent declares a `role:` whose tool contract is defined in
 context isolation stated in prose is an instruction a model can exceed, whereas a tool that is
 not declared cannot be called.
 
-**`/sdd:ship`** runs the full multi-agent pipeline with context isolation, using Claude Code's Agent/Task tool (or Codex native subagents) to spawn each agent above. Inline, the calling session spawns them; in architect mode, the architect does.
+**`/sdd:ship`** runs the full multi-agent pipeline with context isolation, using Claude Code's Agent/Task tool (or Codex native subagents) to spawn each agent above. The calling session spawns them; it runs inside one feature session or thread. Running several missions at once is the host's job (for example agent-anywhere starts one thread per feature), not the pipeline's.

@@ -97,7 +97,7 @@ Do not apply suggestions blindly. For each suggestion, ask:
 
 **Push back** if the suggestion is based on a misunderstanding, conflicts with an intentional design decision, or would introduce a worse trade-off. Explain the rationale clearly:
 
-> "The `Read` tool was intentionally included so the agent can read design.md — removing it would require the architect to inline all spec content into every prompt. The concern about source inspection is addressed by the instruction constraint instead."
+> "The `Read` tool was intentionally included so the agent can read design.md — removing it would require the orchestrator to inline all spec content into every prompt. The concern about source inspection is addressed by the instruction constraint instead."
 
 Pushing back is not rejection — it's a response. The author can follow up.
 

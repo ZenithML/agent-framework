@@ -1,7 +1,12 @@
 # Ship orchestration: inline by default, architect on request — Requirements
 
 **Status:** Approved
-**Last Updated:** 2026-10-29
+**Last Updated:** 2026-11-15
+
+> **Superseded in part (0.19.0):** the `architect` mode, `--architect`, `--foreground`, `--resume`,
+> `pipeline.orchestrator` and the worktree setup were removed. Running several missions at once is
+> now the host's job (agent-anywhere starts one thread per feature); `/sdd:ship` only runs inline.
+> The stories below describe the 0.15.0/0.16.0 behaviour.
 
 Scope: `plugins/sdd` 0.15.0 (Stories 1–6) and 0.16.0 (Story 7). Changes who coordinates a
 `/sdd:ship` run, and in inline mode who does the planning and publishing.

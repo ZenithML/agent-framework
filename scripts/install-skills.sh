@@ -95,7 +95,7 @@ echo "Installing sdd harness v${HARNESS_VERSION} into $TARGET/.claude/ (flat cop
 if [ "$DRY_RUN" = true ]; then
   echo "DRY-RUN: no changes will be made."
   echo "Planned actions:"
-  echo "  - copy plugins/sdd/{skills,agents,standards,templates/docs,config,hooks} into $CLAUDE_DIR/"
+  echo "  - copy plugins/sdd/{skills,agents,standards,scripts,templates/docs,config,hooks} into $CLAUDE_DIR/"
   [ "$WITH_RENDER" = true ] && echo "  - copy plugins/render/{skills,standards} into $CLAUDE_DIR/"
   echo "  - rewrite \${CLAUDE_PLUGIN_ROOT} -> .claude and /sdd:<skill> -> /<skill> in copied markdown"
   echo "  - keep harness files edited since the last install (manifest: $CLAUDE_DIR/sdd/.harness-manifest)"
@@ -138,10 +138,11 @@ fi
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 S="$STAGE/.claude"
-mkdir -p "$S/skills" "$S/agents" "$S/standards" "$S/templates/docs" "$S/sdd" "$S/hooks"
+mkdir -p "$S/skills" "$S/agents" "$S/standards" "$S/templates/docs" "$S/sdd" "$S/hooks" "$S/scripts"
 cp -r "$PLUGIN_DIR/skills/." "$S/skills/"
 cp -r "$PLUGIN_DIR/agents/." "$S/agents/"
 cp -r "$PLUGIN_DIR/standards/." "$S/standards/"
+cp -r "$PLUGIN_DIR/scripts/." "$S/scripts/"
 cp -r "$PLUGIN_DIR/templates/." "$S/templates/"
 cp "$PLUGIN_DIR/config/"*.json "$S/sdd/"
 cp "$PLUGIN_DIR/hooks/remote-session-start.sh" "$S/hooks/"

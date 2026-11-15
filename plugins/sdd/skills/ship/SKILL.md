@@ -2,13 +2,13 @@
 name: ship
 description: >
   Use when a code change should run the whole pipeline end to end without stopping at each stage
-  — a feature, fix or refactor described in one sentence — or to resume such a run with --resume.
-  Runs spec, plan, implement, critique, QA, exploratory QA (unless --no-explore) and publish inline
-  in this session by default, or through the architect subagent with --architect. Does not trigger
-  when the caller names a single stage (use that stage's own skill) or when no change is described yet.
+  — a feature, fix or refactor described in one sentence. Runs inline in this session, scaled by
+  risk with --profile fast, standard or strict: spec, plan, implement, critique, QA, exploratory
+  QA, diff review and publish. Does not trigger when the caller names a single stage (use that
+  stage's own skill) or when no change is described yet.
 ---
 
-Before every delegation (the architect in architect mode, each stage agent in inline mode), Read
+Before every delegation, Read
 the target role's `${CLAUDE_PLUGIN_ROOT}/agents/<role>.md` in full. In Codex, pass
 that exact canonical role definition and only this stage's scoped inputs to a fresh native
 subagent; do not assume a registered custom role. Resolve the target role's `tier`
@@ -26,50 +26,52 @@ model and any fallback reason. Never translate Claude model labels across provid
 Read and apply the Cross-harness delegation
 contract in `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md`.
 
-**Usage:** `/sdd:ship <feature-description> [--autonomous] [--explore | --no-explore] [--mutate] [--inline | --architect] [--foreground] [--resume <domain>]`
+**Usage:** `/sdd:ship <feature-description> [--profile fast|standard|strict] [--autonomous] [--explore | --no-explore] [--mutate]`
 
-The primary entry point for all code changes:
+The primary entry point for all code changes. The full (`standard`) pipeline:
 
 ```
-spec → plan → (implement → critique → qa) per task → [explore] → publish
+spec → plan → gate-design → (implement → critique → qa) per task → [explore] → review-diff → publish
 ```
 
 The procedure for every run is `${CLAUDE_PLUGIN_ROOT}/standards/ship-runbook.md`. Read it in full before the
-first stage. This skill only decides who follows it.
+first stage. This session follows it: there is no separate orchestrator agent. To work on several
+features at once, start one session or thread per feature in your host (for example
+agent-anywhere); each one runs `/sdd:ship` for its own change.
 
 **Modes:**
 - **interactive** (default): human approval gate after the spec, before design begins
 - **autonomous** (`--autonomous`): no human gates; runs to completion
 
-**Exploratory QA (`--explore`), on by default:** after every task has passed QA, the
+## Profiles: scale the pipeline to the risk
+
+Resolve the profile: `--profile` when given, otherwise `pipeline.profile` from
+`.claude/sdd/config.json`, otherwise `standard`. An unknown value stops the run and asks the user.
+Log `[Ship] Profile: <profile> (<flag | config | default>)`.
+
+| Profile | Runs | Use for |
+|---|---|---|
+| `fast` | existing tests, review-diff (proof of bug), CI; no spec, design, critic or QA | small bugfixes, UI tweaks, docs |
+| `standard` (default) | spec and design with critic, tests, exploratory QA, review-diff | ordinary features and fixes |
+| `strict` | full Failure Modes & Degradation Matrix, critic, Prosecutor/Defender tests, mutation gate, exploratory QA, review-diff | payments, auth, data loss, concurrency |
+
+The runbook's **Profiles** section has the per-stage table. If a `fast` change turns out to need a
+design decision (it touches an interface, data or auth), stop and ask the user whether to rerun
+with `--profile standard`; do not escalate silently.
+
+**Exploratory QA (`--explore`):** on in `standard` and `strict`, off in `fast`. The
 `qa-engineer` plays with the whole feature in the running app once, fixes the bugs it confirms
-(each with a regression test, reviewed by the critic) and lists UX friction in the PR. Pass
-`--no-explore` to opt out for one run, or set `"pipeline": {"explore": false}` in
-`.claude/sdd/config.json` to turn it off by default for a repo; `--explore` or `--no-explore`
-overrides that setting for one run.
+(each with a regression test, reviewed by the critic) and lists UX friction in the PR. `--explore`
+or `--no-explore` overrides the profile for one run; `pipeline.explore` in `.claude/sdd/config.json`
+overrides the profile default for a repo, and the flag overrides both.
 
-Resolve explore: `--explore` or `--no-explore` when given, otherwise `pipeline.explore` from
-`.claude/sdd/config.json`, otherwise on.
-
-**Mutation gate (`--mutate`), off by default:** after a task's unit tests pass, `commands.mutate`
-runs on the files changed since the base branch and every surviving mutant goes back to the
-executor to be killed by a new test before critique (see Stage 3 of the ship runbook). Resolve it:
-`--mutate` when given, otherwise `pipeline.mutate`, otherwise off; skipped with a warning when
+**Mutation gate (`--mutate`):** on in `strict`, off otherwise. After a task's unit tests pass,
+`commands.mutate` runs on the files changed since the base branch and every surviving mutant goes
+back to the executor to be killed by a new test before critique (see Stage 3 of the runbook).
+`--mutate` forces it on; `pipeline.mutate` sets the repo default; skipped with a warning when
 `commands.mutate` is unset.
 
-## Who orchestrates: inline by default
-
-| Mode | Who follows the runbook | Choose it when |
-|---|---|---|
-| `inline` (default) | This session, which also writes the spec, plan and PR | One mission per session, or a host that gives each mission its own session or thread. Cheapest; the spec is written in the conversation and the gate is a normal question to the user. |
-| `architect` | The `architect` subagent, in its own git worktree | You stay in one session and start several missions from it, and each mission's state must stay out of this session. |
-
-Resolve the orchestrator: `--inline` or `--architect` when given, otherwise
-`pipeline.orchestrator` from `.claude/sdd/config.json`, otherwise `inline`. If both `--inline` and
-`--architect` are given, stop and ask the user which one they mean. Log
-`[Ship] Orchestrator: <mode> (<flag | config | default>)`.
-
-## Inline mode
+## How it runs
 
 This session is the orchestrator. Follow the runbook stage by stage. Do the planning stages
 (spec, plan, tasks) and publishing yourself, following `${CLAUDE_PLUGIN_ROOT}/agents/planner.md` and
@@ -81,38 +83,12 @@ critic and tester. It may write the spec, design and tasks, create issues, open 
 and the configured commands, edit spec status lines and `tasks.md` checkboxes, and talk to the
 user.
 
-- **Spec gate** (interactive): once the spec has passed the critic (`AWAITING_SPEC_APPROVAL`),
-  ask the user as the runbook's **Spec gate** says, and continue in this session.
-- **Resume:** with `--resume <domain>`, check out `<feature-branch>` first, then pick the stage
-  from the runbook's **Resume** table.
+- **Mechanical gates:** run `${CLAUDE_PLUGIN_ROOT}/scripts/gate-design.py` after the design passes
+  the critic and `${CLAUDE_PLUGIN_ROOT}/scripts/gate-review.py` after each review-diff pass, as
+  the runbook says. They are plain python3 scripts, so they run the same in Claude Code, Codex and
+  agy; a failing gate is fixed, not skipped.
+- **Spec gate** (interactive): once the spec has passed the critic, ask the user as the
+  runbook's **Spec gate** says, and continue in this session.
 - **End:** report the PR link, or the escalation and what the user needs to decide.
-
-## Architect mode
-
-Read `${CLAUDE_PLUGIN_ROOT}/agents/architect.md` in full, then spawn the `architect` agent with the feature description and `--autonomous` and `--explore` / `--no-explore` as
-resolved. Do not pass this conversation.
-
-- **Claude Code:** spawn it with `run_in_background: true` and **without**
-  `isolation: "worktree"`: the architect makes its own worktree under `.claude/worktrees/`, so a
-  first run and a resume are spawned the same way. Tell the user the mission is running and that
-  this session is free. A background subagent cannot ask for permissions, so git, file edits and
-  the PR tool must already be allowed; if they are not, pass `--foreground`.
-- **Codex**, or `--foreground`: spawn it in the foreground; it still works in its own worktree.
-
-Several architects can run at once, one per mission. When one returns:
-
-- **`AWAITING_SPEC_APPROVAL`:** show the user its `requirements_path` (inside its `worktree_path`)
-  and ask for approval or changes. Then spawn a fresh architect the same way with
-  `--resume <domain> --worktree <worktree_path>` and `--approved`, or `--notes "<the user's changes>"`.
-- **`ESCALATION`:** tell the user the reason. For `permission denied`, ask them to allow that tool
-  or rerun with `--foreground`. Resume as above once it is settled.
-- **`DONE`:** report the PR link.
-
-Every handoff names `worktree_path` and `branch`. Tell the user the worktree stays until they
-remove it with `git worktree remove <worktree_path>`, after the PR merges or when they drop the
-mission. Never remove it yourself.
-
-`/sdd:ship --resume <domain>` in architect mode finds the worktree with
-`git worktree list` (the one on `<feature-branch>`) and resumes the architect there.
 
 See `${CLAUDE_PLUGIN_ROOT}/standards/agent-pipeline.md` for why the pipeline is shaped this way.
