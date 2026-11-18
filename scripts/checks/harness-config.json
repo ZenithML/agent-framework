@@ -38,5 +38,13 @@
   "_manifest_skills": "Skills required to close with a manifest. Plugin skills here do not carry one yet.",
   "manifest_skills": [
     "triage-pr"
+  ],
+  "_always_on_budget": "Character ceiling per always-on file (injected into every turn). Ratchet: lowering is free, raising fails always_on_budget. A line added pays for itself by removing one.",
+  "always_on_budget": {
+    "AGENTS.md": 4500
+  },
+  "_script_refs_project_side": "Script paths named in skills that exist only in the consuming project, so script_refs does not look for them here.",
+  "script_refs_project_side": [
+    "scripts/make-character-models.ts"
   ]
 }

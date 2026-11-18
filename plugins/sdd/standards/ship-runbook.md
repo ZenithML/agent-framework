@@ -483,6 +483,33 @@ PUBLISHING       → SUCCESS           → DONE
 
 ---
 
+## Post-run reflection
+
+After Stage 5 (and after `/sdd:fix-pr` when it finishes a PR), run one lightweight retro. It
+looks at what the run changed or struggled with and proposes a rule or gate change; it never
+edits the harness itself.
+
+1. List the notable harness-relevant events (a gate that fired, a critic loop that needed a
+   second round, a skipped stage, a rule the run worked around). Give each a verdict:
+   `helped | hurt | no observed effect | confounded`. Prefer `confounded` whenever several things
+   changed at once or a single run is all that stands behind the difference. A PASS verdict or a
+   merged PR does not establish that a change helped.
+2. Emit at most one entry, or the single line `NO_ENTRY`:
+
+   ```
+   cue: <the shape of situation, not this task's facts>
+   lesson: <a proposed rule or gate change naming the component: skill, script, hook, standard>
+   evidence: <the events above it rests on>
+   confidence: low | medium | high
+   ```
+3. A lesson names its component, so it is one step from a `Gate`-column row in
+   [harness.md](harness.md#rules-in-this-document). Report it in the final summary as a
+   proposal; do not write it into rules, memory or config unprompted.
+
+`NO_ENTRY` is the expected answer for an uneventful run.
+
+---
+
 ## Context Engineering Rules
 
 | Stage | Receives | Never receives |
