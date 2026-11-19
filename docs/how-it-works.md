@@ -47,7 +47,7 @@ flowchart TB
         impl["Implement<br/>test-first"] --> crit["Code critique"] --> qa["QA<br/>source-blind"]
         qa -->|next task| impl
     end
-    subgraph ship ["Check the whole change and ship it"]
+    subgraph ship ["Check and ship"]
         direction LR
         explore["Exploratory QA<br/>whole feature"] --> review["Diff review<br/>proof of bug"] --> publish["Publish<br/>docs, PR, CI"] --> gate2{{"You review<br/>and merge"}}
     end
