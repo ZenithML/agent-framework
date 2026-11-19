@@ -9,6 +9,22 @@ for driving software work with an agent.
 | **`render`** | Perceptual work — visual verification (capture, frames, tune, traps) and code-driven 3D & audio digital content generation (DCG) |
 | **`ci-runner`** | CI on your own machine — a `ci-runner` command that installs a self-hosted GitHub Actions runner and switches a repo between it and GitHub-hosted runners |
 
+## How it works
+
+`/sdd:ship <feature>` takes one sentence to an open pull request. Your session writes the spec and
+design with you; separate agents with their own limited context implement, review and test it.
+
+```mermaid
+flowchart LR
+    idea(["Feature"]) --> spec["Spec"] --> ok{{"You approve"}} --> plan["Plan"]
+    plan --> build["Per task: implement test-first,<br/>critique, source-blind QA"]
+    build --> explore["Exploratory QA"] --> review["Diff review"] --> pr["PR + CI"] --> merge{{"You merge"}}
+```
+
+[How it works](docs/how-it-works.md) has the full set of diagrams: each stage, retry budgets,
+profiles, what each agent can see, installing and upgrading, and layering a private platform on
+top.
+
 **Framework, not a hosted service.** Everything runs inside your own Claude Code sessions and
 your own repository. No account, server or external infrastructure is required.
 
@@ -47,6 +63,7 @@ this source checkout. Consumer plugin installations still use `/sdd:ship`.
 
 | Guide | Covers |
 |---|---|
+| [How it works](docs/how-it-works.md) | Diagrams of the pipeline, agents, context isolation, profiles, upgrades and layering |
 | [Installation](docs/installation.md) | Flat copy, GitHub marketplace and vendored copy, and how to update each |
 | [Plugins](docs/plugins.md) | What `sdd`, `render` and `ci-runner` contain, and every skill |
 | [Configuration](docs/configuration.md) | What `sdd-init` sets up, `.claude/sdd/config.json`, placeholders, the SessionStart hook |
