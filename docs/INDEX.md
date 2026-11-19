@@ -4,6 +4,7 @@
 
 | Guide | Document |
 |---|---|
+| How it works: diagrams of the pipeline, agents, profiles, upgrades and layering | [`how-it-works.md`](how-it-works.md) |
 | Installation: flat copy, marketplace, vendored copy | [`installation.md`](installation.md) |
 | Plugins: `sdd`, `render` and `ci-runner`, and every skill | [`plugins.md`](plugins.md) |
 | Configuration: `sdd-init`, `config.json`, placeholders, SessionStart hook | [`configuration.md`](configuration.md) |
