@@ -6,7 +6,8 @@
 #
 #   flat         scripts/install-skills.sh into an empty project: skills, agents,
 #                hook, version stamp; a re-run is idempotent and keeps local
-#                edits; --with-render adds render; --dry-run writes nothing; a project's own skills survive
+#                edits; --with-render adds render; --dry-run writes nothing; a project's own skills survive;
+#                --local leaves nothing to commit, even from a worktree symlinked to it
 #   vendor       scripts/vendor.sh: the vendored marketplace installs sdd@<key>
 #                at this repo's version; --dry-run writes nothing
 #   marketplace  install every plugin from this repo's marketplace into an empty
@@ -141,6 +142,35 @@ PY
   local n; n="$(new_project no-codex)"; "$install" "$n" >/dev/null 2>&1
   check "default install writes no .codex/" test ! -e "$n/.codex"
   check "unknown harness is rejected" bash -c "! '$install' --harness bogus '$n'"
+
+  # --local: a personal trial that leaves nothing to commit, shared with worktrees by a symlink.
+  local l; l="$(new_project local)"
+  echo "app" > "$l/README.md"
+  git -C "$l" add -A && git -C "$l" -c user.name=t -c user.email=t@t commit -qm base
+  local exclude="$l/.git/info/exclude"
+  cp "$exclude" "$WORK/exclude.before" 2>/dev/null || : > "$WORK/exclude.before"
+  "$install" --dry-run --local "$l" >/dev/null 2>&1
+  check "--local --dry-run writes nothing" \
+    bash -c "test ! -e '$l/.claude' && cmp -s '$exclude' '$WORK/exclude.before'"
+  if "$install" --local "$l" >"$WORK/local.log" 2>&1; then pass "--local exits 0"
+  else fail "--local exits 0"; sed 's/^/        /' "$WORK/local.log"; fi
+  check "--local installs the skills" test -f "$l/.claude/skills/ship/SKILL.md"
+  check "--local leaves a clean git status" test -z "$(git -C "$l" status --porcelain)"
+  check "--local declares the hook in settings.local.json" \
+    test "$(grep -c remote-session-start "$l/.claude/settings.local.json")" -eq 1
+  check "--local writes no settings.json" test ! -e "$l/.claude/settings.json"
+  check "--local seeds no AGENTS.md" test ! -e "$l/AGENTS.md"
+  "$install" --local "$l" >/dev/null 2>&1
+  check "--local re-run adds no duplicate excludes" test "$(grep -cx '/.claude/skills' "$exclude")" -eq 1
+  local wt="$WORK/local-wt"
+  git -C "$l" worktree add -q "$wt" -b trial
+  ln -s "$l/.claude" "$wt/.claude"
+  check "--local: a worktree symlinked to the install stays clean" test -z "$(git -C "$wt" status --porcelain)"
+  local t; t="$(new_project local-tracked)"
+  mkdir -p "$t/.claude/skills/team" && echo "team" > "$t/.claude/skills/team/SKILL.md"
+  git -C "$t" add -A && git -C "$t" -c user.name=t -c user.email=t@t commit -qm base
+  check "--local refuses when it would change tracked files" bash -c "! '$install' --local --force '$t'"
+  check "--local refusal writes nothing" test ! -e "$t/.claude/skills/ship"
 
   local o; o="$(new_project own)"
   mkdir -p "$o/.claude/skills/my-own-skill" && echo "own" > "$o/.claude/skills/my-own-skill/SKILL.md"
