@@ -201,16 +201,16 @@ stateDiagram-v2
     Spec --> Planning: autonomous
     SpecGate --> Planning: approved
     Planning --> DesignGate
-    DesignGate --> Planning: fails, cycle < 2
+    DesignGate --> Planning: fails once
     DesignGate --> Escalation: fails twice
     DesignGate --> Implementing: exit 0
 
     Implementing --> CodeCritique
     Implementing --> Planning: DESIGN_GAP
-    CodeCritique --> Implementing: REVISE, cycle < 2
+    CodeCritique --> Implementing: REVISE once
     CodeCritique --> Escalation: REVISE twice
     CodeCritique --> QA: PASS
-    QA --> Implementing: FAIL, cycle < 3
+    QA --> Implementing: FAIL once or twice
     QA --> Escalation: FAIL three times
     QA --> Implementing: PASS, next task
     QA --> Exploring: PASS, last task
