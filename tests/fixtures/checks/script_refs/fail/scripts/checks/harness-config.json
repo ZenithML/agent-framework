@@ -1,0 +1,1 @@
+{"layout":{"skill_globs":[".claude/skills/**/SKILL.md"],"agent_globs":[".claude/agents/*.md"]},"script_refs_project_side":["scripts/consumer-only.sh"]}

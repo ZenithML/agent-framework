@@ -188,7 +188,28 @@ undeclared tool cannot be called; the environment is actual enforcement, because
 not on disk cannot be reached by anything. The tester sits at the middle rung with one hole,
 recorded here rather than hidden behind a prose rule that reads as absolute. Closing it means
 running QA against a built artifact in a directory without sources — a pipeline change, not a
-declaration change. Until then, `Bash` in a verifier is for process control, not inspection.
+declaration change. The hole has been exercised unprompted: in a validation run of Google
+Research's [Harness²](https://github.com/google-research/harness2/blob/1cfe254/docs/EXPERIMENTS.md#web-access),
+"a Codex rollout on JobBench downloaded its task's rubric without being instructed to", and the
+authors responded by restricting access at the network level rather than relying on a tool
+setting — the environment rung. Until then, `Bash` in a verifier is for process control, not inspection.
+
+## Where new guidance goes
+
+Components differ in what they cost per turn. Put new guidance at the first row that fits, and
+move down only when the row above cannot do the job.
+
+| Situation | Mechanism | Cost |
+|---|---|---|
+| A procedure with a recognisable trigger | Skill | Description always loaded; body on demand |
+| A deterministic operation runs keep hand-rolling or getting wrong | Script | On demand |
+| A bounded sub-task whose input is large and whose answer is small | Subagent | Own context |
+| A rule that must not be skippable | Hook or gate | Inside the tool loop; prose can be skipped, a hook cannot |
+| A short rule that applies to every change | Always-on text (`AGENTS.md`) | Every turn, last resort |
+
+**A line added to always-on text pays for itself by removing one.** `always_on_budget` in
+[`harness-config.json`](https://github.com/zenithml/agent-framework/blob/main/scripts/checks/harness-config.json) caps `AGENTS.md` and can only be lowered, not raised, without a
+visible change.
 
 ## Every rule names its gate
 
@@ -236,6 +257,9 @@ repository and are not installed into consuming projects.
 | H12 | A plugin change bumps the version in both manifests | `version_bump` |
 | H13 | Adoption coverage grows, never shrinks | `coverage_ratchet` |
 | H14 | Every stated rule names a gate or `judgment` | `judgment` |
+| H15 | Script paths named in skills and agents exist | `script_refs` |
+| H16 | Always-on files stay under their size ceiling, which only ratchets down | `always_on_budget` |
+| H17 | Skills and agents that read others' output carry an evidence-boundary block | `judgment` |
 
 H1–H3 are `judgment` deliberately: mechanising them would reject the stage-dispatch skills,
 which are the interactive entry points this harness wants. H11 needs a reading of whether a
