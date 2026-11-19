@@ -15,10 +15,16 @@ for driving software work with an agent.
 design with you; separate agents with their own limited context implement, review and test it.
 
 ```mermaid
-flowchart LR
-    idea(["Feature"]) --> spec["Spec"] --> ok{{"You approve"}} --> plan["Plan"]
-    plan --> build["Per task: implement test-first,<br/>critique, source-blind QA"]
-    build --> explore["Exploratory QA"] --> review["Diff review"] --> pr["PR + CI"] --> merge{{"You merge"}}
+flowchart TB
+    subgraph decide ["Decide"]
+        direction LR
+        idea(["Feature"]) --> spec["Spec"] --> ok{{"You approve"}} --> plan["Plan"]
+    end
+    subgraph deliver ["Build and ship"]
+        direction LR
+        build["Per task:<br/>implement test-first,<br/>critique, source-blind QA"] --> explore["Exploratory QA"] --> review["Diff review"] --> pr["PR + CI"] --> merge{{"You merge"}}
+    end
+    decide --> deliver
 ```
 
 [How it works](docs/how-it-works.md) has the full set of diagrams: each stage, retry budgets,
