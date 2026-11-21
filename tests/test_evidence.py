@@ -208,6 +208,22 @@ class SnapshotCompareTests(unittest.TestCase):
         self.assertIn("| old_usages | 12 | 0 | -12 | improved |", r.stdout)
         self.assertEqual(self.snap("x", "--metric-cmd", py("print('no metric')")).returncode, 2)
 
+    def test_zero_baseline_metric_keeps_direction(self):
+        self.config(test=py("print('METRIC delta=0')"))
+        self.snap("baseline")
+        self.config(test=py("print('METRIC delta=-10')"))
+        self.snap("after")
+        self.assertEqual(self.compare("--lower-is-better", "delta").returncode, 0)
+        self.assertEqual(self.compare("--higher-is-better", "delta").returncode, 1)
+
+    def test_paths_outside_root_and_malformed_reports_do_not_crash(self):
+        with tempfile.TemporaryDirectory() as other:
+            Path(other, "x.py").write_text("a = 1\n")
+            self.assertEqual(ev.size_of(self.root, ["src", other]), {"files": 1, "lines": 2})
+        (self.root / "reports/mutation").mkdir(parents=True)
+        (self.root / "reports/mutation/mutation.json").write_text(json.dumps({"files": ["not", "a", "dict"]}))
+        self.assertIsNone(ev.mutation_from_files(self.root, 0))
+
     def test_md_output_and_bad_input(self):
         self.config(test="true")
         self.snap("baseline")

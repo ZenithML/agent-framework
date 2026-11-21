@@ -33,6 +33,7 @@ Snapshots land in --out (default .review/evidence) as <label>.json; a .review/ d
 import argparse
 import datetime
 import json
+import math
 import re
 import shlex
 import statistics
@@ -136,17 +137,16 @@ def mutation_from_files(root, since):
     if not (p.is_file() and p.stat().st_mtime >= since - 1):
         return None
     try:
-        files = json.loads(p.read_text())["files"]
-    except (ValueError, KeyError, TypeError):
+        detected = valid = 0
+        for f in json.loads(p.read_text())["files"].values():
+            for m in f.get("mutants", []):
+                s = m.get("status")
+                if s in ("CompileError", "RuntimeError", "Ignored"):
+                    continue
+                valid += 1
+                detected += s in ("Killed", "Timeout")
+    except (ValueError, KeyError, TypeError, AttributeError):
         return None
-    detected = valid = 0
-    for f in files.values():
-        for m in f.get("mutants", []):
-            s = m.get("status")
-            if s in ("CompileError", "RuntimeError", "Ignored"):
-                continue
-            valid += 1
-            detected += s in ("Killed", "Timeout")
     return round(100 * detected / valid, 2) if valid else None
 
 
@@ -175,7 +175,11 @@ def size_of(root, paths):
         base = (root / rel)
         items = [base] if base.is_file() else (p for p in base.rglob("*") if p.is_file())
         for p in items:
-            if any(part in SKIP_DIRS for part in p.relative_to(root).parts[:-1]):
+            try:
+                parents = p.resolve().relative_to(root.resolve()).parts[:-1]
+            except ValueError:  # outside the repository: not part of the area
+                continue
+            if any(part in SKIP_DIRS for part in parents):
                 continue
             try:
                 text = p.read_text(encoding="utf-8")
@@ -284,7 +288,8 @@ def snapshot(args):
     out_dir = root / args.out
     out_dir.mkdir(parents=True, exist_ok=True)
     review = root / ".review"
-    if out_dir.resolve().is_relative_to(review.resolve()) and not (review / ".gitignore").exists():
+    inside_review = review.resolve() in (out_dir.resolve(), *out_dir.resolve().parents)
+    if inside_review and not (review / ".gitignore").exists():
         (review / ".gitignore").write_text("*\n")
     target = out_dir / f"{args.label}.json"
     target.write_text(json.dumps(snap, indent=2) + "\n")
@@ -377,7 +382,7 @@ def compare_snaps(before, after, opts):
             row(name, b, a, "not measured after" if a is None else "new",
                 "regressed" if a is None and gated else "info")
             continue
-        pct = round(100 * (a - b) / abs(b), 1) if b else (0.0 if a == b else float("inf"))
+        pct = round(100 * (a - b) / abs(b), 1) if b else (0.0 if a == b else math.copysign(math.inf, a - b))
         result = "info"
         if name in opts.lower_is_better:
             result = "regressed" if pct > opts.max_metric_regression else "improved" if a < b else "ok"
