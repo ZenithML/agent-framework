@@ -170,9 +170,13 @@ def cmd_query(args):
     store = _store(args)
     if args.db:
         db = Path(args.db)
+    elif not args.item:
+        raise SystemExit("give --item (an item with a dataset) or --db")
     else:
         pack = _pack(store)
-        item = pack["_items"][args.item]
+        item = pack["_items"].get(args.item)
+        if item is None or "scenario" not in item:
+            raise SystemExit(f"{args.item} has no dataset to query")
         variant = args.variant or _next_variant(store.evidence(), item["id"])
         db, _ = grading.build_dataset(store.home, item["scenario"], variant)
     try:
@@ -184,7 +188,7 @@ def cmd_query(args):
 
 def _answer(args):
     if args.answer_file:
-        return Path(args.answer_file).read_text()
+        return Path(args.answer_file).read_text(encoding="utf-8")
     if args.answer is None:
         raise SystemExit("give --answer or --answer-file")
     return args.answer

@@ -54,7 +54,7 @@ def build_dataset(home, scenario, variant):
 
 
 def _readonly(path):
-    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    con = sqlite3.connect(f"{Path(path).absolute().as_uri()}?mode=ro", uri=True)
     allowed = {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION}
 
     def auth(action, *_):
@@ -72,11 +72,8 @@ def _readonly(path):
 
 
 def run_query(path, sql, extra_views=None):
+    # The authorizer below allows reads only, and sqlite3 runs a single statement.
     sql = sql.strip().rstrip(";")
-    if ";" in sql:
-        raise GradeError("one statement only")
-    if not re.match(r"(?is)^\s*(select|with)\b", sql):
-        raise GradeError("only SELECT queries are allowed")
     con = _readonly(path)
     try:
         if extra_views:
@@ -171,7 +168,7 @@ def grade_sql_detect(item, answer, db, data):
 
 def sigma_to_sql(rule_text):
     """Convert with pySigma: in-process when installed, otherwise through uv."""
-    with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False, encoding="utf-8") as f:
         f.write(rule_text)
         rule_path = f.name
     try:

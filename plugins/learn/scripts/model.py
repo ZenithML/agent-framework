@@ -12,7 +12,7 @@ frontier, due reviews and misconceptions. See standards/learner-model.md.
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import fsrs
@@ -31,6 +31,7 @@ KINDS = {"attempt", "diagnostic", "teach-back", "project", "self-report", "revea
 P_PLACED = 0.65
 P_MASTERED = 0.8
 R_KEPT = 0.85      # retrievability below this turns "mastered" into "fading"
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 INFERRED = 0.5     # weight of a diagnostic inference on related concepts
 
 
@@ -54,7 +55,7 @@ def load_pack(pack_id):
     path = PACKS_DIR / pack_id / "pack.json"
     if not path.exists():
         raise SystemExit(f"unknown pack {pack_id!r}; packs: {', '.join(list_packs())}")
-    pack = json.loads(path.read_text())
+    pack = json.loads(path.read_text(encoding="utf-8"))
     pack["_concepts"] = {c["id"]: c for c in pack["concepts"]}
     pack["_items"] = {i["id"]: i for i in pack["items"]}
     return pack
@@ -118,25 +119,27 @@ class Store:
     def learner(self):
         if not self.exists:
             raise SystemExit(f"no learner at {self.home}; run `learn.py init --pack <pack>` first")
-        return json.loads((self.home / "learner.json").read_text())
+        return json.loads((self.home / "learner.json").read_text(encoding="utf-8"))
 
     def save_learner(self, data):
         self.home.mkdir(parents=True, exist_ok=True)
-        (self.home / "learner.json").write_text(json.dumps(data, indent=2) + "\n")
+        (self.home / "learner.json").write_text(json.dumps(data, indent=2) + "\n",
+                                                encoding="utf-8")
 
     def goals(self):
         p = self.home / "goals.json"
-        return json.loads(p.read_text()) if p.exists() else []
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
 
     def save_goals(self, goals):
-        (self.home / "goals.json").write_text(json.dumps(goals, indent=2) + "\n")
+        (self.home / "goals.json").write_text(json.dumps(goals, indent=2) + "\n",
+                                              encoding="utf-8")
 
     def evidence(self):
         p = self.home / "evidence.jsonl"
         if not p.exists():
             return []
         seen, out = set(), []
-        for line in p.read_text().splitlines():
+        for line in p.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             e = json.loads(line)
@@ -149,7 +152,7 @@ class Store:
 
     def append(self, record):
         self.home.mkdir(parents=True, exist_ok=True)
-        with open(self.home / "evidence.jsonl", "a") as f:
+        with open(self.home / "evidence.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(record, sort_keys=True) + "\n")
 
 
@@ -285,8 +288,8 @@ def replay(pack, evidence, now=None):
             "transfer": s["transfer"],
             "retrievability": None if r is None else round(r, 3),
             "stability_days": None if mem is None else round(mem.stability, 2),
-            "due_at": None if mem is None else datetime.fromtimestamp(
-                mem.due_days() * 86400, timezone.utc).isoformat(timespec="minutes"),
+            "due_at": None if mem is None else (EPOCH + timedelta(days=mem.due_days())).isoformat(
+                timespec="minutes"),
             "implicit_reviews": s["implicit"],
             "check_prereqs": s["suspect_prereqs"] >= 2,
             "misconceptions": misconceptions,

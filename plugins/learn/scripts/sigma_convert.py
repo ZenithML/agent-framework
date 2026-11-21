@@ -14,7 +14,7 @@ import sys
 
 
 def main():
-    text = open(sys.argv[1]).read()
+    text = open(sys.argv[1], encoding="utf-8").read()
     try:
         from sigma.backends.sqlite import sqliteBackend
         from sigma.collection import SigmaCollection

@@ -185,6 +185,11 @@ class GradeTest(unittest.TestCase):
             with self.assertRaises(grade.GradeError):
                 grade.run_query(db, sql)
 
+    def test_valid_selects_with_comments_or_semicolon_literals_run(self):
+        db, _ = grade.build_dataset(Path(self.home) / "with space", "process", 1)
+        cols, rows = grade.run_query(db, "-- count\nSELECT COUNT(*) FROM process WHERE CommandLine LIKE '%;%'")
+        self.assertEqual(rows, [(0,)])
+
     def test_over_broad_spray_detection_fails_on_false_positives(self):
         item = PACK["_items"]["spray-2"]
         broad = "SELECT IpAddress FROM auth WHERE EventID = 4625 GROUP BY IpAddress HAVING COUNT(*) > 5"
