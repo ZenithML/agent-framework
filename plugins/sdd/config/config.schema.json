@@ -29,6 +29,10 @@
           "type": "string",
           "description": "<LINT_CMD> \u2014 run the linter. e.g. 'npm run lint', 'ruff check .'"
         },
+        "typecheck": {
+          "type": "string",
+          "description": "<TYPECHECK_CMD> \u2014 run the type checker. e.g. 'pnpm typecheck', 'tsc --noEmit', 'mypy .'. Read by /sdd:productionize, /sdd:migrate and evidence.py."
+        },
         "build": {
           "type": "string",
           "description": "<BUILD_CMD> \u2014 build the project. e.g. 'npm run build', 'python -m build'"
@@ -44,6 +48,14 @@
         "mutate": {
           "type": "string",
           "description": "<MUTATE_CMD> \u2014 run mutation testing on changed files or the test suite. Use {changed_files} as the placeholder for the diff-scoped file list. e.g. 'npx stryker run --mutate {changed_files}', 'cargo mutants --diff', 'mutmut run'"
+        },
+        "coverage": {
+          "type": "string",
+          "description": "<COVERAGE_CMD> \u2014 run the tests with line coverage and print or write a summary (istanbul json-summary, coverage.py json, Cobertura XML, or a 'METRIC coverage=<pct>' line). e.g. 'vitest run --coverage --coverage.reporter=json-summary', 'pytest --cov --cov-report=json'. Read by evidence.py."
+        },
+        "bench": {
+          "type": "string",
+          "description": "<BENCH_CMD> \u2014 run a benchmark of the hot path; evidence.py times it over several runs and records any 'METRIC name=value' lines it prints. e.g. 'pnpm bench', 'pytest benchmarks/ --benchmark-only'."
         },
         "shoot": {
           "type": "string",
@@ -95,7 +107,11 @@
         },
         "profile": {
           "type": "string",
-          "enum": ["fast", "standard", "strict"],
+          "enum": [
+            "fast",
+            "standard",
+            "strict"
+          ],
           "default": "standard",
           "description": "Risk-based pipeline profile for the ship skill. fast: existing tests, review-diff and CI, for small bugfixes, UI tweaks and docs. standard (default): spec and design with critic, tests, exploratory QA and review-diff. strict: the full Failure Modes & Degradation Matrix, critic, Prosecutor/Defender tests, mutation gate, exploratory QA and review-diff. The ship flag --profile overrides it for one run."
         }
@@ -114,7 +130,10 @@
         "credentialEnv": {
           "type": "object",
           "description": "Names (never values) of environment variables holding test credentials for protected areas, keyed by field, e.g. {\"username\": \"QA_USER\", \"password\": \"QA_PASSWORD\"}. Read by the qa-engineer agent (qa-explore skill).",
-          "additionalProperties": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
         }
       },
       "additionalProperties": false

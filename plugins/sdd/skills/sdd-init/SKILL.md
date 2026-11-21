@@ -474,6 +474,8 @@ with skill discovery through `.agents/skills`; onboarding creates no Codex agent
 | Triage a large PR before reviewing it | `/sdd:triage-pr` |
 | Play with the running app, find and fix bugs | `/sdd:qa-explore` |
 | Deep bug hunt over an area, report then fixes in one PR | `/sdd:bug-hunt` |
+| Make a prototype production-ready, with before/after evidence | `/sdd:productionize` |
+| Migrate to a new framework, library, API or format in revertable waves | `/sdd:migrate` |
 ```
 
 ---

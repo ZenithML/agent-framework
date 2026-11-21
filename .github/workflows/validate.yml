@@ -45,6 +45,8 @@ jobs:
           python3 -m unittest discover -s tests -p test_gates.py
           python3 -m unittest discover -s tests -p test_ship_orchestration.py
           python3 -m unittest discover -s tests -p test_ship_explore.py
+          python3 -m unittest discover -s tests -p test_evidence.py
+          python3 -m unittest discover -s tests -p test_refactoring.py
 
   ci-runner:
     runs-on: ubuntu-latest

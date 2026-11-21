@@ -10,6 +10,7 @@
 | Independent review or observable QA | `/critique` or `/qa` (Codex: `$critique`, `$qa`) |
 | Explore a running app, find and fix bugs | `/qa-explore` (Codex: `$qa-explore`); `--report-only` changes nothing |
 | Hunt an area for bugs, report, then fix in one PR | `/bug-hunt` (Codex: `$bug-hunt`); `--report-only`, `--autonomous` |
+| Make a prototype production-ready, or migrate, with evidence | `/productionize`, `/migrate` (Codex: `$productionize`, `$migrate`); `--report-only` |
 | Open or review a pull request | `/create-pr` or `/review-pr` (Codex: `$create-pr`, `$review-pr`) |
 | Bootstrap project configuration | `/sdd-init` (Codex: `$sdd-init`) |
 | Inspect pipeline rules and delegation | `.claude/standards/agent-pipeline.md` |
