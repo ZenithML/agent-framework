@@ -215,7 +215,7 @@ def snapshot(args):
     try:
         cfg = json.loads(cfg_path.read_text())
     except OSError:
-        print(f"cannot read {cfg_path}; run /sdd:sdd-init or pass --config", file=sys.stderr)
+        print(f"cannot read {cfg_path}; run the sdd-init skill or pass --config", file=sys.stderr)
         return 2
     except json.JSONDecodeError as e:
         print(f"{cfg_path} is not valid JSON: {e}", file=sys.stderr)

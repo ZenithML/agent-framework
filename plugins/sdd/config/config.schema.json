@@ -31,7 +31,7 @@
         },
         "typecheck": {
           "type": "string",
-          "description": "<TYPECHECK_CMD> \u2014 run the type checker. e.g. 'pnpm typecheck', 'tsc --noEmit', 'mypy .'. Read by /sdd:productionize, /sdd:migrate and evidence.py."
+          "description": "<TYPECHECK_CMD> \u2014 run the type checker. e.g. 'pnpm typecheck', 'tsc --noEmit', 'mypy .'. Read by the productionize and migrate skills and evidence.py."
         },
         "build": {
           "type": "string",

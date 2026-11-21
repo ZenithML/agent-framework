@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "plugins/sdd/scripts/evidence.py"
+sys.dont_write_bytecode = True  # keep __pycache__ out of the plugin directory
 spec = importlib.util.spec_from_file_location("evidence", SCRIPT)
 ev = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ev)
