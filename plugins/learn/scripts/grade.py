@@ -184,7 +184,7 @@ def sigma_to_sql(rule_text):
             for p in SIGMA_PACKAGES:
                 cmd += ["--with", p]
             cmd += ["python", str(HERE / "sigma_convert.py"), rule_path]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=300)
         try:
             out = json.loads(proc.stdout.strip().splitlines()[-1])
         except (IndexError, json.JSONDecodeError):
