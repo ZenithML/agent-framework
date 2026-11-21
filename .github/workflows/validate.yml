@@ -46,6 +46,24 @@ jobs:
           python3 -m unittest discover -s tests -p test_ship_orchestration.py
           python3 -m unittest discover -s tests -p test_ship_explore.py
 
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv (Sigma grading runs pySigma through it)
+        uses: astral-sh/setup-uv@v6
+
+      - name: Test the learn plugin and its content gate
+        run: |
+          python3 -m unittest discover -s tests -p test_learn.py
+          python3 plugins/learn/scripts/learn.py pack check soc-foundations
+
   ci-runner:
     runs-on: ubuntu-latest
     steps:
@@ -74,6 +92,9 @@ jobs:
 
       - name: Validate ci-runner plugin manifest
         run: claude plugin validate ./plugins/ci-runner --strict
+
+      - name: Validate learn plugin manifest
+        run: claude plugin validate ./plugins/learn --strict
 
 # plugin-validate is advisory (continue-on-error) on purpose: it installs the
 # CLI unpinned, so a validator change upstream would break unrelated pull

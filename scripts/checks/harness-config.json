@@ -33,10 +33,12 @@
   "evals_required": [
     "triage-pr",
     "qa-explore",
-    "bug-hunt"
+    "bug-hunt",
+    "learn-eval"
   ],
   "_manifest_skills": "Skills required to close with a manifest. Plugin skills here do not carry one yet.",
   "manifest_skills": [
-    "triage-pr"
+    "triage-pr",
+    "learn-eval"
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "name": "learn",
+  "description": "Learn any subject with an AI tutor that tracks what you actually know. A shared learner model replays graded evidence into mastery, review schedules (FSRS) and a frontier; skills set goals, place the learner, plan sessions, tutor Socratically with hint ladders, grade against objective checks and evaluate their own pedagogy. First subject pack: cyber resilience (SOC, SIEM, NDR), with synthetic labelled logs and Sigma detection grading.",
+  "version": "0.1.0",
+  "author": {
+    "name": "zenithml"
+  },
+  "homepage": "https://github.com/zenithml/agent-framework",
+  "keywords": ["learning", "tutor", "spaced-repetition", "fsrs", "soc", "siem", "sigma", "cybersecurity"]
+}
