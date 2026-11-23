@@ -14,18 +14,7 @@ for driving software work with an agent.
 `/sdd:ship <feature>` takes one sentence to an open pull request. Your session writes the spec and
 design with you; separate agents with their own limited context implement, review and test it.
 
-```mermaid
-flowchart TB
-    subgraph decide ["Decide"]
-        direction LR
-        idea(["Feature"]) --> spec["Spec"] --> ok{{"You approve"}} --> plan["Plan"]
-    end
-    subgraph deliver ["Build and ship"]
-        direction LR
-        build["Per task:<br/>implement test-first,<br/>critique, source-blind QA"] --> explore["Exploratory QA"] --> review["Diff review"] --> pr["PR + CI"] --> merge{{"You merge"}}
-    end
-    decide --> deliver
-```
+![The lifecycle: agree what to build (spec, your approval, plan), build each task (tests then code, review, QA that never sees the code), then check the whole change and ship it (exploratory QA, diff review, pull request, your merge)](docs/assets/how-it-works/01-lifecycle.excalidraw.svg)
 
 [How it works](docs/how-it-works.md) has the full set of diagrams: each stage, retry budgets,
 profiles, what each agent can see, installing and upgrading, and layering a private platform on
