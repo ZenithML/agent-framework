@@ -24,8 +24,14 @@
 # edited since are kept, not overwritten (see step 2); pass --overwrite-local to
 # replace them with the new release anyway.
 #
+# Pass --local to try the harness in a project without committing it. Every path
+# the install writes is added to the repository's shared .git/info/exclude (so
+# linked worktrees see the same exclusions), the SessionStart hook goes into
+# .claude/settings.local.json instead of settings.json, and no AGENTS.md is
+# seeded. It refuses to run if git already tracks any of those paths.
+#
 # Usage:
-#   scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] [--harness LIST] <target-project-dir>
+#   scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] [--local] [--harness LIST] <target-project-dir>
 
 set -euo pipefail
 
@@ -36,15 +42,17 @@ DRY_RUN=false
 FORCE=false
 WITH_RENDER=false
 OVERWRITE_LOCAL=false
+LOCAL=false
 HARNESSES="claude,agy"
 
 usage() {
   cat <<'USAGE' >&2
-Usage: scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] [--harness LIST] <target-project-dir>
+Usage: scripts/install-skills.sh [--dry-run] [--force] [--with-render] [--overwrite-local] [--local] [--harness LIST] <target-project-dir>
   --dry-run, -d     Show actions without copying or writing files
   --force, -f       Install even if the target .claude/ has non-harness skills/agents
   --with-render     Also install the render plugin (perceptual verification)
   --overwrite-local Replace harness files edited in the target with the new release
+  --local           Personal trial install: git-excluded, hook in settings.local.json, nothing to commit
   --harness LIST    Comma list of claude, agy, codex (default: claude,agy; .claude/ is always installed)
 USAGE
   exit 1
@@ -56,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --force|-f) FORCE=true; shift ;;
     --with-render) WITH_RENDER=true; shift ;;
     --overwrite-local) OVERWRITE_LOCAL=true; shift ;;
+    --local) LOCAL=true; shift ;;
     --harness) HARNESSES="${2:-}"; [ -n "$HARNESSES" ] || usage; shift 2 ;;
     --help|-h) usage ;;
     --) shift; break ;;
@@ -90,6 +99,33 @@ CLAUDE_DIR="$TARGET/.claude"
 SETTINGS="$CLAUDE_DIR/settings.json"
 HARNESS_VERSION="$(python3 -c "import json;print(json.load(open('$PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo unknown)"
 
+# --local: every path this install writes, relative to the project root. They
+# go into .git/info/exclude, so they must not already be tracked.
+LOCAL_PATHS=()
+EXCLUDE_FILE=""
+if [ "$LOCAL" = true ]; then
+  if [ "$(git -C "$TARGET" rev-parse --show-toplevel 2>/dev/null)" != "$(cd "$TARGET" && pwd -P)" ]; then
+    echo "Error: --local needs '$TARGET' to be the root of a git working tree." >&2
+    exit 1
+  fi
+  SETTINGS="$CLAUDE_DIR/settings.local.json"
+  EXCLUDE_FILE="$(git -C "$TARGET" rev-parse --path-format=absolute --git-common-dir)/info/exclude"
+  LOCAL_PATHS=(.claude/skills .claude/agents .claude/standards .claude/scripts .claude/templates
+               .claude/sdd .claude/hooks .claude/settings.local.json)
+  [ "$WANT_AGY" = true ] && LOCAL_PATHS+=(.agents/skills)
+  [ "$WANT_CODEX" = true ] && LOCAL_PATHS+=(.codex/config.toml)
+  TRACKED="$(git -C "$TARGET" ls-files -- "${LOCAL_PATHS[@]}")"
+  if [ -n "$TRACKED" ]; then
+    echo "Error: --local would change files git already tracks:" >&2
+    printf '%s\n' "$TRACKED" | sed 's/^/  /' >&2
+    echo "Install without --local and commit the result instead." >&2
+    exit 1
+  fi
+  # With nothing under .claude/ tracked, exclude .claude itself too, so a linked
+  # worktree can symlink its .claude to this one and still show a clean status.
+  [ -z "$(git -C "$TARGET" ls-files -- .claude)" ] && LOCAL_PATHS+=(.claude)
+fi
+
 echo "Installing sdd harness v${HARNESS_VERSION} into $TARGET/.claude/ (flat copy)..."
 
 if [ "$DRY_RUN" = true ]; then
@@ -102,7 +138,11 @@ if [ "$DRY_RUN" = true ]; then
   echo "  - declare the SessionStart hook in $SETTINGS"
   [ "$WANT_AGY" = true ] && echo "  - symlink $TARGET/.agents/skills -> ../.claude/skills (for agy / Antigravity / Codex)"
   [ "$WANT_CODEX" = true ] && echo "  - use shared Markdown roles and synchronize .mcp.json into $TARGET/.codex/config.toml"
-  echo "  - seed AGENTS.md routing only if absent; preserve existing project guidance"
+  if [ "$LOCAL" = true ]; then
+    echo "  - add ${LOCAL_PATHS[*]} to $EXCLUDE_FILE; seed no AGENTS.md"
+  else
+    echo "  - seed AGENTS.md routing only if absent; preserve existing project guidance"
+  fi
   echo "  - write $CLAUDE_DIR/sdd/.harness-version ($HARNESS_VERSION)"
   echo "Re-run without --dry-run to apply."
   exit 0
@@ -293,9 +333,17 @@ settings = {}
 if os.path.exists(path):
     with open(path) as fh:
         settings = json.load(fh)
-enabled_plugins = settings.get('enabledPlugins')
-if isinstance(enabled_plugins, dict) and any(name.startswith('sdd@') and enabled
-       for name, enabled in enabled_plugins.items()):
+def is_sdd_plugin_enabled(candidate):
+    enabled_plugins = candidate.get('enabledPlugins')
+    return isinstance(enabled_plugins, dict) and any(
+        name.startswith('sdd@') and enabled for name, enabled in enabled_plugins.items())
+# --local writes settings.local.json; the plugin may still be enabled in the shared file.
+other = os.path.join(os.path.dirname(path), 'settings.json')
+other_settings = {}
+if other != path and os.path.exists(other):
+    with open(other) as fh:
+        other_settings = json.load(fh)
+if is_sdd_plugin_enabled(settings) or is_sdd_plugin_enabled(other_settings):
     print('Warning: the sdd plugin is still enabled. After reviewing the flat snapshot, disable that pipeline plugin registration to avoid loading duplicate skills. Settings were preserved.', file=sys.stderr)
 # bash, not sh: the hook script uses `set -o pipefail`, which dash (/bin/sh on
 # Debian/Ubuntu) rejects.
@@ -349,9 +397,31 @@ if [ "$WANT_CODEX" = true ]; then
   fi
 fi
 
-# Existing project rules stay authoritative. Seed routing only for a fresh project.
-if [ ! -e "$TARGET/AGENTS.md" ] && [ ! -L "$TARGET/AGENTS.md" ]; then
+# Existing project rules stay authoritative. Seed routing only for a fresh project,
+# and never for a --local trial, which must leave nothing to commit.
+if [ "$LOCAL" = false ] && [ ! -e "$TARGET/AGENTS.md" ] && [ ! -L "$TARGET/AGENTS.md" ]; then
   cp "$CLAUDE_DIR/templates/agent-routing.md" "$TARGET/AGENTS.md"
+fi
+
+# 4c. --local: keep every installed path out of git. info/exclude lives in the
+#     common git dir, so linked worktrees share it. Re-runs add no duplicates.
+if [ "$LOCAL" = true ]; then
+  python3 - "$EXCLUDE_FILE" "${LOCAL_PATHS[@]}" <<'PYEOF'
+import os, sys
+path, wanted = sys.argv[1], ['/' + p for p in sys.argv[2:]]
+header = '# sdd harness --local install (personal trial, never committed)'
+lines = open(path).read().splitlines() if os.path.exists(path) else []
+missing = [p for p in wanted if p not in lines]
+if missing:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'a') as fh:
+        if lines and lines[-1].strip():
+            fh.write('\n')
+        if header not in lines:
+            fh.write(header + '\n')
+        fh.write('\n'.join(missing) + '\n')
+print(f'  Excluded the installed paths from git in {path}')
+PYEOF
 fi
 
 # 5. Write a version stamp so consumers can detect when an update is available.
@@ -365,9 +435,15 @@ else
 fi
 echo ""
 echo "Next steps:"
-echo "  cd \"$(realpath "$TARGET")\""
-echo "  git add AGENTS.md .claude/ $([ "$WANT_AGY" = true ] && echo .agents/) $([ "$WANT_CODEX" = true ] && echo .codex/)"
-echo "  git commit -m 'chore: install sdd harness (flat) v${HARNESS_VERSION}'"
+if [ "$LOCAL" = true ]; then
+  echo "  Nothing to commit: this --local install is excluded from git."
+  echo "  To share it with a linked worktree that has no .claude of its own:"
+  echo "    ln -s \"$(realpath "$TARGET")/.claude\" <worktree>/.claude"
+else
+  echo "  cd \"$(realpath "$TARGET")\""
+  echo "  git add AGENTS.md .claude/ $([ "$WANT_AGY" = true ] && echo .agents/) $([ "$WANT_CODEX" = true ] && echo .codex/)"
+  echo "  git commit -m 'chore: install sdd harness (flat) v${HARNESS_VERSION}'"
+fi
 echo ""
 if [ "$WANT_CODEX" = true ]; then
   echo "Commit .codex/ and .agents/ too. Codex loads project .codex/ config only for a trusted project."

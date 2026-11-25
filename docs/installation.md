@@ -7,6 +7,7 @@ Pick the method that matches your situation:
 | **You just want it to work** — locally, on claude.ai/code, and in CI — with no install step that can silently skip on a fresh VM | **[Flat copy](#flat-copy-recommended)** (recommended) |
 | You want every session to fetch the harness from GitHub, pinned or tracking `main` | **[GitHub marketplace](#github-marketplace)** |
 | You want a frozen copy committed to your repo, pinned to a version, with no GitHub access needed at runtime | **[Vendored copy](#vendored-copy)** |
+| You want to try it in a project, and its worktrees, without committing anything yet | **[Flat copy with `--local`](#trying-it-locally-without-committing)** |
 
 All three end the same way: run the onboarding skill once, then the **ship** skill to start the
 pipeline. They differ only in *how the skills get into your repo*. Every method is exercised in
@@ -80,6 +81,41 @@ tracked so an explicit later `--overwrite-local` can retire them. An install fro
 existed has no record of your edits, so its first re-run overwrites them. Check `git diff` after
 that run. Compare `.claude/sdd/.harness-version` against this
 repo's plugin version to see whether you are behind.
+
+### Trying it locally, without committing
+
+To evaluate the harness in a project before the team agrees to adopt it, add `--local`:
+
+```bash
+./scripts/install-skills.sh --local /path/to/your-project
+```
+
+It installs the same flat copy, with three differences, so `git status` stays clean and there
+is nothing to commit:
+- every path it writes is added to the repository's `.git/info/exclude` (not the shared
+  `.gitignore`); that file lives in the common git directory, so linked worktrees share it
+- the SessionStart hook goes into `.claude/settings.local.json` instead of `.claude/settings.json`
+- no `AGENTS.md` is seeded
+
+It refuses to run if git already tracks any of those paths, because it would then change
+committed files; install without `--local` and commit instead. The target must be the root of
+a git working tree.
+
+**Worktrees.** A linked worktree has its own `.claude/`. When git tracks nothing under the
+project's `.claude/`, `--local` also excludes `.claude` itself, so you can install once and
+point each worktree at that copy:
+
+```bash
+ln -s /path/to/your-project/.claude /path/to/worktree/.claude
+```
+
+Updating the one install then updates every worktree. Alternatively, run `--local` against each
+worktree for an independent copy. Files the pipeline writes outside `.claude/`, such as specs
+under `docs/`, are not excluded: add them to `.git/info/exclude` yourself if they should stay
+private too.
+
+To adopt the harness later, delete the `--local` block from `.git/info/exclude`, move the hook
+into `.claude/settings.json` (or re-run without `--local`), and commit as in Step 3.
 
 ### Using Codex
 

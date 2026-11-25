@@ -61,6 +61,26 @@
         "self-hosted-runner",
         "runner"
       ]
+    },
+    {
+      "name": "learn",
+      "source": "./plugins/learn",
+      "description": "Learn any subject with an AI tutor that tracks what you actually know: an evidence-based learner model (FSRS replayed from graded attempts), adaptive placement, session planning, Socratic tutoring with hint ladders and objective graders. First subject pack: cyber resilience (SOC, SIEM, NDR) with synthetic labelled logs and Sigma detection grading.",
+      "version": "0.1.0",
+      "author": {
+        "name": "zenithml"
+      },
+      "category": "education",
+      "keywords": [
+        "learning",
+        "tutor",
+        "spaced-repetition",
+        "fsrs",
+        "soc",
+        "siem",
+        "sigma",
+        "cybersecurity"
+      ]
     }
   ]
 }
