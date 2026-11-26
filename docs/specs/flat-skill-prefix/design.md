@@ -1,6 +1,6 @@
 # Flat skill prefix: namespace flat-installed skills — Design
 
-**Status:** Review
+**Status:** Approved
 **Last Updated:** 2026-11-26
 
 ## Architecture

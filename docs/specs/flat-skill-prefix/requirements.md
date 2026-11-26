@@ -1,6 +1,6 @@
 # Flat skill prefix: namespace flat-installed skills — Requirements
 
-**Status:** Review
+**Status:** Approved
 **Last Updated:** 2026-11-26
 
 Scope: `scripts/install-skills.sh` (flat copy), `plugins/sdd` 0.20.0, `plugins/render` 0.3.0.
