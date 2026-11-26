@@ -26,7 +26,9 @@ All behaviour lives in `scripts/install-skills.sh`, in the stages it already has
      followed directly by `` ` when installed as a plugin`` (the lookahead the current rule
      already uses) is left as is. The old `/sdd:` -> `/` rule is replaced by this. Non-markdown
      staged files (`.py`, `.sh`, `.json`) carry no invocations or skill paths today (checked by
-     grep) and are not rewritten.
+     grep) and are not rewritten. A line containing `pre-0.20 marker` is left verbatim, so
+     `sdd-init` can still name the old `.claude/skills/ship/SKILL.md` marker. Placeholder forms
+     such as `/sdd:<skill>` become `/sdd-<skill>`.
 3. **Migrate (step 2, new block before the sync loop).** With a manifest (`old`) and a non-empty
    map: for each manifest key `skills/<skill>/<rest>` with `<skill>` in the map, compute
    `skills/<flat>/<rest>`, and apply the first rule that fits:
