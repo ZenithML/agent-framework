@@ -211,6 +211,22 @@ PY
     bash -c "! grep -rnE '[/$](render:)?(frames|tune|trap|dcg)([^[:alnum:]/._-]|\$)|\.claude/skills/(frames|tune|trap|dcg)/' '$r/.claude' | grep -v 'when installed as a plugin'"
   check "--with-render: /render-frames and /render-tune referenced" \
     bash -c "grep -rqF '/render-frames' '$r/.claude/skills' && grep -rqF '/render-tune' '$r/.claude/skills'"
+  check "--with-render: no namespaced /sdd: or /render: invocation left (except plugin notes)" python3 - "$r/.claude" <<'PY'
+import os, re, sys
+rx = re.compile(r"(?<![^\s`(\['\"])[/$](?:sdd|render):[a-z][\w-]*")
+bad = []
+for d, _, fs in os.walk(sys.argv[1]):
+    for f in fs:
+        if not f.endswith('.md'):
+            continue
+        p = os.path.join(d, f)
+        t = open(p, encoding='utf-8').read()
+        for m in rx.finditer(t):
+            if not t.startswith('` when installed as a plugin', m.end()):
+                bad.append(p + ': ' + m.group(0))
+print('\n'.join(bad))
+sys.exit(1 if bad else 0)
+PY
   check "--with-render adds dcg standard" test -f "$r/.claude/standards/digital-content-generation.md"
 
   local d; d="$(new_project dry)"

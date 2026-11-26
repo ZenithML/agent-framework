@@ -240,7 +240,8 @@ import json, os, re, sys
 root = sys.argv[1]
 with open(sys.argv[2]) as fh:
     RENAMES = json.load(fh)
-_skills = sorted(set(RENAMES) | set(RENAMES.values()), key=len, reverse=True)
+SOURCE_SKILLS = [d for d in os.listdir(os.path.join(root, "skills")) if os.path.isdir(os.path.join(root, "skills", d))]
+_skills = sorted(set(RENAMES) | set(RENAMES.values()) | set(SOURCE_SKILLS), key=len, reverse=True)
 _alt = '|'.join(re.escape(n) for n in _skills)
 INVOKE = re.compile(r"(?<![^\s`(\['\"])([/$])(?:(?:sdd|render):)?(" + _alt + r")(?![\w/-]|\.\w)")
 PLACEHOLDER = re.compile(r"(?<![^\s`(\['\"])([/$])(sdd|render):(?=<)")
