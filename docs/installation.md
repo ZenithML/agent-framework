@@ -84,6 +84,17 @@ existed has no record of your edits, so its first re-run overwrites them. Check 
 that run. Compare `.claude/sdd/.harness-version` against this
 repo's plugin version to see whether you are behind.
 
+### Upgrading from before 0.20
+
+Flat installs before 0.20 used unprefixed skill names (`/ship`). From 0.20 every skill carries its
+plugin prefix (`/sdd-ship`, `render-frames`). Re-running the installer over a project with a
+`.harness-manifest` moves the old `.claude/skills/<skill>/` directories to the prefixed names
+automatically (keeping local edits, and setting `name:` in an edited `SKILL.md`), and prints
+`Renamed skills/<skill>/ -> skills/<flat>/` for each. Without a manifest, or when an old directory
+holds files the installer did not move, it is left in place and a warning on stderr names it:
+delete those leftovers once you have kept what you need. Then update your `AGENTS.md` and docs
+from `/ship` to `/sdd-ship` (and likewise for the other skills).
+
 ### Trying it locally, without committing
 
 To evaluate the harness in a project before the team agrees to adopt it, add `--local`:

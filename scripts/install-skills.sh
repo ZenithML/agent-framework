@@ -301,9 +301,11 @@ PYEOF
 #    - a file the new release no longer ships is deleted, unless edited locally.
 #    With no manifest (first install, or an install that predates it) every
 #    harness file is overwritten, as before.
-python3 - "$S" "$CLAUDE_DIR" "$OVERWRITE_LOCAL" <<'PYEOF'
-import hashlib, json, os, shutil, sys
+python3 - "$S" "$CLAUDE_DIR" "$OVERWRITE_LOCAL" "$STAGE/renames.json" <<'PYEOF'
+import hashlib, json, os, re, shutil, sys
 stage, dest, overwrite_local = sys.argv[1], sys.argv[2], sys.argv[3] == 'true'
+with open(sys.argv[4]) as fh:
+    RENAMES = json.load(fh)
 manifest_path = os.path.join(dest, 'sdd', '.harness-manifest')
 upstream_dir = os.path.join(dest, 'sdd', 'upstream')
 
@@ -315,6 +317,64 @@ old = None
 if os.path.exists(manifest_path):
     with open(manifest_path) as fh:
         old = json.load(fh).get('files', {})
+NAME_LINE = re.compile(r'\A(---\r?\n(?:(?!---).*\r?\n)*?)name:[ \t]*[^\r\n]*')
+
+def prune(path, stop):
+    parent = os.path.dirname(path)
+    while parent != stop and parent.startswith(stop) and os.path.isdir(parent) and not os.listdir(parent):
+        os.rmdir(parent)
+        parent = os.path.dirname(parent)
+
+def move(src, dst):
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.move(src, dst)
+
+# Migrate an unprefixed install: skills/<skill>/<rest> -> skills/<flat>/<rest>.
+# A legacy dir that is a symlink is never moved or followed.
+def legacy(skill):
+    return not os.path.islink(os.path.join(dest, 'skills', skill))
+
+skills_dir = os.path.join(dest, 'skills')
+if old is not None and RENAMES:
+    renamed = []
+    for key in sorted(old):
+        parts = key.split('/')
+        if len(parts) < 3 or parts[0] != 'skills' or parts[1] not in RENAMES or not legacy(parts[1]):
+            continue
+        skill, flat = parts[1], RENAMES[parts[1]]
+        newkey = '/'.join(['skills', flat] + parts[2:])
+        src, dst = os.path.join(dest, key), os.path.join(dest, newkey)
+        if os.path.isfile(src) and not os.path.lexists(dst):
+            edited = sha(src) != old[key]
+            move(src, dst)
+            old[newkey] = old.pop(key)
+            if edited and len(parts) == 3 and parts[2] == 'SKILL.md':
+                with open(dst, encoding='utf-8', newline='') as fh:
+                    text = fh.read()
+                text = NAME_LINE.sub(lambda m: m.group(1) + 'name: ' + flat, text, count=1)
+                with open(dst, 'w', encoding='utf-8', newline='') as fh:
+                    fh.write(text)
+            prune(src, skills_dir)
+            if skill not in renamed:
+                renamed.append(skill)
+        elif not os.path.lexists(src) and os.path.isfile(dst) and newkey not in old:
+            old[newkey] = old.pop(key)
+    for skill in RENAMES:
+        up = os.path.join(upstream_dir, 'skills', skill)
+        if os.path.islink(up) or not os.path.isdir(up):
+            continue
+        for dirpath, _dirs, files in os.walk(up):
+            for name in files:
+                src = os.path.join(dirpath, name)
+                dst = os.path.join(upstream_dir, 'skills', RENAMES[skill], os.path.relpath(src, up))
+                if not os.path.lexists(dst):
+                    move(src, dst)
+        for dirpath, _dirs, _files in os.walk(up, topdown=False):
+            if not os.listdir(dirpath):
+                os.rmdir(dirpath)
+    for skill in renamed:
+        print(f'  Renamed skills/{skill}/ -> skills/{RENAMES[skill]}/')
+
 # Preserve unresolved incoming copies across reruns. The manifest advances to
 # the incoming baseline, so deleting this directory can lose the only conflict copy.
 
@@ -347,6 +407,8 @@ for rel, digest in (old or {}).items():
     dst = os.path.join(dest, rel)
     if rel in new or not os.path.exists(dst):
         continue
+    if rel.startswith('skills/') and not legacy(rel.split('/')[1]):
+        continue  # a symlinked skill dir is never followed
     if sha(dst) != digest and not overwrite_local:
         new[rel] = digest  # Retain retired edits for a later explicit overwrite.
         kept.append(rel)
@@ -370,6 +432,10 @@ for rel in removed:
     print(f'  Removed {rel} (no longer shipped)')
 for rel in sorted(set(kept) - set(conflicts)):
     print(f'  Kept local edits: {rel}')
+for skill in sorted(RENAMES):
+    if os.path.lexists(os.path.join(dest, 'skills', skill)):
+        reason = 'no .harness-manifest' if old is None else 'holds files the installer did not move'
+        print(f'Warning: legacy skill directory .claude/skills/{skill}/ left in place ({reason})', file=sys.stderr)
 if conflicts:
     print('  Kept local edits, but upstream changed these too — merge by hand from', file=sys.stderr)
     print('  .claude/sdd/upstream/ (do not commit that dir), or re-run with --overwrite-local:', file=sys.stderr)
