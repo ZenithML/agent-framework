@@ -6,8 +6,8 @@
 # "flat" install commits the harness as plain repo-committed .claude/skills/ and
 # .claude/agents/ so they load in EVERY session type — local, claude.ai/code,
 # and CI — with no marketplace install step. This is the recommended method.
-# Skills install WITHOUT the sdd: namespace, so they are invoked as /ship,
-# /spec, /sdd-init, etc.
+# Skills install WITHOUT the sdd: namespace but with a flat prefix, so they are
+# invoked as /sdd-ship, /sdd-spec, /sdd-init, etc. and never shadow a built-in.
 #
 # Pass --with-render to additionally install the render plugin (perceptual
 # verification: capture endpoint, named observation set, traps). Its skills also
@@ -133,7 +133,7 @@ if [ "$DRY_RUN" = true ]; then
   echo "Planned actions:"
   echo "  - copy plugins/sdd/{skills,agents,standards,scripts,templates/docs,config,hooks} into $CLAUDE_DIR/"
   [ "$WITH_RENDER" = true ] && echo "  - copy plugins/render/{skills,standards} into $CLAUDE_DIR/"
-  echo "  - rewrite \${CLAUDE_PLUGIN_ROOT} -> .claude and /sdd:<skill> -> /<skill> in copied markdown"
+  echo "  - rewrite \${CLAUDE_PLUGIN_ROOT} -> .claude and /sdd:<skill> -> /sdd-<skill> in copied markdown"
   echo "  - keep harness files edited since the last install (manifest: $CLAUDE_DIR/sdd/.harness-manifest)"
   echo "  - declare the SessionStart hook in $SETTINGS"
   [ "$WANT_AGY" = true ] && echo "  - symlink $TARGET/.agents/skills -> ../.claude/skills (for agy / Antigravity / Codex)"
@@ -194,23 +194,70 @@ if [ "$WITH_RENDER" = true ]; then
   cp -r "$RENDER_DIR/standards/." "$S/standards/"
 fi
 
+# 1b2. Flat skills carry their plugin prefix: <skill> -> <plugin>-<skill> (unless
+#      it already starts with it). Rename the staged dirs, set the frontmatter
+#      name:, and record the map in $S/../renames.json (never installed).
+python3 - "$S" "$STAGE/renames.json" "$WITH_RENDER" "$PLUGIN_DIR/skills" "$RENDER_DIR/skills" <<'PYEOF'
+import json, os, re, sys
+root, out, with_render, sdd_src, render_src = sys.argv[1:6]
+plugins = [('sdd', sdd_src)] + ([('render', render_src)] if with_render == 'true' else [])
+renames = {}
+for plugin, src in plugins:
+    for skill in sorted(os.listdir(src)):
+        if not os.path.isdir(os.path.join(src, skill)):
+            continue
+        flat = skill if skill.startswith(plugin + '-') else plugin + '-' + skill
+        if flat == skill:
+            continue
+        renames[skill] = flat
+        old = os.path.join(root, 'skills', skill)
+        os.rename(old, os.path.join(root, 'skills', flat))
+        md = os.path.join(root, 'skills', flat, 'SKILL.md')
+        if os.path.isfile(md):
+            with open(md, encoding='utf-8', newline='') as fh:
+                text = fh.read()
+            text = re.sub(r'(?m)\A(---\r?\n(?:(?!---).*\r?\n)*?)name:[ \t]*[^\r\n]*', lambda m: m.group(1) + 'name: ' + flat, text, count=1)
+            with open(md, 'w', encoding='utf-8', newline='') as fh:
+                fh.write(text)
+with open(out, 'w') as fh:
+    json.dump(renames, fh, indent=2, sort_keys=True)
+    fh.write('\n')
+PYEOF
+
 # 1c. Rewrite the staged markdown for a flat install. Done in Python for
 #     portability — BSD/macOS `sed -i` is incompatible with GNU.
 #     - ${CLAUDE_PLUGIN_ROOT} -> repo-relative .claude/ paths. Order matters: the
 #       /config special case must run before the generic rule. A plugin-root
 #       line that becomes a copy of a line already in the same fenced block (a
 #       list naming both .claude/skills/ and the plugin's skills/) is dropped.
-#     - /sdd:<skill> and /render:<skill> -> /<skill>: flat-installed skills
-#       carry no namespace. A note that names the namespaced form on purpose
-#       ("or `/sdd:x` when installed as a plugin") is left as is.
-python3 - "$S" <<'PYEOF'
-import os, re, sys
+#     - Skill paths .claude/skills/<skill>/ -> .claude/skills/<flat>/.
+#     - Invocations /<skill>, $<skill>, /sdd:<skill>, /render:<skill> ->
+#       /<flat>, $<flat>: flat-installed skills carry no namespace but a prefix.
+#       A note that names the namespaced form on purpose ("or `/sdd:x` when
+#       installed as a plugin") is left as is.
+python3 - "$S" "$STAGE/renames.json" <<'PYEOF'
+import json, os, re, sys
 root = sys.argv[1]
-NAMESPACE = re.compile(r'/(?:sdd|render):(?=[a-z<])(?![\w-]+` when installed as a plugin)')
+with open(sys.argv[2]) as fh:
+    RENAMES = json.load(fh)
+_skills = sorted(set(RENAMES) | set(RENAMES.values()), key=len, reverse=True)
+_alt = '|'.join(re.escape(n) for n in _skills)
+INVOKE = re.compile(r"(?<![^\s`(\['\"])([/$])(?:(?:sdd|render):)?(" + _alt + r")(?![\w/-]|\.\w)")
+PLACEHOLDER = re.compile(r"(?<![^\s`(\['\"])([/$])(sdd|render):(?=<)")
+PATH = re.compile(r'\.claude/skills/(' + _alt + r')/')
+PLUGIN_NOTE = '` when installed as a plugin'
+
+def invoke(m, text):
+    if m.group(0)[1:].startswith(('sdd:', 'render:')) and text.startswith(PLUGIN_NOTE, m.end()):
+        return m.group(0)
+    return m.group(1) + RENAMES.get(m.group(2), m.group(2))
 
 def rewrite(text):
     out, block, in_fence = [], set(), False
     for line in text.split('\n'):
+        if 'pre-0.20 marker' in line:  # names the old unprefixed path on purpose
+            out.append(line)
+            continue
         if line.lstrip().startswith('```'):
             in_fence, block = not in_fence, set()
             out.append(line)
@@ -221,21 +268,26 @@ def rewrite(text):
             continue
         if in_fence:
             block.add(new)
-        out.append(NAMESPACE.sub('/', new))
+        new = PATH.sub(lambda m: '.claude/skills/' + RENAMES.get(m.group(1), m.group(1)) + '/', new)
+        new = INVOKE.sub(lambda m: invoke(m, new), new)
+        new = PLACEHOLDER.sub(lambda m: m.group(1) + m.group(2) + '-', new)
+        out.append(new)
     return '\n'.join(out)
 
+targets = []
 for sub in ('skills', 'agents', 'standards'):
     for dirpath, _dirs, files in os.walk(os.path.join(root, sub)):
-        for name in files:
-            if not name.endswith('.md'):
-                continue
-            path = os.path.join(dirpath, name)
-            with open(path, encoding='utf-8') as fh:
-                text = fh.read()
-            new = rewrite(text)
-            if new != text:
-                with open(path, 'w', encoding='utf-8') as fh:
-                    fh.write(new)
+        targets += [os.path.join(dirpath, n) for n in files if n.endswith('.md')]
+targets.append(os.path.join(root, 'templates', 'agent-routing.md'))
+for path in targets:
+    if not os.path.isfile(path):
+        continue
+    with open(path, encoding='utf-8') as fh:
+        text = fh.read()
+    new = rewrite(text)
+    if new != text:
+        with open(path, 'w', encoding='utf-8') as fh:
+            fh.write(new)
 PYEOF
 
 # 2. Sync the staged tree into the target. .claude/sdd/.harness-manifest records

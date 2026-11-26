@@ -58,23 +58,66 @@ test_flat() {
   check "no plugin-root paths left" bash -c "! grep -rq 'CLAUDE_PLUGIN_ROOT' '$p/.claude/skills' '$p/.claude/agents'"
   check "no /sdd: skill names left" bash -c "! grep -rE '/sdd:[a-z<]' '$p/.claude' | grep -v 'when installed as a plugin'"
   check "plugin-root rewrite adds no duplicate lines" \
-    test "$(grep -cx '.claude/skills/\*/SKILL.md' "$p/.claude/skills/lint-harness/SKILL.md")" -eq 1
+    test "$(grep -cx '.claude/skills/\*/SKILL.md' "$p/.claude/skills/sdd-lint-harness/SKILL.md")" -eq 1
   check "manifest written"          test -s "$p/.claude/sdd/.harness-manifest"
+
+  # Flat names: every skill carries its plugin prefix, and text follows.
+  local sk="$p/.claude/skills"
+  check "sdd-ship installed with name: sdd-ship" grep -qx 'name: sdd-ship' "$sk/sdd-ship/SKILL.md"
+  check "no unprefixed ship/ dir" test ! -e "$sk/ship"
+  check "every skill dir starts sdd-" bash -c "! ls '$sk' | grep -v '^sdd-'"
+  check "no double prefix: sdd-init keeps its name" \
+    bash -c "grep -qx 'name: sdd-init' '$sk/sdd-init/SKILL.md' && ! ls '$sk' | grep -q '^sdd-sdd-'"
+  check "no source-form skill invocations left in installed markdown" python3 - "$ROOT/plugins/sdd/skills" "$p/.claude" <<'PY'
+import os, re, sys
+src, root = sys.argv[1:3]
+names = sorted((n for n in os.listdir(src) if not n.startswith('sdd-')), key=len, reverse=True)
+rx = re.compile(r"(?<![^\s`(\['\"])([/$])(?:(?:sdd|render):)?(" + '|'.join(map(re.escape, names)) + r")(?![\w/-]|\.\w)")
+bad = []
+for base in ('skills', 'agents', 'standards', 'templates/agent-routing.md'):
+    path = os.path.join(root, base)
+    files = [path] if path.endswith('.md') else [os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs if f.endswith('.md')]
+    for f in files:
+        text = open(f, encoding='utf-8').read()
+        for m in rx.finditer(text):
+            if text[m.end():].startswith('` when installed as a plugin'):
+                continue
+            bad.append((f, m.group(0)))
+for b in bad[:10]:
+    print(b)
+sys.exit(1 if bad else 0)
+PY
+  check "triage-pr script path prefixed" \
+    bash -c "grep -q '.claude/skills/sdd-triage-pr/scripts' '$sk/sdd-triage-pr/SKILL.md' && ! grep -rq '.claude/skills/triage-pr/' '$p/.claude'"
+  check "non-invocations untouched (docs/specs/<domain>/tasks.md)" grep -q 'docs/specs/<domain>/tasks.md' "$p/.claude/agents/planner.md"
+  check "plugin note survives" grep -rq 'when installed as a plugin' "$sk/sdd-init/SKILL.md"
+  check "seeded AGENTS.md names /sdd-ship and \$sdd-ship" \
+    bash -c "grep -q '/sdd-ship' '$p/AGENTS.md' && grep -qF '\$sdd-ship' '$p/AGENTS.md' && ! grep -q '\`/ship\`' '$p/AGENTS.md'"
+  check "closing hint says /sdd-init" grep -q 'run /sdd-init' "$WORK/flat.log"
+  check "sdd-init names both flat-install markers" \
+    bash -c "grep -q 'skills/sdd-ship/SKILL.md' '$sk/sdd-init/SKILL.md' && grep -q 'skills/ship/SKILL.md' '$sk/sdd-init/SKILL.md'"
+  check "docs give /sdd-ship for flat installs" \
+    bash -c "grep -q '/sdd-ship' '$ROOT/docs/installation.md' && grep -q '/sdd-ship' '$ROOT/docs/plugins.md'"
+  check "plugin source keeps name: ship" bash -c "head -3 '$ROOT/plugins/sdd/skills/ship/SKILL.md' | grep -qx 'name: ship'"
+  check "sdd manifests say 0.20.0" \
+    bash -c "grep -q '\"version\": \"0.20.0\"' '$ROOT/plugins/sdd/.claude-plugin/plugin.json' && python3 -c \"import json,sys; m=json.load(open('$MARKETPLACE')); sys.exit(not(m['version']=='0.20.0' and {x['name']:x['version'] for x in m['plugins']}['sdd']=='0.20.0'))\""
+  check "render manifests say 0.3.0" \
+    bash -c "grep -q '\"version\": \"0.3.0\"' '$ROOT/plugins/render/.claude-plugin/plugin.json' && python3 -c \"import json,sys; m=json.load(open('$MARKETPLACE')); sys.exit({x['name']:x['version'] for x in m['plugins']}['render']!='0.3.0')\""
 
   git -C "$p" add -A && git -C "$p" -c user.name=t -c user.email=t@t commit -qm installed
   "$install" "$p" >/dev/null 2>&1
   check "re-run is idempotent" test -z "$(git -C "$p" status --porcelain)"
 
   # Local edits survive a re-run; the manifest is what tells them from upstream changes.
-  local ship="$p/.claude/skills/ship/SKILL.md" m="$p/.claude/sdd/.harness-manifest"
+  local ship="$p/.claude/skills/sdd-ship/SKILL.md" m="$p/.claude/sdd/.harness-manifest"
   echo "local edit" >> "$ship"
   "$install" "$p" >/dev/null 2>&1
   check "re-run keeps a local edit" grep -qx "local edit" "$ship"
   check "no upstream copy when upstream is unchanged" test ! -e "$p/.claude/sdd/upstream"
-  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['files']['skills/ship/SKILL.md']='0'*64; json.dump(d,open(sys.argv[1],'w'))" "$m"
+  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['files']['skills/sdd-ship/SKILL.md']='0'*64; json.dump(d,open(sys.argv[1],'w'))" "$m"
   "$install" "$p" >/dev/null 2>&1
   check "edited + upstream-changed: local kept" grep -qx "local edit" "$ship"
-  check "edited + upstream-changed: upstream copy saved" test -f "$p/.claude/sdd/upstream/skills/ship/SKILL.md"
+  check "edited + upstream-changed: upstream copy saved" test -f "$p/.claude/sdd/upstream/skills/sdd-ship/SKILL.md"
   "$install" --overwrite-local "$p" >/dev/null 2>&1
   check "--overwrite-local replaces the edit" bash -c "! grep -qx 'local edit' '$ship'"
 
@@ -97,8 +140,10 @@ PY
 
   local r; r="$(new_project render)"
   "$install" --with-render "$r" >/dev/null 2>&1
-  check "--with-render adds render skills" test -f "$r/.claude/skills/frames/SKILL.md"
-  check "--with-render adds dcg skill" test -f "$r/.claude/skills/dcg/SKILL.md"
+  check "--with-render adds render skills" test -f "$r/.claude/skills/render-frames/SKILL.md"
+  check "--with-render adds dcg skill" test -f "$r/.claude/skills/render-dcg/SKILL.md"
+  check "--with-render names: render-frames, render-init, no double prefix" \
+    bash -c "grep -qx 'name: render-frames' '$r/.claude/skills/render-frames/SKILL.md' && test -f '$r/.claude/skills/render-init/SKILL.md' && test ! -e '$r/.claude/skills/render-render-init' && test ! -e '$r/.claude/skills/frames'"
   check "--with-render adds dcg standard" test -f "$r/.claude/standards/digital-content-generation.md"
 
   local d; d="$(new_project dry)"
@@ -111,8 +156,10 @@ PY
   printf '[features]\nfoo = true\n' > "$c/.codex-seed"; mkdir -p "$c/.codex"; mv "$c/.codex-seed" "$c/.codex/config.toml"
   "$install" --harness claude,codex "$c" >/dev/null 2>&1
   check "codex: no generated role files" test ! -e "$c/.codex/agents"
+  check "codex: .agents/skills lists sdd-ship" bash -c "ls '$c/.agents/skills/' | grep -qx sdd-ship"
+  check "codex: closing hint says \$sdd-init" bash -c "'$install' --harness claude,codex '$c' 2>&1 | grep -qF '\$sdd-init'"
   check "codex: canonical critic role available" test -f "$c/.claude/agents/critic.md"
-  check "codex: .agents/skills reaches the skills" test -f "$c/.agents/skills/ship/SKILL.md"
+  check "codex: .agents/skills reaches the skills" test -f "$c/.agents/skills/sdd-ship/SKILL.md"
   check "codex: config.toml parses, keeps existing keys, mirrors .mcp.json" \
     python3 -c "import tomllib,sys; d=tomllib.load(open('$c/.codex/config.toml','rb')); m=d['mcp_servers']; sys.exit(not(d['features']['foo'] and m['gh']['bearer_token_env_var']=='GH_TOKEN' and m['pw']['command']=='npx'))"
   git -C "$c" add -A && git -C "$c" -c user.name=t -c user.email=t@t commit -qm installed
@@ -154,7 +201,7 @@ PY
     bash -c "test ! -e '$l/.claude' && cmp -s '$exclude' '$WORK/exclude.before'"
   if "$install" --local "$l" >"$WORK/local.log" 2>&1; then pass "--local exits 0"
   else fail "--local exits 0"; sed 's/^/        /' "$WORK/local.log"; fi
-  check "--local installs the skills" test -f "$l/.claude/skills/ship/SKILL.md"
+  check "--local installs the skills" test -f "$l/.claude/skills/sdd-ship/SKILL.md"
   check "--local leaves a clean git status" test -z "$(git -C "$l" status --porcelain)"
   check "--local declares the hook in settings.local.json" \
     test "$(grep -c remote-session-start "$l/.claude/settings.local.json")" -eq 1
@@ -170,15 +217,15 @@ PY
   mkdir -p "$t/.claude/skills/team" && echo "team" > "$t/.claude/skills/team/SKILL.md"
   git -C "$t" add -A && git -C "$t" -c user.name=t -c user.email=t@t commit -qm base
   check "--local refuses when it would change tracked files" bash -c "! '$install' --local --force '$t'"
-  check "--local refusal writes nothing" test ! -e "$t/.claude/skills/ship"
+  check "--local refusal writes nothing" test ! -e "$t/.claude/skills/sdd-ship"
 
   local o; o="$(new_project own)"
   mkdir -p "$o/.claude/skills/my-own-skill" && echo "own" > "$o/.claude/skills/my-own-skill/SKILL.md"
   "$install" "$o" >/dev/null 2>&1
-  check "refuses a foreign .claude/ without --force" test ! -f "$o/.claude/skills/ship/SKILL.md"
+  check "refuses a foreign .claude/ without --force" test ! -f "$o/.claude/skills/sdd-ship/SKILL.md"
   "$install" --force "$o" >/dev/null 2>&1
   check "--force installs alongside the project's own skills" \
-    bash -c "test -f '$o/.claude/skills/ship/SKILL.md' && grep -qx own '$o/.claude/skills/my-own-skill/SKILL.md'"
+    bash -c "test -f '$o/.claude/skills/sdd-ship/SKILL.md' && grep -qx own '$o/.claude/skills/my-own-skill/SKILL.md'"
 }
 
 # ── vendor ───────────────────────────────────────────────────────────────────
