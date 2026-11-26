@@ -131,6 +131,16 @@ for b in bad[:10]:
     print(b)
 sys.exit(1 if bad else 0)
 PY
+  check "no source-form invocations in installed evaluations JSON (still valid JSON)" python3 - "$ROOT/plugins/sdd/skills" "$p/.claude/skills" <<'PY'
+import glob, json, os, re, sys
+src, root = sys.argv[1:3]
+names = sorted((n for n in os.listdir(src) if not n.startswith('sdd-')), key=len, reverse=True)
+rx = re.compile(r"(?<![^\s`(\['\"])([/$])(?:sdd:)?(" + '|'.join(map(re.escape, names)) + r")(?![\w/-]|\.\w)")
+files = glob.glob(os.path.join(root, '*', 'evaluations', '*.json'))
+bad = [f for f in files if (json.load(open(f)) is None) or rx.search(open(f, encoding='utf-8').read())]
+print(bad[:5])
+sys.exit(1 if bad or not files else 0)
+PY
   check "longest-first: /sdd-qa-explore and /sdd-review-diff intact, no mangling" \
     bash -c "grep -rqF '/sdd-qa-explore' '$p/.claude' && grep -rqF '/sdd-review-diff' '$p/.claude' && ! grep -rqE 'sdd-sdd-|/sdd-qa-explore-explore|/sdd-qa -explore|/sdd-review-pr-diff' '$p/.claude'"
   # The plugin-note exception: a renamed skill followed by the note stays verbatim.

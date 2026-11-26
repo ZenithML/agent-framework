@@ -279,6 +279,19 @@ for sub in ('skills', 'agents', 'standards'):
     for dirpath, _dirs, files in os.walk(os.path.join(root, sub)):
         targets += [os.path.join(dirpath, n) for n in files if n.endswith('.md')]
 targets.append(os.path.join(root, 'templates', 'agent-routing.md'))
+# Evaluation queries invoke skills too: only the invocation rule applies there.
+json_targets = []
+for dirpath, _dirs, files in os.walk(os.path.join(root, 'skills')):
+    if os.path.basename(dirpath) == 'evaluations':
+        json_targets += [os.path.join(dirpath, n) for n in files if n.endswith('.json')]
+for path in json_targets:
+    with open(path, encoding='utf-8', newline='') as fh:
+        text = fh.read()
+    new = '\n'.join(INVOKE.sub(lambda m, ln=ln: invoke(m, ln), ln) for ln in text.split('\n'))
+    if new != text:
+        json.loads(new)
+        with open(path, 'w', encoding='utf-8', newline='') as fh:
+            fh.write(new)
 for path in targets:
     if not os.path.isfile(path):
         continue
@@ -478,10 +491,12 @@ for entry in hooks:
             found = True
 if not found:
     hooks.append({'hooks': [{'type': 'command', 'command': cmd}]})
-with open(path, 'w') as fh:
-    json.dump(settings, fh, indent=2)
-    fh.write('\n')
-print(f"  Updated {path}")
+before = open(path).read() if os.path.exists(path) else None
+after = json.dumps(settings, indent=2) + '\n'
+if before != after:
+    with open(path, 'w') as fh:
+        fh.write(after)
+    print(f"  Updated {path}")
 PYEOF
 
 # 4. Expose the skills to Antigravity (agy) and Codex, which scan .agents/skills/
