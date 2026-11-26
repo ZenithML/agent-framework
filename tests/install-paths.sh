@@ -71,7 +71,8 @@ test_flat() {
   check "no source-form skill invocations left in installed markdown" python3 - "$ROOT/plugins/sdd/skills" "$p/.claude" <<'PY'
 import os, re, sys
 src, root = sys.argv[1:3]
-names = sorted((n for n in os.listdir(src) if not n.startswith('sdd-')), key=len, reverse=True)
+names = sorted((n for d in (src, os.path.join(os.path.dirname(os.path.dirname(src)), 'render', 'skills')) for n in os.listdir(d)
+                if not n.startswith(('sdd-', 'render-'))), key=len, reverse=True)
 rx = re.compile(r"(?<![^\s`(\['\"])([/$])(?:(?:sdd|render):)?(" + '|'.join(map(re.escape, names)) + r")(?![\w/-]|\.\w)")
 bad = []
 for base in ('skills', 'agents', 'standards', 'templates/agent-routing.md'):
@@ -87,6 +88,15 @@ for b in bad[:10]:
     print(b)
 sys.exit(1 if bad else 0)
 PY
+  check "longest-first: /sdd-qa-explore and /sdd-review-diff intact, no mangling" \
+    bash -c "grep -rqF '/sdd-qa-explore' '$p/.claude' && grep -rqF '/sdd-review-diff' '$p/.claude' && ! grep -rqE 'sdd-sdd-|/sdd-qa-explore-explore|/sdd-qa -explore|/sdd-review-pr-diff' '$p/.claude'"
+  # The plugin-note exception: a renamed skill followed by the note stays verbatim.
+  local h="$WORK/harness-note" hp; hp="$(new_project note)"
+  mkdir -p "$h" && cp -r "$ROOT/scripts" "$ROOT/plugins" "$h/"
+  printf '\nSee `/sdd:ship` when installed as a plugin; otherwise /sdd:ship.\n' >> "$h/plugins/sdd/skills/plan/SKILL.md"
+  "$h/scripts/install-skills.sh" "$hp" >/dev/null 2>&1
+  check "plugin note kept verbatim for a renamed skill, plain use rewritten" \
+    grep -qxF 'See `/sdd:ship` when installed as a plugin; otherwise /sdd-ship.' "$hp/.claude/skills/sdd-plan/SKILL.md"
   check "triage-pr script path prefixed" \
     bash -c "grep -q '.claude/skills/sdd-triage-pr/scripts' '$sk/sdd-triage-pr/SKILL.md' && ! grep -rq '.claude/skills/triage-pr/' '$p/.claude'"
   check "non-invocations untouched (docs/specs/<domain>/tasks.md)" grep -q 'docs/specs/<domain>/tasks.md' "$p/.claude/agents/planner.md"
@@ -144,6 +154,10 @@ PY
   check "--with-render adds dcg skill" test -f "$r/.claude/skills/render-dcg/SKILL.md"
   check "--with-render names: render-frames, render-init, no double prefix" \
     bash -c "grep -qx 'name: render-frames' '$r/.claude/skills/render-frames/SKILL.md' && test -f '$r/.claude/skills/render-init/SKILL.md' && test ! -e '$r/.claude/skills/render-render-init' && test ! -e '$r/.claude/skills/frames'"
+  check "--with-render: no source-form render invocations or paths" \
+    bash -c "! grep -rnE '[/$](render:)?(frames|tune|trap|dcg)([^[:alnum:]/._-]|\$)|\.claude/skills/(frames|tune|trap|dcg)/' '$r/.claude' | grep -v 'when installed as a plugin'"
+  check "--with-render: /render-frames and /render-tune referenced" \
+    bash -c "grep -rqF '/render-frames' '$r/.claude/skills' && grep -rqF '/render-tune' '$r/.claude/skills'"
   check "--with-render adds dcg standard" test -f "$r/.claude/standards/digital-content-generation.md"
 
   local d; d="$(new_project dry)"

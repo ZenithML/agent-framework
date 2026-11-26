@@ -11,8 +11,8 @@
 #
 # Pass --with-render to additionally install the render plugin (perceptual
 # verification: capture endpoint, named observation set, traps). Its skills also
-# install without a namespace, so they are invoked as /frames, /tune, /trap,
-# /render-init. Omit it for projects with no visual output.
+# install with a flat prefix, so they are invoked as /render-frames,
+# /render-tune, /render-trap, /render-init. Omit it for projects with no visual output.
 #
 # --harness picks which agent CLIs the project is wired for (default: claude,agy).
 # .claude/ is always the canonical copy. agy / Antigravity and Codex both read
