@@ -32,7 +32,7 @@ the line, whitespace, or one of `` ` ( [ ' " `` and the name is not followed by 
   its SKILL.md frontmatter `name:` to the flat name: `/sdd-ship`, `/sdd-spec`, `/sdd-plan`,
   `/render-frames`, and so on.
 - **G2 No double prefix.** `sdd-init` stays `sdd-init`, `render-init` stays `render-init`.
-- **G3 Consistent references.** In the installed skills, agents and standards markdown, every
+- **G3 Consistent references.** In the installed skills, agents and standards markdown and the seeded `AGENTS.md` template, every
   invocation is rewritten to `/<flat name>` (or `$<flat name>`), and every skill path to
   `.claude/skills/<flat name>/`. The one exception is the existing plugin note: an invocation
   written `` `/sdd:<skill>` when installed as a plugin `` is left as is. Text that is not an
@@ -55,7 +55,7 @@ the line, whitespace, or one of `` ` ( [ ' " `` and the name is not followed by 
 - **G6 Legacy warning.** After the sync, every `.claude/skills/<skill>/` directory that still
   exists, with `<skill>` a skill-set name whose flat name differs, is reported on stderr as
   `Warning: legacy skill directory .claude/skills/<skill>/ left in place (<reason>)`, where
-  `<reason>` is `files the installer did not install` or `no .harness-manifest`. The install still succeeds (exit 0) and
+  `<reason>` is `holds files the installer did not move` or `no .harness-manifest`. The install still succeeds (exit 0) and
   still writes the prefixed directory.
 - **G7 Seeded routing and docs.** The seeded `AGENTS.md` template, the installer's closing hint
   (`run /sdd-init`, Codex `$sdd-init`), `docs/installation.md`, `docs/plugins.md` and the
@@ -122,8 +122,9 @@ release's copy of that file differs from the new release's (it always does: the 
 `name: sdd-ship`)
 **When** the new installer runs
 **Then** `.claude/skills/sdd-ship/SKILL.md` holds the local edit with `name: sdd-ship`,
-`.claude/skills/ship/` is gone, the output has `Kept local edits: skills/sdd-ship/SKILL.md`, and
-`.claude/sdd/upstream/skills/sdd-ship/SKILL.md` exists (upstream changed the file).
+`.claude/skills/ship/` is gone, `.claude/sdd/upstream/skills/sdd-ship/SKILL.md` exists, and
+stderr lists `skills/sdd-ship/SKILL.md` under the existing "Kept local edits, but upstream changed
+these too" block.
 
 ### Story 5b: Pending upstream copies, existing destinations, render
 
@@ -140,7 +141,7 @@ unedited old file is deleted as no longer shipped), and `.claude/skills/frames/`
 **Given** an old install with a manifest where the user added `.claude/skills/ship/notes.md`
 **When** the new installer runs
 **Then** `notes.md` is still there, the harness files moved to `sdd-ship/`, and stderr warns
-`legacy skill directory .claude/skills/ship/ left in place (files the installer did not install)`.
+`legacy skill directory .claude/skills/ship/ left in place (holds files the installer did not move)`.
 
 ### Story 7: An old install without a manifest is warned about
 
