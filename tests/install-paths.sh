@@ -171,6 +171,18 @@ PY
   "$install" "$p" >/dev/null 2>&1
   check "re-run is idempotent" test -z "$(git -C "$p" status --porcelain)"
 
+  # Settings are read and written as UTF-8 whatever the locale (non-ASCII survives a C-locale run).
+  local u="$(new_project flat-utf8)"
+  mkdir -p "$u/.claude"
+  printf '{"note": "caf\xc3\xa9 \xe2\x9c\x93"}\n' > "$u/.claude/settings.json"
+  check "non-ASCII settings.json survives a C-locale install" \
+    env LC_ALL=C LANG=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 PYTHONIOENCODING=ascii "$install" "$u"
+  check "non-ASCII value preserved and hook declared" python3 - "$u/.claude/settings.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding='utf-8'))
+sys.exit(not (d['note'] == 'caf\u00e9 \u2713' and 'remote-session-start' in json.dumps(d)))
+PY
+
   # Local edits survive a re-run; the manifest is what tells them from upstream changes.
   local ship="$p/.claude/skills/sdd-ship/SKILL.md" m="$p/.claude/sdd/.harness-manifest"
   echo "local edit" >> "$ship"

@@ -463,7 +463,7 @@ import json, os, sys
 path = sys.argv[1]
 settings = {}
 if os.path.exists(path):
-    with open(path) as fh:
+    with open(path, encoding='utf-8') as fh:
         settings = json.load(fh)
 def is_sdd_plugin_enabled(candidate):
     enabled_plugins = candidate.get('enabledPlugins')
@@ -473,7 +473,7 @@ def is_sdd_plugin_enabled(candidate):
 other = os.path.join(os.path.dirname(path), 'settings.json')
 other_settings = {}
 if other != path and os.path.exists(other):
-    with open(other) as fh:
+    with open(other, encoding='utf-8') as fh:
         other_settings = json.load(fh)
 if is_sdd_plugin_enabled(settings) or is_sdd_plugin_enabled(other_settings):
     print('Warning: the sdd plugin is still enabled. After reviewing the flat snapshot, disable that pipeline plugin registration to avoid loading duplicate skills. Settings were preserved.', file=sys.stderr)
@@ -492,10 +492,10 @@ for entry in hooks:
             found = True
 if not found:
     hooks.append({'hooks': [{'type': 'command', 'command': cmd}]})
-before = open(path).read() if os.path.exists(path) else None
+before = open(path, encoding='utf-8').read() if os.path.exists(path) else None
 after = json.dumps(settings, indent=2) + '\n'
 if before != after:
-    with open(path, 'w') as fh:
+    with open(path, 'w', encoding='utf-8') as fh:
         fh.write(after)
     print(f"  Updated {path}")
 PYEOF
@@ -544,11 +544,11 @@ if [ "$LOCAL" = true ]; then
 import os, sys
 path, wanted = sys.argv[1], ['/' + p for p in sys.argv[2:]]
 header = '# sdd harness --local install (personal trial, never committed)'
-lines = open(path).read().splitlines() if os.path.exists(path) else []
+lines = open(path, encoding='utf-8').read().splitlines() if os.path.exists(path) else []
 missing = [p for p in wanted if p not in lines]
 if missing:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'a') as fh:
+    with open(path, 'a', encoding='utf-8') as fh:
         if lines and lines[-1].strip():
             fh.write('\n')
         if header not in lines:
