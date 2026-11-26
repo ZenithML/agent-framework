@@ -33,21 +33,21 @@ class SharedRuntimeTests(unittest.TestCase):
         self.install()
         self.assertEqual((self.target / ".agents/skills").readlink(), Path("../.claude/skills"))
         self.assertFalse((self.target / ".codex/agents").exists())
-        self.assertIn("$ship", (self.target / "AGENTS.md").read_text())
+        self.assertIn("$sdd-ship", (self.target / "AGENTS.md").read_text())
         self.assertIn(".claude/agents/", (self.target / "AGENTS.md").read_text())
         for name, role in {"ship": "planner", "spec": "planner",
                            "plan": "planner", "tasks": "planner", "implement": "executor",
                            "critique": "critic", "qa": "tester", "qa-explore": "qa-engineer", "bug-hunt": "qa-engineer",
                            "publish": "publisher",
                            "audit": "archivist"}.items():
-            instructions = (self.target / f".agents/skills/{name}/SKILL.md").read_text()
+            instructions = (self.target / f".agents/skills/sdd-{name}/SKILL.md").read_text()
             self.assertIn(f".claude/agents/{role}.md", instructions, name)
             self.assertIn("Read", instructions, name)
             self.assertIn("in full", instructions, name)
         # Discovery must expose edits to the canonical file immediately, without regeneration.
-        canonical = self.target / ".claude/skills/ship/SKILL.md"
+        canonical = self.target / ".claude/skills/sdd-ship/SKILL.md"
         canonical.write_text(canonical.read_text() + "\nLocal instruction\n")
-        self.assertIn("Local instruction", (self.target / ".agents/skills/ship/SKILL.md").read_text())
+        self.assertIn("Local instruction", (self.target / ".agents/skills/sdd-ship/SKILL.md").read_text())
         self.install()
         self.assertIn("Local instruction", canonical.read_text())
         self.assertFalse((self.target / ".codex/agents").exists())
@@ -58,7 +58,7 @@ class SharedRuntimeTests(unittest.TestCase):
             installed = self.target / ".claude/agents" / source.name
             self.assertEqual(installed.read_text().split("---", 2)[1],
                              source.read_text().split("---", 2)[1], source.name)
-        dispatch = (self.target / ".agents/skills/ship/SKILL.md").read_text()
+        dispatch = (self.target / ".agents/skills/sdd-ship/SKILL.md").read_text()
         self.assertIn("provider_defaults", dispatch)
         self.assertIn("omit the Codex model override", dispatch)
         catalog = self.target / ".claude/sdd/model-tiers.json"
@@ -114,17 +114,17 @@ class SharedRuntimeTests(unittest.TestCase):
 
     def test_unresolved_incoming_files_survive_reruns_and_retired_edits_stay_tracked(self):
         self.install()
-        ship = self.target / ".claude/skills/ship/SKILL.md"
+        ship = self.target / ".claude/skills/sdd-ship/SKILL.md"
         ship.write_text(ship.read_text() + "\nCustom rule\n")
         manifest = self.target / ".claude/sdd/.harness-manifest"
         data = json.loads(manifest.read_text())
-        data["files"]["skills/ship/SKILL.md"] = "0" * 64
+        data["files"]["skills/sdd-ship/SKILL.md"] = "0" * 64
         retired = self.target / ".claude/agents/retired.md"
         retired.write_text("edited retired role\n")
         data["files"]["agents/retired.md"] = "0" * 64
         manifest.write_text(json.dumps(data))
         self.install()
-        incoming = self.target / ".claude/sdd/upstream/skills/ship/SKILL.md"
+        incoming = self.target / ".claude/sdd/upstream/skills/sdd-ship/SKILL.md"
         expected = incoming.read_bytes()
         self.install()
         self.assertTrue(incoming.exists())
