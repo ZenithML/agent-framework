@@ -295,7 +295,7 @@ PY
     bash -c "test -f '$o/.claude/skills/sdd-ship/SKILL.md' && grep -qx own '$o/.claude/skills/my-own-skill/SKILL.md'"
 
   # ── upgrade from an unprefixed install ──
-  local u1 u1c u1e
+  local u1 u1c
   u1="$(new_project up-clean)"; "$install" "$u1" >/dev/null 2>&1; downgrade "$u1"
   check "simulated old install has ship/ and no sdd-ship/" bash -c "test -f '$u1/.claude/skills/ship/SKILL.md' && test ! -e '$u1/.claude/skills/sdd-ship'"
   "$install" "$u1" >"$WORK/up1.out" 2>"$WORK/up1.err"; u1c=$?
@@ -312,7 +312,7 @@ PY
     bash -c "! grep -q Renamed '$WORK/up1b.out' && ! test -s '$WORK/up1b.err' && test -z \"\$(git -C '$u1' status --porcelain)\""
 
   # Story 5: edited SKILL.md keeps the edit under the flat dir with the flat name.
-  local u2 u2m; u2="$(new_project up-edit)"; "$install" "$u2" >/dev/null 2>&1; downgrade "$u2"
+  local u2; u2="$(new_project up-edit)"; "$install" "$u2" >/dev/null 2>&1; downgrade "$u2"
   echo "my edit" >> "$u2/.claude/skills/ship/SKILL.md"
   "$install" "$u2" >"$WORK/up2.out" 2>"$WORK/up2.err"
   check "story 5: edit kept under sdd-ship with flat name" \
@@ -378,6 +378,51 @@ PY
   "$install" "$u10" >/dev/null 2>&1
   check "interrupted upgrade: hand-moved edit kept, key renamed" \
     bash -c "grep -qx 'hand edit' '$u10/.claude/skills/sdd-ship/SKILL.md' && ! grep -q '\"skills/ship/SKILL.md' '$u10/.claude/sdd/.harness-manifest' && grep -q '\"skills/sdd-ship/SKILL.md' '$u10/.claude/sdd/.harness-manifest'"
+
+  # Mutant guards: unedited old file with an older body is overwritten, not kept.
+  local m1; m1="$(new_project up-oldbody)"; "$install" "$m1" >/dev/null 2>&1; downgrade "$m1"
+  echo "older release body" >> "$m1/.claude/skills/ship/SKILL.md"
+  python3 - "$m1/.claude" <<'PY'
+import hashlib, json, sys
+c = sys.argv[1]; mf = c + '/sdd/.harness-manifest'
+d = json.load(open(mf)); d['files']['skills/ship/SKILL.md'] = hashlib.sha256(open(c + '/skills/ship/SKILL.md', 'rb').read()).hexdigest()
+json.dump(d, open(mf, 'w'))
+PY
+  "$install" "$m1" >"$WORK/m1.out" 2>"$WORK/m1.err"
+  check "unedited old SKILL.md with an older body: overwritten by the new release, no conflict" \
+    bash -c "! grep -q 'older release body' '$m1/.claude/skills/sdd-ship/SKILL.md' && grep -qx 'name: sdd-ship' '$m1/.claude/skills/sdd-ship/SKILL.md' && test ! -e '$m1/.claude/sdd/upstream' && ! grep -q 'Kept local' '$WORK/m1.out' '$WORK/m1.err'"
+
+  # An edited non-SKILL.md file (nested, with a name: line) moves byte-identical.
+  local m2; m2="$(new_project up-nested)"; "$install" "$m2" >/dev/null 2>&1; downgrade "$m2"
+  printf -- '---\nname: keep-me\n---\nedited\n' > "$m2/.claude/skills/triage-pr/scripts/triage.py"
+  cp "$m2/.claude/skills/triage-pr/scripts/triage.py" "$WORK/triage.expected"
+  "$install" "$m2" >/dev/null 2>&1
+  check "edited nested file moves byte-identical (name: line untouched)" \
+    cmp -s "$WORK/triage.expected" "$m2/.claude/skills/sdd-triage-pr/scripts/triage.py"
+
+  # Manifest holds both keys; the old file was deleted by hand: the new file stays unedited.
+  local m3; m3="$(new_project up-bothkeys)"; "$install" "$m3" >/dev/null 2>&1; downgrade "$m3"
+  python3 - "$m3/.claude" <<'PY'
+import hashlib, json, os, sys
+c = sys.argv[1]; mf = c + '/sdd/.harness-manifest'
+body = b'older release body\n'
+os.makedirs(c + '/skills/sdd-ship', exist_ok=True)
+open(c + '/skills/sdd-ship/SKILL.md', 'wb').write(body)
+d = json.load(open(mf)); d['files']['skills/sdd-ship/SKILL.md'] = hashlib.sha256(body).hexdigest()
+json.dump(d, open(mf, 'w'))
+os.remove(c + '/skills/ship/SKILL.md')
+PY
+  "$install" "$m3" >/dev/null 2>&1
+  check "both manifest keys, old file deleted: unedited new file is updated" \
+    bash -c "grep -qx 'name: sdd-ship' '$m3/.claude/skills/sdd-ship/SKILL.md' && test ! -e '$m3/.claude/sdd/upstream'"
+
+  # A pending upstream copy never overwrites a newer one at the flat path.
+  local m4; m4="$(new_project up-upstream-both)"; "$install" "$m4" >/dev/null 2>&1; downgrade "$m4"
+  mkdir -p "$m4/.claude/sdd/upstream/skills/ship" "$m4/.claude/sdd/upstream/skills/sdd-ship"
+  echo old > "$m4/.claude/sdd/upstream/skills/ship/x.md"; echo newer > "$m4/.claude/sdd/upstream/skills/sdd-ship/x.md"
+  "$install" "$m4" >/dev/null 2>&1
+  check "pending upstream copy does not overwrite an existing flat copy" \
+    grep -qx newer "$m4/.claude/sdd/upstream/skills/sdd-ship/x.md"
 
   # Render upgrade with and without --with-render.
   local r1 r2; r1="$(new_project up-render)"; "$install" --with-render "$r1" >/dev/null 2>&1; downgrade "$r1"
