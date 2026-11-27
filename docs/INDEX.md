@@ -27,6 +27,7 @@
 | qa-explore: exploratory QA that finds and fixes bugs (0.14.0) | [`requirements.md`](specs/qa-explore/requirements.md), [`design.md`](specs/qa-explore/design.md), [`tasks.md`](specs/qa-explore/tasks.md) | Approved |
 | bug-hunt: static + runtime bug hunt with a gated fix PR (0.14.0) | [`requirements.md`](specs/bug-hunt/requirements.md), [`design.md`](specs/bug-hunt/design.md), [`tasks.md`](specs/bug-hunt/tasks.md) | Approved |
 | ship-orchestration: inline /ship, planning and publishing in the calling session (0.15.0, 0.16.0; architect mode removed in 0.19.0) | [`requirements.md`](specs/ship-orchestration/requirements.md), [`design.md`](specs/ship-orchestration/design.md), [`tasks.md`](specs/ship-orchestration/tasks.md) | Approved |
+| flat-skill-prefix: `sdd-`/`render-` prefix for flat-installed skills, with upgrade migration (0.20.0) | [`requirements.md`](specs/flat-skill-prefix/requirements.md), [`design.md`](specs/flat-skill-prefix/design.md), [`tasks.md`](specs/flat-skill-prefix/tasks.md) | Approved |
 
 ## Research
 

@@ -9,10 +9,10 @@ This page explains; it does not define. The procedure is
 [`ship-runbook.md`](../plugins/sdd/standards/ship-runbook.md), the design reasons are in
 [`agent-pipeline.md`](../plugins/sdd/standards/agent-pipeline.md), and the role contracts are in
 [`harness.md`](../plugins/sdd/standards/harness.md). When this page and those disagree, they win.
-It describes sdd **0.19.0**.
+It describes sdd **0.20.0**.
 
 Commands are written in plugin form (`/sdd:ship`). In a [flat copy](installation.md#flat-copy-recommended)
-they have no namespace (`/ship`), and in Codex they are `$ship`.
+they are prefixed instead (`/sdd-ship`), and in Codex and agy they are `$sdd-ship`.
 
 - [The agentic SDLC in one picture](#the-agentic-sdlc-in-one-picture)
 - [What the harness is made of](#what-the-harness-is-made-of)
@@ -206,7 +206,7 @@ setup is [Using Codex](installation.md#using-codex).
 
 Four routes get the plugin into a repository; they differ only in how the files arrive.
 
-![Four install routes from a tagged release: committed flat copy (recommended), local-only flat copy, marketplace, or vendored copy; then /sdd-init once and /ship](assets/how-it-works/11-install.excalidraw.svg)
+![Four install routes from a tagged release: committed flat copy (recommended), local-only flat copy, marketplace, or vendored copy; then /sdd-init once and ship a feature](assets/how-it-works/11-install.excalidraw.svg)
 
 ### How a flat-copy upgrade keeps your edits
 

@@ -8,6 +8,7 @@ for driving software work with an agent.
 | **`sdd`** | The pipeline — **spec → plan → implement → QA → publish**, with embedded critic gates and a TDD implement loop |
 | **`render`** | Perceptual work — visual verification (capture, frames, tune, traps) and code-driven 3D & audio digital content generation (DCG) |
 | **`ci-runner`** | CI on your own machine — a `ci-runner` command that installs a self-hosted GitHub Actions runner and switches a repo between it and GitHub-hosted runners |
+| **`learn`** | Learning with an AI tutor — an evidence-based learner model, placement, session planning, Socratic tutoring and objective grading; first subject pack: cyber resilience (SOC, SIEM, NDR) |
 
 ## How it works
 
@@ -26,7 +27,7 @@ your own repository. No account, server or external infrastructure is required.
 ## Tech stack
 
 The plugins are Markdown skills, agents and standards for Claude Code, plus a JSON config schema.
-The installers, gates and tests are Bash and Python 3 (standard library only). Both plugins are
+The installers, gates and tests are Bash and Python 3 (standard library only). The development plugins are
 stack-agnostic: each consuming repo describes its own toolchain in `.claude/sdd/config.json`.
 
 ## Getting started
@@ -43,7 +44,7 @@ To also wire the project for Codex, add `--harness claude,codex`. Skills are exp
 symlink, native subagents read the canonical Markdown roles, and MCP definitions are synced
 from `.mcp.json`; see [Using Codex](docs/installation.md#using-codex). `agy` is covered by default.
 
-Then open Claude Code in your project, run `/sdd-init` once, and `/ship <feature>` to start the
+Then open Claude Code in your project, run `/sdd-init` once, and `/sdd-ship <feature>` to start the
 pipeline. To install through the GitHub marketplace or as a vendored copy instead, see
 [Installation](docs/installation.md).
 

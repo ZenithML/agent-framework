@@ -1,6 +1,6 @@
 # Plugins
 
-This repository ships three Claude Code plugins. `.claude-plugin/marketplace.json` at the repo
+This repository ships four Claude Code plugins. `.claude-plugin/marketplace.json` at the repo
 root lists them all, so **the repository is itself the marketplace** (`sdd-harness`).
 
 ## sdd: the spec-driven pipeline
@@ -11,7 +11,7 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 21 skills (invoked as /sdd:<name>)
+  skills/<name>/SKILL.md        — 21 skills (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
   agents/<name>.md              — 7 agents (planner, critic, executor,
                                   tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
@@ -27,6 +27,9 @@ plugins/sdd/
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
 | `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
+
+> A flat install (`scripts/install-skills.sh`) prefixes every skill with its plugin name, so
+> `ship` is `/sdd-ship` there (`/sdd:ship` as a plugin) and render's `frames` is `/render-frames`.
 
 > Repository-specific release skills and release/CI-automation layers (tag-release,
 > prepare-release, back-merge, version bumping) are **intentionally excluded**. They are too
@@ -119,3 +122,23 @@ Self-hosted runners are for private repositories only. The plugin's
 [README](../plugins/ci-runner/README.md) has the quick start, the on/off modes, choosing the
 account, scaling, resource caps, the workflow check, how to make jobs runner-safe, and
 troubleshooting.
+
+## learn: learning with an AI tutor
+
+A tutor that tracks what the learner actually knows. One learner model records graded
+evidence and replays it into mastery, FSRS review schedules and a frontier of what to learn
+next; the skills set goals, place the learner, plan sessions, tutor with a hint ladder and
+grade against objective checks. See [`plugins/learn/README.md`](../plugins/learn/README.md).
+
+```
+plugins/learn/
+  .claude-plugin/plugin.json   — plugin manifest
+  skills/<name>/SKILL.md        — learn, learn-goal, learn-diagnose, learn-session, learn-eval
+  scripts/                      — learn.py command line, learner model, FSRS, graders, log generator
+  packs/<pack>/pack.json        — subject packs: concepts, prerequisites, items
+  standards/                    — learner-model and tutoring standards
+```
+
+The first pack, `soc-foundations`, teaches cyber resilience (SOC, SIEM, NDR) on synthetic,
+labelled logs. Detections are graded by running them: SQL directly in SQLite, Sigma rules
+after conversion with pySigma's SQLite backend.

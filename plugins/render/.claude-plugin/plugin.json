@@ -1,7 +1,7 @@
 {
   "name": "render",
   "description": "Verification and digital content generation harness for perceptual and game work — domains where a failure is something you see rather than something that throws. Gives an agent a capture endpoint, a named observation set, numeric proxies, symptom-keyed traps, and programmatic 3D/audio asset pipelines (DCG). Stack-agnostic; the project supplies a theme and a state adapter.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "zenithml"
   },
