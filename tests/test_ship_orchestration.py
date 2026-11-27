@@ -141,11 +141,11 @@ class ShipOrchestrationTests(unittest.TestCase):
             for name in ["gate-design.py", "gate-review.py"]:
                 self.assertTrue(os.access(target / ".claude/scripts" / name, os.X_OK), name)
             self.assertFalse((target / ".claude/agents/architect.md").exists())
-            for rel in [".claude/skills/ship/SKILL.md", ".claude/standards/ship-runbook.md"]:
+            for rel in [".claude/skills/sdd-ship/SKILL.md", ".claude/standards/ship-runbook.md"]:
                 text = (target / rel).read_text()
                 self.assertIn(".claude/scripts/gate-design.py", text, rel)
                 self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", text, rel)
-            ship = (target / ".claude/skills/ship/SKILL.md").read_text()
+            ship = (target / ".claude/skills/sdd-ship/SKILL.md").read_text()
             self.assertIn(".claude/standards/ship-runbook.md", ship)
 
 
