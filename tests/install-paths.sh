@@ -150,6 +150,16 @@ PY
   "$h/scripts/install-skills.sh" "$hp" >/dev/null 2>&1
   check "plugin note kept verbatim for a renamed skill, plain use rewritten" \
     grep -qxF 'See `/sdd:ship` when installed as a plugin; otherwise /sdd-ship.' "$hp/.claude/skills/sdd-plan/SKILL.md"
+  # Bytecode a source checkout picks up from running its own tests is never installed.
+  local hb="$WORK/harness-pyc" hbp; hbp="$(new_project pyc)"
+  mkdir -p "$hb" && cp -r "$ROOT/scripts" "$ROOT/plugins" "$hb/"
+  mkdir -p "$hb/plugins/sdd/skills/triage-pr/scripts/__pycache__" "$hb/plugins/sdd/scripts/__pycache__"
+  echo x > "$hb/plugins/sdd/skills/triage-pr/scripts/__pycache__/triage.cpython-313.pyc"
+  echo x > "$hb/plugins/sdd/scripts/__pycache__/gate.cpython-313.pyc"
+  echo x > "$hb/plugins/sdd/scripts/stray.pyc"
+  "$hb/scripts/install-skills.sh" "$hbp" >/dev/null 2>&1
+  check "no __pycache__ or .pyc installed or in the manifest" \
+    bash -c "test -z \"\$(find '$hbp/.claude' -name __pycache__ -o -name '*.pyc')\" && ! grep -qE 'pycache|\.pyc' '$hbp/.claude/sdd/.harness-manifest'"
   check "triage-pr script path prefixed" \
     bash -c "grep -q '.claude/skills/sdd-triage-pr/scripts' '$sk/sdd-triage-pr/SKILL.md' && ! grep -rq '.claude/skills/triage-pr/' '$p/.claude'"
   check "non-invocations untouched (docs/specs/<domain>/tasks.md)" grep -q 'docs/specs/<domain>/tasks.md' "$p/.claude/agents/planner.md"
@@ -162,10 +172,16 @@ PY
   check "docs give /sdd-ship for flat installs" \
     bash -c "grep -q '/sdd-ship' '$ROOT/docs/installation.md' && grep -q '/sdd-ship' '$ROOT/docs/plugins.md'"
   check "plugin source keeps name: ship" bash -c "head -3 '$ROOT/plugins/sdd/skills/ship/SKILL.md' | grep -qx 'name: ship'"
-  check "sdd manifests say 0.20.0" \
-    bash -c "grep -q '\"version\": \"0.20.0\"' '$ROOT/plugins/sdd/.claude-plugin/plugin.json' && python3 -c \"import json,sys; m=json.load(open('$MARKETPLACE')); sys.exit(not(m['version']=='0.20.0' and {x['name']:x['version'] for x in m['plugins']}['sdd']=='0.20.0'))\""
-  check "render manifests say 0.3.0" \
-    bash -c "grep -q '\"version\": \"0.3.0\"' '$ROOT/plugins/render/.claude-plugin/plugin.json' && python3 -c \"import json,sys; m=json.load(open('$MARKETPLACE')); sys.exit({x['name']:x['version'] for x in m['plugins']}['render']!='0.3.0')\""
+  # The prefix arrived in sdd 0.20.0 / render 0.3.0; both manifests must agree on a version at least that.
+  check "sdd >= 0.20.0 and render >= 0.3.0, same in both manifests" python3 - "$ROOT" <<'PY'
+import json, sys
+root = sys.argv[1]
+v = lambda s: tuple(int(x) for x in s.split("."))
+m = {x['name']: x['version'] for x in json.load(open(f'{root}/.claude-plugin/marketplace.json'))['plugins']}
+sdd = json.load(open(f'{root}/plugins/sdd/.claude-plugin/plugin.json'))['version']
+render = json.load(open(f'{root}/plugins/render/.claude-plugin/plugin.json'))['version']
+sys.exit(not (m['sdd'] == sdd and m['render'] == render and v(sdd) >= (0, 20, 0) and v(render) >= (0, 3, 0)))
+PY
 
   git -C "$p" add -A && git -C "$p" -c user.name=t -c user.email=t@t commit -qm installed
   "$install" "$p" >/dev/null 2>&1
