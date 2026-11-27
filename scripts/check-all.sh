@@ -32,6 +32,8 @@ GATES=(
   markdown_links
   agent_tools_declared
   agent_tool_seal
+  script_refs
+  always_on_budget
 )
 
 OVERALL=0
