@@ -11,12 +11,13 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 20 slash commands (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
+  skills/<name>/SKILL.md        — 21 skills (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
   agents/<name>.md              — 7 agents (planner, critic, executor,
                                   tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
   templates/docs/               — canonical requirements/design/tasks/ADR templates
-  standards/                    — harness, doc-structure, branching-model, agent-pipeline
+  standards/                    — harness, doc-structure, branching-model, agent-pipeline,
+                                  ship-runbook
   config/                       — config.schema.json + example configs (npm, python)
 ```
 
