@@ -194,6 +194,10 @@ if [ "$WITH_RENDER" = true ]; then
   cp -r "$RENDER_DIR/standards/." "$S/standards/"
 fi
 
+# 1b1. Python bytecode a source checkout picks up from running its own tests is
+#      host- and version-specific; it is never part of a release.
+find "$S" \( -name __pycache__ -type d -prune -exec rm -rf {} + \) -o \( -name '*.pyc' -type f -exec rm -f {} + \)
+
 # 1b2. Flat skills carry their plugin prefix: <skill> -> <plugin>-<skill> (unless
 #      it already starts with it). Rename the staged dirs, set the frontmatter
 #      name:, and record the map in $S/../renames.json (never installed).
