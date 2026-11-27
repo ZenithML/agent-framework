@@ -11,7 +11,7 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 23 slash commands (invoked as /sdd:<name>)
+  skills/<name>/SKILL.md        — 23 slash commands (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
   agents/<name>.md              — 7 agents (planner, critic, executor,
                                   tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
@@ -28,6 +28,9 @@ plugins/sdd/
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
 | `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` · `productionize` · `migrate` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
+
+> A flat install (`scripts/install-skills.sh`) prefixes every skill with its plugin name, so
+> `ship` is `/sdd-ship` there (`/sdd:ship` as a plugin) and render's `frames` is `/render-frames`.
 
 > Repository-specific release skills and release/CI-automation layers (tag-release,
 > prepare-release, back-merge, version bumping) are **intentionally excluded**. They are too

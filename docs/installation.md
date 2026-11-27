@@ -14,7 +14,8 @@ pipeline. They differ only in *how the skills get into your repo*. Every method 
 CI by [`tests/install-paths.sh`](../tests/install-paths.sh).
 
 > **Command names differ by method.** Flat copy installs the skills **without** the `sdd:`
-> namespace, so you invoke them as `/ship`, `/spec`, `/sdd-init`. The marketplace and vendored
+> namespace but with an `sdd-` prefix, so you invoke them as `/sdd-ship`, `/sdd-spec`, `/sdd-init`
+> (render skills get `render-`: `/render-frames`). The marketplace and vendored
 > methods install them as a **plugin**, which keeps the namespace: `/sdd:ship`, `/sdd:spec`,
 > `/sdd:sdd-init`. (The `sdd-init` name avoids clashing with Claude Code's built-in `/init`.)
 
@@ -47,7 +48,8 @@ The script does these things:
 - copies `plugins/sdd/{skills,agents,standards,templates,config,hooks}` into
   `<your-project>/.claude/`
 - rewrites the plugin's `${CLAUDE_PLUGIN_ROOT}` paths to repo-relative `.claude/` paths, and
-  `/sdd:<skill>` references to `/<skill>` (flat-installed skills have no namespace)
+  `/sdd:<skill>` references to `/sdd-<skill>` (flat-installed skills have no namespace; every skill
+  is renamed with its plugin prefix, so none shadows a Claude Code built-in)
 - declares the SessionStart hook in `.claude/settings.json`
 - symlinks `.agents/skills` to `.claude/skills`, so Antigravity (`agy`) and Codex discover the skills
   too (foreign symlinks and existing directories remain intact, with a warning)
@@ -67,7 +69,7 @@ git add AGENTS.md .claude/ .agents/   # plus .codex/config.toml if MCP is config
 git commit -m "chore: install sdd harness"
 ```
 
-**Step 4: open Claude Code in your project and run `/sdd-init`.** Then run `/ship <feature>` to
+**Step 4: open Claude Code in your project and run `/sdd-init`.** Then run `/sdd-ship <feature>` to
 start the pipeline.
 
 **To update later:** `git pull` in your harness checkout, re-run
@@ -81,6 +83,17 @@ tracked so an explicit later `--overwrite-local` can retire them. An install fro
 existed has no record of your edits, so its first re-run overwrites them. Check `git diff` after
 that run. Compare `.claude/sdd/.harness-version` against this
 repo's plugin version to see whether you are behind.
+
+### Upgrading from before 0.20
+
+Flat installs before 0.20 used unprefixed skill names (`/ship`). From 0.20 every skill carries its
+plugin prefix (`/sdd-ship`, `render-frames`). Re-running the installer over a project with a
+`.harness-manifest` moves the old `.claude/skills/<skill>/` directories to the prefixed names
+automatically (keeping local edits, and setting `name:` in an edited `SKILL.md`), and prints
+`Renamed skills/<skill>/ -> skills/<flat>/` for each. Without a manifest, or when an old directory
+holds files the installer did not move, it is left in place and a warning on stderr names it:
+delete those leftovers once you have kept what you need. Then update your `AGENTS.md` and docs
+from `/ship` to `/sdd-ship` (and likewise for the other skills).
 
 ### Trying it locally, without committing
 
@@ -126,7 +139,7 @@ Codex at once. Codex has no plugin marketplace path here; flat copy is the suppo
 | Piece | Claude Code | Codex |
 |---|---|---|
 | Rules | `AGENTS.md` | `AGENTS.md` (same file) |
-| Skills | `.claude/skills/` | `.agents/skills/`, a symlink to `.claude/skills/`; invoke with `$ship`, `$sdd-init` or `/skills` |
+| Skills | `.claude/skills/` | `.agents/skills/`, a symlink to `.claude/skills/`; invoke with `$sdd-ship`, `$sdd-init` or `/skills` |
 | Subagents | Registered roles from `agents/*.md` | Native generic subagents receive the full canonical `.claude/agents/*.md` and scoped stage inputs; no generated role copies |
 | MCP servers | `.mcp.json` | `.codex/config.toml`: the installer mirrors `.mcp.json` into a marked `[mcp_servers.*]` block and leaves the rest of the file alone |
 
@@ -161,7 +174,7 @@ by the installer. Restart or reload the client if new skills are absent from dis
 
 In this framework source checkout, both `.claude/skills` and `.agents/skills` link directly
 to `plugins/sdd/skills`, and `.claude/agents` links to `plugins/sdd/agents`. Starting Claude
-from the repository root exposes `/ship`, `/spec`, etc. as project skills without a plugin
+from the repository root exposes `/ship`, `/spec`, etc. as project skills (source names; a flat consumer install uses `/sdd-ship`, `/sdd-spec`) without a plugin
 install; Codex discovers the same canonical files. The source project's settings disable
 `sdd@sdd-harness`, preventing a globally cached older plugin from replacing or duplicating
 these project skills. Consumer marketplace and vendored routes below retain `/sdd:` names.
