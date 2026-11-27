@@ -4,13 +4,13 @@
     "name": "zenithml"
   },
   "description": "Agent harness \u2014 a stack-agnostic spec-driven pipeline (spec \u2192 plan \u2192 implement \u2192 QA \u2192 publish), plus a verification harness for perceptual work, packaged as reusable Claude Code plugins.",
-  "version": "0.20.0",
+  "version": "0.22.0",
   "plugins": [
     {
       "name": "sdd",
       "source": "./plugins/sdd",
-      "description": "Spec-driven development pipeline: orchestrator + planner/executor/critic/tester/publisher/archivist agents, TDD implement loop, exploratory QA and bug hunts that fix what they find, doc-audit, and PR workflow. Stack-agnostic via .claude/sdd/config.json.",
-      "version": "0.20.0",
+      "description": "Spec-driven development pipeline: orchestrator + planner/executor/critic/tester/publisher/archivist agents, TDD implement loop, exploratory QA and bug hunts that fix what they find, production-readiness and migration runs with before/after evidence, doc-audit, and PR workflow. Stack-agnostic via .claude/sdd/config.json.",
+      "version": "0.22.0",
       "author": {
         "name": "zenithml"
       },
@@ -28,7 +28,7 @@
       "name": "render",
       "source": "./plugins/render",
       "description": "Verification and digital content generation harness for perceptual work: capture endpoint, named observation set, numeric proxies, symptom-keyed traps, and programmatic 3D/audio asset pipelines (DCG). For domains where a failure is something you see rather than something that throws.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "zenithml"
       },

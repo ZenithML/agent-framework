@@ -6,13 +6,13 @@
 # "flat" install commits the harness as plain repo-committed .claude/skills/ and
 # .claude/agents/ so they load in EVERY session type — local, claude.ai/code,
 # and CI — with no marketplace install step. This is the recommended method.
-# Skills install WITHOUT the sdd: namespace, so they are invoked as /ship,
-# /spec, /sdd-init, etc.
+# Skills install WITHOUT the sdd: namespace but with a flat prefix, so they are
+# invoked as /sdd-ship, /sdd-spec, /sdd-init, etc. and never shadow a built-in.
 #
 # Pass --with-render to additionally install the render plugin (perceptual
 # verification: capture endpoint, named observation set, traps). Its skills also
-# install without a namespace, so they are invoked as /frames, /tune, /trap,
-# /render-init. Omit it for projects with no visual output.
+# install with a flat prefix, so they are invoked as /render-frames,
+# /render-tune, /render-trap, /render-init. Omit it for projects with no visual output.
 #
 # --harness picks which agent CLIs the project is wired for (default: claude,agy).
 # .claude/ is always the canonical copy. agy / Antigravity and Codex both read
@@ -133,7 +133,7 @@ if [ "$DRY_RUN" = true ]; then
   echo "Planned actions:"
   echo "  - copy plugins/sdd/{skills,agents,standards,scripts,templates/docs,config,hooks} into $CLAUDE_DIR/"
   [ "$WITH_RENDER" = true ] && echo "  - copy plugins/render/{skills,standards} into $CLAUDE_DIR/"
-  echo "  - rewrite \${CLAUDE_PLUGIN_ROOT} -> .claude and /sdd:<skill> -> /<skill> in copied markdown"
+  echo "  - rewrite \${CLAUDE_PLUGIN_ROOT} -> .claude and /sdd:<skill> -> /sdd-<skill> in copied markdown"
   echo "  - keep harness files edited since the last install (manifest: $CLAUDE_DIR/sdd/.harness-manifest)"
   echo "  - declare the SessionStart hook in $SETTINGS"
   [ "$WANT_AGY" = true ] && echo "  - symlink $TARGET/.agents/skills -> ../.claude/skills (for agy / Antigravity / Codex)"
@@ -194,23 +194,75 @@ if [ "$WITH_RENDER" = true ]; then
   cp -r "$RENDER_DIR/standards/." "$S/standards/"
 fi
 
+# 1b1. Python bytecode a source checkout picks up from running its own tests is
+#      host- and version-specific; it is never part of a release.
+find "$S" \( -name __pycache__ -type d -prune -exec rm -rf {} + \) -o \( -name '*.pyc' -type f -exec rm -f {} + \)
+
+# 1b2. Flat skills carry their plugin prefix: <skill> -> <plugin>-<skill> (unless
+#      it already starts with it). Rename the staged dirs, set the frontmatter
+#      name:, and record the map in $S/../renames.json (never installed).
+python3 - "$S" "$STAGE/renames.json" "$WITH_RENDER" "$PLUGIN_DIR/skills" "$RENDER_DIR/skills" <<'PYEOF'
+import json, os, re, sys
+root, out, with_render, sdd_src, render_src = sys.argv[1:6]
+plugins = [('sdd', sdd_src)] + ([('render', render_src)] if with_render == 'true' else [])
+renames = {}
+for plugin, src in plugins:
+    for skill in sorted(os.listdir(src)):
+        if not os.path.isdir(os.path.join(src, skill)):
+            continue
+        flat = skill if skill.startswith(plugin + '-') else plugin + '-' + skill
+        if flat == skill:
+            continue
+        renames[skill] = flat
+        old = os.path.join(root, 'skills', skill)
+        os.rename(old, os.path.join(root, 'skills', flat))
+        md = os.path.join(root, 'skills', flat, 'SKILL.md')
+        if os.path.isfile(md):
+            with open(md, encoding='utf-8', newline='') as fh:
+                text = fh.read()
+            text = re.sub(r'(?m)\A(---\r?\n(?:(?!---).*\r?\n)*?)name:[ \t]*[^\r\n]*', lambda m: m.group(1) + 'name: ' + flat, text, count=1)
+            with open(md, 'w', encoding='utf-8', newline='') as fh:
+                fh.write(text)
+with open(out, 'w') as fh:
+    json.dump(renames, fh, indent=2, sort_keys=True)
+    fh.write('\n')
+PYEOF
+
 # 1c. Rewrite the staged markdown for a flat install. Done in Python for
 #     portability — BSD/macOS `sed -i` is incompatible with GNU.
 #     - ${CLAUDE_PLUGIN_ROOT} -> repo-relative .claude/ paths. Order matters: the
 #       /config special case must run before the generic rule. A plugin-root
 #       line that becomes a copy of a line already in the same fenced block (a
 #       list naming both .claude/skills/ and the plugin's skills/) is dropped.
-#     - /sdd:<skill> and /render:<skill> -> /<skill>: flat-installed skills
-#       carry no namespace. A note that names the namespaced form on purpose
-#       ("or `/sdd:x` when installed as a plugin") is left as is.
-python3 - "$S" <<'PYEOF'
-import os, re, sys
+#     - Skill paths .claude/skills/<skill>/ -> .claude/skills/<flat>/.
+#     - Invocations /<skill>, $<skill>, /sdd:<skill>, /render:<skill> ->
+#       /<flat>, $<flat>: flat-installed skills carry no namespace but a prefix.
+#       A note that names the namespaced form on purpose ("or `/sdd:x` when
+#       installed as a plugin") is left as is.
+python3 - "$S" "$STAGE/renames.json" <<'PYEOF'
+import json, os, re, sys
 root = sys.argv[1]
-NAMESPACE = re.compile(r'/(?:sdd|render):(?=[a-z<])(?![\w-]+` when installed as a plugin)')
+with open(sys.argv[2]) as fh:
+    RENAMES = json.load(fh)
+SOURCE_SKILLS = [d for d in os.listdir(os.path.join(root, "skills")) if os.path.isdir(os.path.join(root, "skills", d))]
+_skills = sorted(set(RENAMES) | set(RENAMES.values()) | set(SOURCE_SKILLS), key=len, reverse=True)
+_alt = '|'.join(re.escape(n) for n in _skills)
+INVOKE = re.compile(r"(?<![^\s`(\['\"])([/$])(?:(?:sdd|render):)?(" + _alt + r")(?![\w/-]|\.\w)")
+PLACEHOLDER = re.compile(r"(?<![^\s`(\['\"])([/$])(sdd|render):(?=<)")
+PATH = re.compile(r'\.claude/skills/(' + _alt + r')/')
+PLUGIN_NOTE = '` when installed as a plugin'
+
+def invoke(m, text):
+    if m.group(0)[1:].startswith(('sdd:', 'render:')) and text.startswith(PLUGIN_NOTE, m.end()):
+        return m.group(0)
+    return m.group(1) + RENAMES.get(m.group(2), m.group(2))
 
 def rewrite(text):
     out, block, in_fence = [], set(), False
     for line in text.split('\n'):
+        if 'pre-0.20 marker' in line:  # names the old unprefixed path on purpose
+            out.append(line)
+            continue
         if line.lstrip().startswith('```'):
             in_fence, block = not in_fence, set()
             out.append(line)
@@ -221,21 +273,39 @@ def rewrite(text):
             continue
         if in_fence:
             block.add(new)
-        out.append(NAMESPACE.sub('/', new))
+        new = PATH.sub(lambda m: '.claude/skills/' + RENAMES.get(m.group(1), m.group(1)) + '/', new)
+        new = INVOKE.sub(lambda m: invoke(m, new), new)
+        new = PLACEHOLDER.sub(lambda m: m.group(1) + m.group(2) + '-', new)
+        out.append(new)
     return '\n'.join(out)
 
+targets = []
 for sub in ('skills', 'agents', 'standards'):
     for dirpath, _dirs, files in os.walk(os.path.join(root, sub)):
-        for name in files:
-            if not name.endswith('.md'):
-                continue
-            path = os.path.join(dirpath, name)
-            with open(path, encoding='utf-8') as fh:
-                text = fh.read()
-            new = rewrite(text)
-            if new != text:
-                with open(path, 'w', encoding='utf-8') as fh:
-                    fh.write(new)
+        targets += [os.path.join(dirpath, n) for n in files if n.endswith('.md')]
+targets.append(os.path.join(root, 'templates', 'agent-routing.md'))
+# Evaluation queries invoke skills too: only the invocation rule applies there.
+json_targets = []
+for dirpath, _dirs, files in os.walk(os.path.join(root, 'skills')):
+    if os.path.basename(dirpath) == 'evaluations':
+        json_targets += [os.path.join(dirpath, n) for n in files if n.endswith('.json')]
+for path in json_targets:
+    with open(path, encoding='utf-8', newline='') as fh:
+        text = fh.read()
+    new = '\n'.join(INVOKE.sub(lambda m, ln=ln: invoke(m, ln), ln) for ln in text.split('\n'))
+    if new != text:
+        json.loads(new)
+        with open(path, 'w', encoding='utf-8', newline='') as fh:
+            fh.write(new)
+for path in targets:
+    if not os.path.isfile(path):
+        continue
+    with open(path, encoding='utf-8') as fh:
+        text = fh.read()
+    new = rewrite(text)
+    if new != text:
+        with open(path, 'w', encoding='utf-8') as fh:
+            fh.write(new)
 PYEOF
 
 # 2. Sync the staged tree into the target. .claude/sdd/.harness-manifest records
@@ -249,9 +319,11 @@ PYEOF
 #    - a file the new release no longer ships is deleted, unless edited locally.
 #    With no manifest (first install, or an install that predates it) every
 #    harness file is overwritten, as before.
-python3 - "$S" "$CLAUDE_DIR" "$OVERWRITE_LOCAL" <<'PYEOF'
-import hashlib, json, os, shutil, sys
+python3 - "$S" "$CLAUDE_DIR" "$OVERWRITE_LOCAL" "$STAGE/renames.json" <<'PYEOF'
+import hashlib, json, os, re, shutil, sys
 stage, dest, overwrite_local = sys.argv[1], sys.argv[2], sys.argv[3] == 'true'
+with open(sys.argv[4]) as fh:
+    RENAMES = json.load(fh)
 manifest_path = os.path.join(dest, 'sdd', '.harness-manifest')
 upstream_dir = os.path.join(dest, 'sdd', 'upstream')
 
@@ -263,6 +335,64 @@ old = None
 if os.path.exists(manifest_path):
     with open(manifest_path) as fh:
         old = json.load(fh).get('files', {})
+NAME_LINE = re.compile(r'\A(---\r?\n(?:(?!---).*\r?\n)*?)name:[ \t]*[^\r\n]*')
+
+def prune(path, stop):
+    parent = os.path.dirname(path)
+    while parent != stop and parent.startswith(stop) and os.path.isdir(parent) and not os.listdir(parent):
+        os.rmdir(parent)
+        parent = os.path.dirname(parent)
+
+def move(src, dst):
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.move(src, dst)
+
+# Migrate an unprefixed install: skills/<skill>/<rest> -> skills/<flat>/<rest>.
+# A legacy dir that is a symlink is never moved or followed.
+def legacy(skill):
+    return not os.path.islink(os.path.join(dest, 'skills', skill))
+
+skills_dir = os.path.join(dest, 'skills')
+if old is not None and RENAMES:
+    renamed = []
+    for key in sorted(old):
+        parts = key.split('/')
+        if len(parts) < 3 or parts[0] != 'skills' or parts[1] not in RENAMES or not legacy(parts[1]):
+            continue
+        skill, flat = parts[1], RENAMES[parts[1]]
+        newkey = '/'.join(['skills', flat] + parts[2:])
+        src, dst = os.path.join(dest, key), os.path.join(dest, newkey)
+        if os.path.isfile(src) and not os.path.lexists(dst):
+            edited = sha(src) != old[key]
+            move(src, dst)
+            old[newkey] = old.pop(key)
+            if edited and len(parts) == 3 and parts[2] == 'SKILL.md':
+                with open(dst, encoding='utf-8', newline='') as fh:
+                    text = fh.read()
+                text = NAME_LINE.sub(lambda m: m.group(1) + 'name: ' + flat, text, count=1)
+                with open(dst, 'w', encoding='utf-8', newline='') as fh:
+                    fh.write(text)
+            prune(src, skills_dir)
+            if skill not in renamed:
+                renamed.append(skill)
+        elif not os.path.lexists(src) and os.path.isfile(dst) and newkey not in old:
+            old[newkey] = old.pop(key)
+    for skill in RENAMES:
+        up = os.path.join(upstream_dir, 'skills', skill)
+        if os.path.islink(up) or not os.path.isdir(up):
+            continue
+        for dirpath, _dirs, files in os.walk(up):
+            for name in files:
+                src = os.path.join(dirpath, name)
+                dst = os.path.join(upstream_dir, 'skills', RENAMES[skill], os.path.relpath(src, up))
+                if not os.path.lexists(dst):
+                    move(src, dst)
+        for dirpath, _dirs, _files in os.walk(up, topdown=False):
+            if not os.listdir(dirpath):
+                os.rmdir(dirpath)
+    for skill in renamed:
+        print(f'  Renamed skills/{skill}/ -> skills/{RENAMES[skill]}/')
+
 # Preserve unresolved incoming copies across reruns. The manifest advances to
 # the incoming baseline, so deleting this directory can lose the only conflict copy.
 
@@ -295,6 +425,8 @@ for rel, digest in (old or {}).items():
     dst = os.path.join(dest, rel)
     if rel in new or not os.path.exists(dst):
         continue
+    if rel.startswith('skills/') and not legacy(rel.split('/')[1]):
+        continue  # a symlinked skill dir is never followed
     if sha(dst) != digest and not overwrite_local:
         new[rel] = digest  # Retain retired edits for a later explicit overwrite.
         kept.append(rel)
@@ -318,6 +450,10 @@ for rel in removed:
     print(f'  Removed {rel} (no longer shipped)')
 for rel in sorted(set(kept) - set(conflicts)):
     print(f'  Kept local edits: {rel}')
+for skill in sorted(RENAMES):
+    if os.path.lexists(os.path.join(dest, 'skills', skill)):
+        reason = 'no .harness-manifest' if old is None else 'holds files the installer did not move'
+        print(f'Warning: legacy skill directory .claude/skills/{skill}/ left in place ({reason})', file=sys.stderr)
 if conflicts:
     print('  Kept local edits, but upstream changed these too — merge by hand from', file=sys.stderr)
     print('  .claude/sdd/upstream/ (do not commit that dir), or re-run with --overwrite-local:', file=sys.stderr)
@@ -331,7 +467,7 @@ import json, os, sys
 path = sys.argv[1]
 settings = {}
 if os.path.exists(path):
-    with open(path) as fh:
+    with open(path, encoding='utf-8') as fh:
         settings = json.load(fh)
 def is_sdd_plugin_enabled(candidate):
     enabled_plugins = candidate.get('enabledPlugins')
@@ -341,7 +477,7 @@ def is_sdd_plugin_enabled(candidate):
 other = os.path.join(os.path.dirname(path), 'settings.json')
 other_settings = {}
 if other != path and os.path.exists(other):
-    with open(other) as fh:
+    with open(other, encoding='utf-8') as fh:
         other_settings = json.load(fh)
 if is_sdd_plugin_enabled(settings) or is_sdd_plugin_enabled(other_settings):
     print('Warning: the sdd plugin is still enabled. After reviewing the flat snapshot, disable that pipeline plugin registration to avoid loading duplicate skills. Settings were preserved.', file=sys.stderr)
@@ -360,10 +496,12 @@ for entry in hooks:
             found = True
 if not found:
     hooks.append({'hooks': [{'type': 'command', 'command': cmd}]})
-with open(path, 'w') as fh:
-    json.dump(settings, fh, indent=2)
-    fh.write('\n')
-print(f"  Updated {path}")
+before = open(path, encoding='utf-8').read() if os.path.exists(path) else None
+after = json.dumps(settings, indent=2) + '\n'
+if before != after:
+    with open(path, 'w', encoding='utf-8') as fh:
+        fh.write(after)
+    print(f"  Updated {path}")
 PYEOF
 
 # 4. Expose the skills to Antigravity (agy) and Codex, which scan .agents/skills/
@@ -410,11 +548,11 @@ if [ "$LOCAL" = true ]; then
 import os, sys
 path, wanted = sys.argv[1], ['/' + p for p in sys.argv[2:]]
 header = '# sdd harness --local install (personal trial, never committed)'
-lines = open(path).read().splitlines() if os.path.exists(path) else []
+lines = open(path, encoding='utf-8').read().splitlines() if os.path.exists(path) else []
 missing = [p for p in wanted if p not in lines]
 if missing:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'a') as fh:
+    with open(path, 'a', encoding='utf-8') as fh:
         if lines and lines[-1].strip():
             fh.write('\n')
         if header not in lines:

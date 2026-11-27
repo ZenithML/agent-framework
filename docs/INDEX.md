@@ -4,6 +4,7 @@
 
 | Guide | Document |
 |---|---|
+| How it works: diagrams of the pipeline, agents, profiles, upgrades and layering | [`how-it-works.md`](how-it-works.md) |
 | Installation: flat copy, marketplace, vendored copy | [`installation.md`](installation.md) |
 | Plugins: `sdd`, `render` and `ci-runner`, and every skill | [`plugins.md`](plugins.md) |
 | Configuration: `sdd-init`, `config.json`, placeholders, SessionStart hook | [`configuration.md`](configuration.md) |
@@ -25,13 +26,16 @@
 | review-triage: risk triage for large PRs (0.11.0) | [`requirements.md`](specs/review-triage/requirements.md), [`design.md`](specs/review-triage/design.md), [`tasks.md`](specs/review-triage/tasks.md) | Approved |
 | qa-explore: exploratory QA that finds and fixes bugs (0.14.0) | [`requirements.md`](specs/qa-explore/requirements.md), [`design.md`](specs/qa-explore/design.md), [`tasks.md`](specs/qa-explore/tasks.md) | Approved |
 | bug-hunt: static + runtime bug hunt with a gated fix PR (0.14.0) | [`requirements.md`](specs/bug-hunt/requirements.md), [`design.md`](specs/bug-hunt/design.md), [`tasks.md`](specs/bug-hunt/tasks.md) | Approved |
+| refactoring: `/sdd:productionize`, `/sdd:migrate`, executor `characterize`/`tidy`, `evidence.py` (0.21.0) | [`requirements.md`](specs/refactoring/requirements.md), [`design.md`](specs/refactoring/design.md), [`tasks.md`](specs/refactoring/tasks.md) | Approved |
 | ship-orchestration: inline /ship, planning and publishing in the calling session (0.15.0, 0.16.0; architect mode removed in 0.19.0) | [`requirements.md`](specs/ship-orchestration/requirements.md), [`design.md`](specs/ship-orchestration/design.md), [`tasks.md`](specs/ship-orchestration/tasks.md) | Approved |
+| flat-skill-prefix: `sdd-`/`render-` prefix for flat-installed skills, with upgrade migration (0.20.0) | [`requirements.md`](specs/flat-skill-prefix/requirements.md), [`design.md`](specs/flat-skill-prefix/design.md), [`tasks.md`](specs/flat-skill-prefix/tasks.md) | Approved |
 
 ## Research
 
 | Topic | Document |
 |---|---|
 | DeepSeek Harness analysis + harness-quality rubric | [`research/deepseek-harness-analysis.md`](research/deepseek-harness-analysis.md) |
+| Refactoring with evidence: PoC to production and migrations, sources and ideas for later | [`research/refactoring-evidence.md`](research/refactoring-evidence.md) |
 | Harness² analysis — prompt and evidence discipline to borrow | [`research/harness2-analysis.md`](research/harness2-analysis.md) |
 
 ## Decisions

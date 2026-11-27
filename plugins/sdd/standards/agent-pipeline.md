@@ -202,6 +202,8 @@ independent verdict, because the explorer reads and edits the code.
 | `/sdd:prepare-docs <domain>` | Stage 5 (sub-step) — doc checkpoint commit |
 | `/sdd:audit [domain]` | On-demand — doc conformance check |
 | `/sdd:bug-hunt <area \| --all> [--report-only] [--autonomous]` | Outside the pipeline — static audit (critic, `bugs`) + runtime pass (qa-engineer, report-only), prioritised report, gate, fixes, one PR |
+| `/sdd:productionize <area \| --all> [--report-only] [--autonomous] [--profile standard\|strict]` | Wraps a `/sdd:ship` run — baseline evidence, readiness rubric (critic + facts), gate, labelled characterize/tidy/change tasks, evidence gate, one PR |
+| `/sdd:migrate <from> <to> [--area <path>] [--report-only] [--autonomous]` | Outside the pipeline — inventory, pattern, baseline, gate, pilot, revertable waves (executor `tidy`, critic), contract, evidence, one PR |
 | `/sdd:qa-explore <feature-or-flow> [--report-only]` | Stage 4b on its own, or ad hoc — exploratory QA that fixes confirmed bugs with a regression test each |
 
 ---
@@ -212,7 +214,7 @@ independent verdict, because the explorer reads and edits the code.
 |---|---|
 | `planner` | Spec and task authoring (with embedded critic loops) |
 | `critic` | Adversarial reviewer — requirements, design, and code; read-only static bug audit (`bugs`) for `/sdd:bug-hunt` |
-| `executor` | TDD implementation |
+| `executor` | TDD implementation; `characterize` (pin current behaviour) and `tidy` (structure only, read-only tests) modes for `/sdd:productionize` and `/sdd:migrate` |
 | `tester` | Adversarial QA — behaviour testing, no source read |
 | `publisher` | Docs verification, PR authoring, CI monitoring |
 | `archivist` | Documentation audit (read-only, on-demand) |

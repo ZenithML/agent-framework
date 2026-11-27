@@ -41,6 +41,49 @@ isolated_claude() {
   export CLAUDE_CONFIG_DIR="$WORK/claude-config-$1"; mkdir -p "$CLAUDE_CONFIG_DIR"
 }
 
+
+# Simulate a pre-0.20 (unprefixed) install: rename each flat skill dir back to its
+# source name, restore its SKILL.md name:, and rename the manifest keys (rehashing
+# SKILL.md so it counts as unedited). Robust in CI: needs no old tag.
+downgrade() {
+  python3 - "$1/.claude" "$ROOT/plugins" <<'PY'
+import hashlib, json, os, re, sys
+claude, plugins = sys.argv[1:3]
+mf = os.path.join(claude, 'sdd', '.harness-manifest')
+data = json.load(open(mf))
+back = {}
+for plug in ('sdd', 'render'):
+    for s in os.listdir(os.path.join(plugins, plug, 'skills')):
+        flat = s if s.startswith(plug + '-') else plug + '-' + s
+        if flat != s:
+            back[flat] = s
+files = {}
+for key, h in data['files'].items():
+    parts = key.split('/')
+    if parts[0] == 'skills' and parts[1] in back:
+        old = back[parts[1]]
+        newkey = '/'.join(['skills', old] + parts[2:])
+        src, dst = os.path.join(claude, key), os.path.join(claude, newkey)
+        if os.path.exists(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            os.rename(src, dst)
+            if len(parts) == 3 and parts[2] == 'SKILL.md':
+                t = open(dst, newline='').read()
+                t = re.sub(r'(?m)^name: .*$', 'name: ' + old, t, count=1)
+                open(dst, 'w', newline='').write(t)
+                h = hashlib.sha256(t.encode()).hexdigest()
+        key = newkey
+    files[key] = h
+for flat in back:
+    d = os.path.join(claude, 'skills', flat)
+    if os.path.isdir(d):
+        os.rmdir(d) if not os.listdir(d) else None
+data['files'] = files
+json.dump(data, open(mf, 'w'), indent=2)
+PY
+  find "$1/.claude/skills" -mindepth 1 -type d -empty -delete 2>/dev/null
+}
+
 # ── flat ─────────────────────────────────────────────────────────────────────
 test_flat() {
   echo "== flat"
@@ -58,23 +101,114 @@ test_flat() {
   check "no plugin-root paths left" bash -c "! grep -rq 'CLAUDE_PLUGIN_ROOT' '$p/.claude/skills' '$p/.claude/agents'"
   check "no /sdd: skill names left" bash -c "! grep -rE '/sdd:[a-z<]' '$p/.claude' | grep -v 'when installed as a plugin'"
   check "plugin-root rewrite adds no duplicate lines" \
-    test "$(grep -cx '.claude/skills/\*/SKILL.md' "$p/.claude/skills/lint-harness/SKILL.md")" -eq 1
+    test "$(grep -cx '.claude/skills/\*/SKILL.md' "$p/.claude/skills/sdd-lint-harness/SKILL.md")" -eq 1
   check "manifest written"          test -s "$p/.claude/sdd/.harness-manifest"
+
+  # Flat names: every skill carries its plugin prefix, and text follows.
+  local sk="$p/.claude/skills"
+  check "sdd-ship installed with name: sdd-ship" grep -qx 'name: sdd-ship' "$sk/sdd-ship/SKILL.md"
+  check "no unprefixed ship/ dir" test ! -e "$sk/ship"
+  check "every skill dir starts sdd-" bash -c "! ls '$sk' | grep -v '^sdd-'"
+  check "no double prefix: sdd-init keeps its name" \
+    bash -c "grep -qx 'name: sdd-init' '$sk/sdd-init/SKILL.md' && ! ls '$sk' | grep -q '^sdd-sdd-'"
+  check "no source-form skill invocations left in installed markdown" python3 - "$ROOT/plugins/sdd/skills" "$p/.claude" <<'PY'
+import os, re, sys
+src, root = sys.argv[1:3]
+names = sorted((n for d in (src, os.path.join(os.path.dirname(os.path.dirname(src)), 'render', 'skills')) for n in os.listdir(d)
+                if not n.startswith(('sdd-', 'render-'))), key=len, reverse=True)
+rx = re.compile(r"(?<![^\s`(\['\"])([/$])(?:(?:sdd|render):)?(" + '|'.join(map(re.escape, names)) + r")(?![\w/-]|\.\w)")
+bad = []
+for base in ('skills', 'agents', 'standards', 'templates/agent-routing.md'):
+    path = os.path.join(root, base)
+    files = [path] if path.endswith('.md') else [os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs if f.endswith('.md')]
+    for f in files:
+        text = open(f, encoding='utf-8').read()
+        for m in rx.finditer(text):
+            if text[m.end():].startswith('` when installed as a plugin'):
+                continue
+            bad.append((f, m.group(0)))
+for b in bad[:10]:
+    print(b)
+sys.exit(1 if bad else 0)
+PY
+  check "no source-form invocations in installed evaluations JSON (still valid JSON)" python3 - "$ROOT/plugins/sdd/skills" "$p/.claude/skills" <<'PY'
+import glob, json, os, re, sys
+src, root = sys.argv[1:3]
+names = sorted((n for n in os.listdir(src) if not n.startswith('sdd-')), key=len, reverse=True)
+rx = re.compile(r"(?<![^\s`(\['\"])([/$])(?:sdd:)?(" + '|'.join(map(re.escape, names)) + r")(?![\w/-]|\.\w)")
+files = glob.glob(os.path.join(root, '*', 'evaluations', '*.json'))
+bad = [f for f in files if (json.load(open(f)) is None) or rx.search(open(f, encoding='utf-8').read())]
+print(bad[:5])
+sys.exit(1 if bad or not files else 0)
+PY
+  check "longest-first: /sdd-qa-explore and /sdd-review-diff intact, no mangling" \
+    bash -c "grep -rqF '/sdd-qa-explore' '$p/.claude' && grep -rqF '/sdd-review-diff' '$p/.claude' && ! grep -rqE 'sdd-sdd-|/sdd-qa-explore-explore|/sdd-qa -explore|/sdd-review-pr-diff' '$p/.claude'"
+  # The plugin-note exception: a renamed skill followed by the note stays verbatim.
+  local h="$WORK/harness-note" hp; hp="$(new_project note)"
+  mkdir -p "$h" && cp -r "$ROOT/scripts" "$ROOT/plugins" "$h/"
+  printf '\nSee `/sdd:ship` when installed as a plugin; otherwise /sdd:ship.\n' >> "$h/plugins/sdd/skills/plan/SKILL.md"
+  "$h/scripts/install-skills.sh" "$hp" >/dev/null 2>&1
+  check "plugin note kept verbatim for a renamed skill, plain use rewritten" \
+    grep -qxF 'See `/sdd:ship` when installed as a plugin; otherwise /sdd-ship.' "$hp/.claude/skills/sdd-plan/SKILL.md"
+  # Bytecode a source checkout picks up from running its own tests is never installed.
+  local hb="$WORK/harness-pyc" hbp; hbp="$(new_project pyc)"
+  mkdir -p "$hb" && cp -r "$ROOT/scripts" "$ROOT/plugins" "$hb/"
+  mkdir -p "$hb/plugins/sdd/skills/triage-pr/scripts/__pycache__" "$hb/plugins/sdd/scripts/__pycache__"
+  echo x > "$hb/plugins/sdd/skills/triage-pr/scripts/__pycache__/triage.cpython-313.pyc"
+  echo x > "$hb/plugins/sdd/scripts/__pycache__/gate.cpython-313.pyc"
+  echo x > "$hb/plugins/sdd/scripts/stray.pyc"
+  "$hb/scripts/install-skills.sh" "$hbp" >/dev/null 2>&1
+  check "no __pycache__ or .pyc installed or in the manifest" \
+    bash -c "test -z \"\$(find '$hbp/.claude' -name __pycache__ -o -name '*.pyc')\" && ! grep -qE 'pycache|\.pyc' '$hbp/.claude/sdd/.harness-manifest'"
+  check "triage-pr script path prefixed" \
+    bash -c "grep -q '.claude/skills/sdd-triage-pr/scripts' '$sk/sdd-triage-pr/SKILL.md' && ! grep -rq '.claude/skills/triage-pr/' '$p/.claude'"
+  check "non-invocations untouched (docs/specs/<domain>/tasks.md)" grep -q 'docs/specs/<domain>/tasks.md' "$p/.claude/agents/planner.md"
+  check "plugin note survives" grep -rq 'when installed as a plugin' "$sk/sdd-init/SKILL.md"
+  check "seeded AGENTS.md names /sdd-ship and \$sdd-ship" \
+    bash -c "grep -q '/sdd-ship' '$p/AGENTS.md' && grep -qF '\$sdd-ship' '$p/AGENTS.md' && ! grep -q '\`/ship\`' '$p/AGENTS.md'"
+  check "closing hint says /sdd-init" grep -q 'run /sdd-init' "$WORK/flat.log"
+  check "sdd-init names both flat-install markers" \
+    bash -c "grep -q 'skills/sdd-ship/SKILL.md' '$sk/sdd-init/SKILL.md' && grep -q 'skills/ship/SKILL.md' '$sk/sdd-init/SKILL.md'"
+  check "docs give /sdd-ship for flat installs" \
+    bash -c "grep -q '/sdd-ship' '$ROOT/docs/installation.md' && grep -q '/sdd-ship' '$ROOT/docs/plugins.md'"
+  check "plugin source keeps name: ship" bash -c "head -3 '$ROOT/plugins/sdd/skills/ship/SKILL.md' | grep -qx 'name: ship'"
+  # The prefix arrived in sdd 0.20.0 / render 0.3.0; both manifests must agree on a version at least that.
+  check "sdd >= 0.20.0 and render >= 0.3.0, same in both manifests" python3 - "$ROOT" <<'PY'
+import json, sys
+root = sys.argv[1]
+v = lambda s: tuple(int(x) for x in s.split("."))
+m = {x['name']: x['version'] for x in json.load(open(f'{root}/.claude-plugin/marketplace.json'))['plugins']}
+sdd = json.load(open(f'{root}/plugins/sdd/.claude-plugin/plugin.json'))['version']
+render = json.load(open(f'{root}/plugins/render/.claude-plugin/plugin.json'))['version']
+sys.exit(not (m['sdd'] == sdd and m['render'] == render and v(sdd) >= (0, 20, 0) and v(render) >= (0, 3, 0)))
+PY
 
   git -C "$p" add -A && git -C "$p" -c user.name=t -c user.email=t@t commit -qm installed
   "$install" "$p" >/dev/null 2>&1
   check "re-run is idempotent" test -z "$(git -C "$p" status --porcelain)"
 
+  # Settings are read and written as UTF-8 whatever the locale (non-ASCII survives a C-locale run).
+  local u="$(new_project flat-utf8)"
+  mkdir -p "$u/.claude"
+  printf '{"note": "caf\xc3\xa9 \xe2\x9c\x93"}\n' > "$u/.claude/settings.json"
+  check "non-ASCII settings.json survives a C-locale install" \
+    env LC_ALL=C LANG=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 PYTHONIOENCODING=ascii "$install" "$u"
+  check "non-ASCII value preserved and hook declared" python3 - "$u/.claude/settings.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding='utf-8'))
+sys.exit(not (d['note'] == 'caf\u00e9 \u2713' and 'remote-session-start' in json.dumps(d)))
+PY
+
   # Local edits survive a re-run; the manifest is what tells them from upstream changes.
-  local ship="$p/.claude/skills/ship/SKILL.md" m="$p/.claude/sdd/.harness-manifest"
+  local ship="$p/.claude/skills/sdd-ship/SKILL.md" m="$p/.claude/sdd/.harness-manifest"
   echo "local edit" >> "$ship"
   "$install" "$p" >/dev/null 2>&1
   check "re-run keeps a local edit" grep -qx "local edit" "$ship"
   check "no upstream copy when upstream is unchanged" test ! -e "$p/.claude/sdd/upstream"
-  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['files']['skills/ship/SKILL.md']='0'*64; json.dump(d,open(sys.argv[1],'w'))" "$m"
+  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['files']['skills/sdd-ship/SKILL.md']='0'*64; json.dump(d,open(sys.argv[1],'w'))" "$m"
   "$install" "$p" >/dev/null 2>&1
   check "edited + upstream-changed: local kept" grep -qx "local edit" "$ship"
-  check "edited + upstream-changed: upstream copy saved" test -f "$p/.claude/sdd/upstream/skills/ship/SKILL.md"
+  check "edited + upstream-changed: upstream copy saved" test -f "$p/.claude/sdd/upstream/skills/sdd-ship/SKILL.md"
   "$install" --overwrite-local "$p" >/dev/null 2>&1
   check "--overwrite-local replaces the edit" bash -c "! grep -qx 'local edit' '$ship'"
 
@@ -97,8 +231,30 @@ PY
 
   local r; r="$(new_project render)"
   "$install" --with-render "$r" >/dev/null 2>&1
-  check "--with-render adds render skills" test -f "$r/.claude/skills/frames/SKILL.md"
-  check "--with-render adds dcg skill" test -f "$r/.claude/skills/dcg/SKILL.md"
+  check "--with-render adds render skills" test -f "$r/.claude/skills/render-frames/SKILL.md"
+  check "--with-render adds dcg skill" test -f "$r/.claude/skills/render-dcg/SKILL.md"
+  check "--with-render names: render-frames, render-init, no double prefix" \
+    bash -c "grep -qx 'name: render-frames' '$r/.claude/skills/render-frames/SKILL.md' && test -f '$r/.claude/skills/render-init/SKILL.md' && test ! -e '$r/.claude/skills/render-render-init' && test ! -e '$r/.claude/skills/frames'"
+  check "--with-render: no source-form render invocations or paths" \
+    bash -c "! grep -rnE '[/$](render:)?(frames|tune|trap|dcg)([^[:alnum:]/._-]|\$)|\.claude/skills/(frames|tune|trap|dcg)/' '$r/.claude' | grep -v 'when installed as a plugin'"
+  check "--with-render: /render-frames and /render-tune referenced" \
+    bash -c "grep -rqF '/render-frames' '$r/.claude/skills' && grep -rqF '/render-tune' '$r/.claude/skills'"
+  check "--with-render: no namespaced /sdd: or /render: invocation left (except plugin notes)" python3 - "$r/.claude" <<'PY'
+import os, re, sys
+rx = re.compile(r"(?<![^\s`(\['\"])[/$](?:sdd|render):[a-z][\w-]*")
+bad = []
+for d, _, fs in os.walk(sys.argv[1]):
+    for f in fs:
+        if not f.endswith('.md'):
+            continue
+        p = os.path.join(d, f)
+        t = open(p, encoding='utf-8').read()
+        for m in rx.finditer(t):
+            if not t.startswith('` when installed as a plugin', m.end()):
+                bad.append(p + ': ' + m.group(0))
+print('\n'.join(bad))
+sys.exit(1 if bad else 0)
+PY
   check "--with-render adds dcg standard" test -f "$r/.claude/standards/digital-content-generation.md"
 
   local d; d="$(new_project dry)"
@@ -111,8 +267,10 @@ PY
   printf '[features]\nfoo = true\n' > "$c/.codex-seed"; mkdir -p "$c/.codex"; mv "$c/.codex-seed" "$c/.codex/config.toml"
   "$install" --harness claude,codex "$c" >/dev/null 2>&1
   check "codex: no generated role files" test ! -e "$c/.codex/agents"
+  check "codex: .agents/skills lists sdd-ship" bash -c "ls '$c/.agents/skills/' | grep -qx sdd-ship"
+  check "codex: closing hint says \$sdd-init" bash -c "'$install' --harness claude,codex '$c' 2>&1 | grep -qF '\$sdd-init'"
   check "codex: canonical critic role available" test -f "$c/.claude/agents/critic.md"
-  check "codex: .agents/skills reaches the skills" test -f "$c/.agents/skills/ship/SKILL.md"
+  check "codex: .agents/skills reaches the skills" test -f "$c/.agents/skills/sdd-ship/SKILL.md"
   check "codex: config.toml parses, keeps existing keys, mirrors .mcp.json" \
     python3 -c "import tomllib,sys; d=tomllib.load(open('$c/.codex/config.toml','rb')); m=d['mcp_servers']; sys.exit(not(d['features']['foo'] and m['gh']['bearer_token_env_var']=='GH_TOKEN' and m['pw']['command']=='npx'))"
   git -C "$c" add -A && git -C "$c" -c user.name=t -c user.email=t@t commit -qm installed
@@ -154,7 +312,7 @@ PY
     bash -c "test ! -e '$l/.claude' && cmp -s '$exclude' '$WORK/exclude.before'"
   if "$install" --local "$l" >"$WORK/local.log" 2>&1; then pass "--local exits 0"
   else fail "--local exits 0"; sed 's/^/        /' "$WORK/local.log"; fi
-  check "--local installs the skills" test -f "$l/.claude/skills/ship/SKILL.md"
+  check "--local installs the skills" test -f "$l/.claude/skills/sdd-ship/SKILL.md"
   check "--local leaves a clean git status" test -z "$(git -C "$l" status --porcelain)"
   check "--local declares the hook in settings.local.json" \
     test "$(grep -c remote-session-start "$l/.claude/settings.local.json")" -eq 1
@@ -170,15 +328,156 @@ PY
   mkdir -p "$t/.claude/skills/team" && echo "team" > "$t/.claude/skills/team/SKILL.md"
   git -C "$t" add -A && git -C "$t" -c user.name=t -c user.email=t@t commit -qm base
   check "--local refuses when it would change tracked files" bash -c "! '$install' --local --force '$t'"
-  check "--local refusal writes nothing" test ! -e "$t/.claude/skills/ship"
+  check "--local refusal writes nothing" test ! -e "$t/.claude/skills/sdd-ship"
 
   local o; o="$(new_project own)"
   mkdir -p "$o/.claude/skills/my-own-skill" && echo "own" > "$o/.claude/skills/my-own-skill/SKILL.md"
   "$install" "$o" >/dev/null 2>&1
-  check "refuses a foreign .claude/ without --force" test ! -f "$o/.claude/skills/ship/SKILL.md"
+  check "refuses a foreign .claude/ without --force" test ! -f "$o/.claude/skills/sdd-ship/SKILL.md"
   "$install" --force "$o" >/dev/null 2>&1
   check "--force installs alongside the project's own skills" \
-    bash -c "test -f '$o/.claude/skills/ship/SKILL.md' && grep -qx own '$o/.claude/skills/my-own-skill/SKILL.md'"
+    bash -c "test -f '$o/.claude/skills/sdd-ship/SKILL.md' && grep -qx own '$o/.claude/skills/my-own-skill/SKILL.md'"
+
+  # ── upgrade from an unprefixed install ──
+  local u1 u1c
+  u1="$(new_project up-clean)"; "$install" "$u1" >/dev/null 2>&1; downgrade "$u1"
+  check "simulated old install has ship/ and no sdd-ship/" bash -c "test -f '$u1/.claude/skills/ship/SKILL.md' && test ! -e '$u1/.claude/skills/sdd-ship'"
+  "$install" "$u1" >"$WORK/up1.out" 2>"$WORK/up1.err"; u1c=$?
+  check "story 4: upgrade exits 0" test "$u1c" -eq 0
+  check "story 4: sdd-ship moved, name flat" grep -qx 'name: sdd-ship' "$u1/.claude/skills/sdd-ship/SKILL.md"
+  check "story 4: no unprefixed skill dirs left" bash -c "! ls '$u1/.claude/skills' | grep -v '^sdd-'"
+  check "story 4: manifest has no skills/ship/ keys" bash -c "! grep -q '\"skills/ship/' '$u1/.claude/sdd/.harness-manifest'"
+  check "story 4: Renamed line printed" grep -qxF '  Renamed skills/ship/ -> skills/sdd-ship/' "$WORK/up1.out"
+  check "story 4: no legacy warning" bash -c "! grep -q 'legacy skill directory' '$WORK/up1.err'"
+  check "story 4: closing says /sdd-init" grep -q 'run /sdd-init' "$WORK/up1.out"
+  git -C "$u1" add -A && git -C "$u1" -c user.name=t -c user.email=t@t commit -qm up
+  "$install" "$u1" >"$WORK/up1b.out" 2>"$WORK/up1b.err"
+  check "story 8: re-run is quiet (no Renamed, no warning, no changes)" \
+    bash -c "! grep -q Renamed '$WORK/up1b.out' && ! test -s '$WORK/up1b.err' && test -z \"\$(git -C '$u1' status --porcelain)\""
+
+  # Story 5: edited SKILL.md keeps the edit under the flat dir with the flat name.
+  local u2; u2="$(new_project up-edit)"; "$install" "$u2" >/dev/null 2>&1; downgrade "$u2"
+  echo "my edit" >> "$u2/.claude/skills/ship/SKILL.md"
+  "$install" "$u2" >"$WORK/up2.out" 2>"$WORK/up2.err"
+  check "story 5: edit kept under sdd-ship with flat name" \
+    bash -c "grep -qx 'my edit' '$u2/.claude/skills/sdd-ship/SKILL.md' && grep -qx 'name: sdd-ship' '$u2/.claude/skills/sdd-ship/SKILL.md' && test ! -e '$u2/.claude/skills/ship'"
+  check "story 5: upstream copy saved" test -f "$u2/.claude/sdd/upstream/skills/sdd-ship/SKILL.md"
+  check "story 5: conflict block lists skills/sdd-ship/SKILL.md" grep -q 'skills/sdd-ship/SKILL.md' "$WORK/up2.err"
+
+  # Story 5b: a pending upstream copy under the old path moves.
+  local u3; u3="$(new_project up-pending)"; "$install" "$u3" >/dev/null 2>&1; downgrade "$u3"
+  mkdir -p "$u3/.claude/sdd/upstream/skills/ship" && echo pending > "$u3/.claude/sdd/upstream/skills/ship/pending.md"
+  "$install" "$u3" >/dev/null 2>&1
+  check "story 5b: pending upstream copy moves" \
+    bash -c "grep -qx pending '$u3/.claude/sdd/upstream/skills/sdd-ship/pending.md' && test ! -e '$u3/.claude/sdd/upstream/skills/ship'"
+
+  # Existing destination: unedited old file deleted; edited one kept and warned.
+  local u4; u4="$(new_project up-both)"; "$install" "$u4" >/dev/null 2>&1; downgrade "$u4"
+  mkdir -p "$u4/.claude/skills/sdd-ship" && echo dest > "$u4/.claude/skills/sdd-ship/SKILL.md"
+  mkdir -p "$u4/.claude/skills/sdd-plan" && echo dest > "$u4/.claude/skills/sdd-plan/SKILL.md"
+  echo "edited" >> "$u4/.claude/skills/ship/SKILL.md"
+  "$install" "$u4" >/dev/null 2>"$WORK/up4.err"
+  check "both present: unedited old file deleted" test ! -e "$u4/.claude/skills/plan"
+  check "both present: edited old file kept and dir warned" \
+    bash -c "grep -qx edited '$u4/.claude/skills/ship/SKILL.md' && grep -qF 'Warning: legacy skill directory .claude/skills/ship/ left in place (holds files the installer did not move)' '$WORK/up4.err'"
+
+  # Story 6: a user file in the old dir survives and is named.
+  local u5 u5c; u5="$(new_project up-userfile)"; "$install" "$u5" >/dev/null 2>&1; downgrade "$u5"
+  echo mine > "$u5/.claude/skills/ship/notes.md"
+  "$install" "$u5" >/dev/null 2>"$WORK/up5.err"; u5c=$?
+  check "story 6: exit 0, file survives, warning names dir" \
+    bash -c "test $u5c -eq 0 && grep -qx mine '$u5/.claude/skills/ship/notes.md' && grep -qxF 'Warning: legacy skill directory .claude/skills/ship/ left in place (holds files the installer did not move)' '$WORK/up5.err' && test -f '$u5/.claude/skills/sdd-ship/SKILL.md' && test ! -e '$u5/.claude/skills/ship/SKILL.md'"
+
+  # Story 7: no manifest -> warning, nothing moved or deleted.
+  local u6 u6c; u6="$(new_project up-nomanifest)"; "$install" "$u6" >/dev/null 2>&1; downgrade "$u6"
+  rm "$u6/.claude/sdd/.harness-manifest"
+  "$install" "$u6" >/dev/null 2>"$WORK/up6.err"; u6c=$?
+  check "story 7: no manifest exits 0 with the no-manifest warning" \
+    bash -c "test $u6c -eq 0 && grep -qxF 'Warning: legacy skill directory .claude/skills/ship/ left in place (no .harness-manifest)' '$WORK/up6.err' && test -f '$u6/.claude/skills/ship/SKILL.md'"
+
+  # Symlinked legacy dir: warned, never followed or moved.
+  local u7; u7="$(new_project up-symlink)"; "$install" "$u7" >/dev/null 2>&1; downgrade "$u7"
+  mv "$u7/.claude/skills/ship" "$WORK/ship-target"; ln -s "$WORK/ship-target" "$u7/.claude/skills/ship"
+  "$install" "$u7" >/dev/null 2>"$WORK/up7.err"
+  check "symlinked legacy dir: still a symlink, target intact, warned" \
+    bash -c "test -L '$u7/.claude/skills/ship' && test -f '$WORK/ship-target/SKILL.md' && grep -qF 'legacy skill directory .claude/skills/ship/' '$WORK/up7.err'"
+
+  # Edited SKILL.md without a name line moves byte-identical; CRLF name line keeps CRLF.
+  local u8 u9; u8="$(new_project up-noname)"; "$install" "$u8" >/dev/null 2>&1; downgrade "$u8"
+  printf 'no frontmatter here\nedited\n' > "$u8/.claude/skills/ship/SKILL.md"
+  cp "$u8/.claude/skills/ship/SKILL.md" "$WORK/noname.expected"
+  "$install" "$u8" >/dev/null 2>&1
+  check "edited SKILL.md without a name line moves byte-identical" cmp -s "$WORK/noname.expected" "$u8/.claude/skills/sdd-ship/SKILL.md"
+  u9="$(new_project up-crlf)"; "$install" "$u9" >/dev/null 2>&1; downgrade "$u9"
+  printf -- '---\r\nname: ship\r\ndescription: x\r\n---\r\nbody\r\n' > "$u9/.claude/skills/ship/SKILL.md"
+  "$install" "$u9" >/dev/null 2>&1
+  check "CRLF name line replaced keeping CRLF" \
+    bash -c "printf -- '---\r\nname: sdd-ship\r\ndescription: x\r\n---\r\nbody\r\n' | cmp -s - '$u9/.claude/skills/sdd-ship/SKILL.md'"
+
+  # Interrupted upgrade: file moved by hand and edited, manifest still old.
+  local u10; u10="$(new_project up-interrupted)"; "$install" "$u10" >/dev/null 2>&1; downgrade "$u10"
+  mv "$u10/.claude/skills/ship/SKILL.md" "$WORK/hand.md"; rmdir "$u10/.claude/skills/ship" 2>/dev/null
+  mkdir -p "$u10/.claude/skills/sdd-ship"; mv "$WORK/hand.md" "$u10/.claude/skills/sdd-ship/SKILL.md"
+  echo "hand edit" >> "$u10/.claude/skills/sdd-ship/SKILL.md"
+  "$install" "$u10" >/dev/null 2>&1
+  check "interrupted upgrade: hand-moved edit kept, key renamed" \
+    bash -c "grep -qx 'hand edit' '$u10/.claude/skills/sdd-ship/SKILL.md' && ! grep -q '\"skills/ship/SKILL.md' '$u10/.claude/sdd/.harness-manifest' && grep -q '\"skills/sdd-ship/SKILL.md' '$u10/.claude/sdd/.harness-manifest'"
+
+  # Mutant guards: unedited old file with an older body is overwritten, not kept.
+  local m1; m1="$(new_project up-oldbody)"; "$install" "$m1" >/dev/null 2>&1; downgrade "$m1"
+  echo "older release body" >> "$m1/.claude/skills/ship/SKILL.md"
+  python3 - "$m1/.claude" <<'PY'
+import hashlib, json, sys
+c = sys.argv[1]; mf = c + '/sdd/.harness-manifest'
+d = json.load(open(mf)); d['files']['skills/ship/SKILL.md'] = hashlib.sha256(open(c + '/skills/ship/SKILL.md', 'rb').read()).hexdigest()
+json.dump(d, open(mf, 'w'))
+PY
+  "$install" "$m1" >"$WORK/m1.out" 2>"$WORK/m1.err"
+  check "unedited old SKILL.md with an older body: overwritten by the new release, no conflict" \
+    bash -c "! grep -q 'older release body' '$m1/.claude/skills/sdd-ship/SKILL.md' && grep -qx 'name: sdd-ship' '$m1/.claude/skills/sdd-ship/SKILL.md' && test ! -e '$m1/.claude/sdd/upstream' && ! grep -q 'Kept local' '$WORK/m1.out' '$WORK/m1.err'"
+
+  # An edited non-SKILL.md file (nested, with a name: line) moves byte-identical.
+  local m2; m2="$(new_project up-nested)"; "$install" "$m2" >/dev/null 2>&1; downgrade "$m2"
+  printf -- '---\nname: keep-me\n---\nedited\n' > "$m2/.claude/skills/triage-pr/scripts/triage.py"
+  cp "$m2/.claude/skills/triage-pr/scripts/triage.py" "$WORK/triage.expected"
+  "$install" "$m2" >/dev/null 2>&1
+  check "edited nested file moves byte-identical (name: line untouched)" \
+    cmp -s "$WORK/triage.expected" "$m2/.claude/skills/sdd-triage-pr/scripts/triage.py"
+
+  # Manifest holds both keys; the old file was deleted by hand: the new file stays unedited.
+  local m3; m3="$(new_project up-bothkeys)"; "$install" "$m3" >/dev/null 2>&1; downgrade "$m3"
+  python3 - "$m3/.claude" <<'PY'
+import hashlib, json, os, sys
+c = sys.argv[1]; mf = c + '/sdd/.harness-manifest'
+body = b'older release body\n'
+os.makedirs(c + '/skills/sdd-ship', exist_ok=True)
+open(c + '/skills/sdd-ship/SKILL.md', 'wb').write(body)
+d = json.load(open(mf)); d['files']['skills/sdd-ship/SKILL.md'] = hashlib.sha256(body).hexdigest()
+json.dump(d, open(mf, 'w'))
+os.remove(c + '/skills/ship/SKILL.md')
+PY
+  "$install" "$m3" >/dev/null 2>&1
+  check "both manifest keys, old file deleted: unedited new file is updated" \
+    bash -c "grep -qx 'name: sdd-ship' '$m3/.claude/skills/sdd-ship/SKILL.md' && test ! -e '$m3/.claude/sdd/upstream'"
+
+  # A pending upstream copy never overwrites a newer one at the flat path.
+  local m4; m4="$(new_project up-upstream-both)"; "$install" "$m4" >/dev/null 2>&1; downgrade "$m4"
+  mkdir -p "$m4/.claude/sdd/upstream/skills/ship" "$m4/.claude/sdd/upstream/skills/sdd-ship"
+  echo old > "$m4/.claude/sdd/upstream/skills/ship/x.md"; echo newer > "$m4/.claude/sdd/upstream/skills/sdd-ship/x.md"
+  "$install" "$m4" >/dev/null 2>&1
+  check "pending upstream copy does not overwrite an existing flat copy" \
+    grep -qx newer "$m4/.claude/sdd/upstream/skills/sdd-ship/x.md"
+
+  # Render upgrade with and without --with-render.
+  local r1 r2; r1="$(new_project up-render)"; "$install" --with-render "$r1" >/dev/null 2>&1; downgrade "$r1"
+  check "simulated old render install has frames/" test -f "$r1/.claude/skills/frames/SKILL.md"
+  "$install" --with-render "$r1" >"$WORK/r1.out" 2>"$WORK/r1.err"
+  check "render upgrade: frames/ gone, render-frames/ present, Renamed printed" \
+    bash -c "test ! -e '$r1/.claude/skills/frames' && test -f '$r1/.claude/skills/render-frames/SKILL.md' && grep -qxF '  Renamed skills/frames/ -> skills/render-frames/' '$WORK/r1.out'"
+  r2="$(new_project up-render-noflag)"; "$install" --with-render "$r2" >/dev/null 2>&1; downgrade "$r2"
+  "$install" "$r2" >/dev/null 2>"$WORK/r2.err"
+  check "render upgrade without --with-render retires unedited render files" \
+    bash -c "test ! -e '$r2/.claude/skills/frames' && test ! -e '$r2/.claude/skills/render-frames' && test ! -e '$r2/.claude/skills/dcg' && test -f '$r2/.claude/skills/sdd-ship/SKILL.md'"
 }
 
 # ── vendor ───────────────────────────────────────────────────────────────────

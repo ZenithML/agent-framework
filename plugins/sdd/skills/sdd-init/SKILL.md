@@ -184,7 +184,9 @@ Wait for the user's response:
 ## Step 6a: Offer plugin source choice
 
 First detect a flat install using `.claude/sdd/.harness-version` and
-`.claude/skills/ship/SKILL.md`. If both exist, retain that installation and proceed to
+`.claude/skills/sdd-ship/SKILL.md`, or, for an install made before 0.20,
+`.claude/skills/ship/SKILL.md` (pre-0.20 marker, kept verbatim by the installer). If the stamp
+and either marker exist, retain that installation and proceed to
 Step 7 without adding plugin registrations or offering a second copy. Codex uses this flat
 route. Existing plugin registrations should be reported for manual reconciliation, not
 silently enabled or removed. An existing flat install is not a reason to rerun onboarding.
@@ -452,7 +454,7 @@ touch <ADR_DIR>/.gitkeep
 Preserve an existing `AGENTS.md`, including the flat installer's routing map and any project
 rules. Merge only missing navigation for the confirmed documentation and installed skills;
 never replace the whole file. If absent, write the routing map below. For flat installations
-use `/ship`, `/spec`, etc.; in Codex also show `$ship` or `/skills`. Plugin installations keep
+use `/sdd-ship`, `/sdd-spec`, etc.; in Codex also show `$sdd-ship` or `/skills`. Plugin installations keep
 the `/sdd:` namespace. Canonical role instructions remain in the installed `agents/` Markdown,
 with skill discovery through `.agents/skills`; onboarding creates no Codex agent copies.
 
@@ -474,6 +476,8 @@ with skill discovery through `.agents/skills`; onboarding creates no Codex agent
 | Triage a large PR before reviewing it | `/sdd:triage-pr` |
 | Play with the running app, find and fix bugs | `/sdd:qa-explore` |
 | Deep bug hunt over an area, report then fixes in one PR | `/sdd:bug-hunt` |
+| Make a prototype production-ready, with before/after evidence | `/sdd:productionize` |
+| Migrate to a new framework, library, API or format in revertable waves | `/sdd:migrate` |
 ```
 
 ---
