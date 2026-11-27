@@ -11,13 +11,14 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 21 skills (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
+  skills/<name>/SKILL.md        — 23 skills (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
   agents/<name>.md              — 7 agents (planner, critic, executor,
                                   tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
   templates/docs/               — canonical requirements/design/tasks/ADR templates
   standards/                    — harness, doc-structure, branching-model, agent-pipeline,
-                                  ship-runbook
+                                  ship-runbook, refactoring
+  scripts/                      — gate-design, gate-review, evidence (python3 stdlib)
   config/                       — config.schema.json + example configs (npm, python)
 ```
 
@@ -25,7 +26,7 @@ plugins/sdd/
 |---|---|---|
 | `ship` (entry point) | `create-pr` | `sdd-init` (onboarding) |
 | `spec` · `plan` · `tasks` | `fix-pr` | `audit` |
-| `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
+| `implement` · `critique` · `qa` · `qa-explore` · `bug-hunt` · `productionize` · `migrate` | `review-pr` · `review-diff` · `triage-pr` | `lint-harness` |
 | `publish` · `prepare-docs` | `branching-model` | `test` |
 
 > A flat install (`scripts/install-skills.sh`) prefixes every skill with its plugin name, so
@@ -53,6 +54,21 @@ running app in report-only mode, and both are merged into one prioritised report
 `.review/bug-hunt/`. After you approve the list (or unattended with `--autonomous`, for
 scheduled runs), `qa-engineer --fix-list` fixes each bug test-first, the critic checks the fixes,
 and one PR is opened.
+
+`/sdd:productionize <area | --all>` takes a prototype to production quality with evidence. It
+snapshots the area's checks (`scripts/evidence.py`), scores it against a ten-item
+production-readiness rubric with file-level evidence, and after you approve the gaps runs a
+`/sdd:ship` pipeline whose tasks are labelled `[characterize]` (pin current behaviour first),
+`[tidy]` (structure only, tests read-only) and `[change]` (behaviour, test first). A final
+snapshot is compared with the baseline, and a regression blocks the PR.
+
+`/sdd:migrate <from> <to>` moves code to a new framework, library, API or format. It
+inventories every use of the old thing, picks a pattern (codemod waves, branch by abstraction,
+strangler fig, expand and contract, parallel run), pins behaviour, pilots one slice, then
+migrates in waves that are each one revertable commit, checked against the baseline. Both
+skills follow [`plugins/sdd/standards/refactoring.md`](../plugins/sdd/standards/refactoring.md),
+and their PRs carry a before/after evidence table. `evidence.py` reads the optional
+`commands.typecheck`, `commands.coverage` and `commands.bench` keys as well as `commands.mutate`.
 
 How the stages hand off to each other is in
 [`plugins/sdd/standards/agent-pipeline.md`](../plugins/sdd/standards/agent-pipeline.md). The

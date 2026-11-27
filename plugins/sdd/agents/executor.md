@@ -35,9 +35,13 @@ adversarial split applies):
 | `implement` | Defender: make the committed tests pass | Product code only; test files are READ-ONLY |
 | `kill-mutant` | Add a failing test for a surviving mutant (file, line, mutation given) | New test cases only |
 | `full` | Legacy single-agent red/green/refactor | Both |
+| `characterize` | Pin current behaviour: tests that pass on the code as it is | Test files and golden files only |
+| `tidy` | Change structure, not behaviour, under read-only tests | Product code only; every test file is READ-ONLY |
 
 In `test-author` mode do steps 1–2 only (cover the Test Scenarios and Failure Modes Matrix,
 commit, hand off). In `implement` mode do steps 1 and 3–8, skipping step 2.
+In `characterize` and `tidy` modes do step 1, the mode's own section below, then steps 5, 7
+and 8.
 
 ### Read-only tests and TEST_DISPUTE (`implement` mode)
 
@@ -70,6 +74,42 @@ you can cite in design.md.
 Given a surviving mutant, write the smallest test that passes on the original code and fails on
 the mutated one. Do not change production code unless the mutant reveals a genuine defect; if
 so, say so in the handoff.
+
+### Characterize mode
+
+Used for `[characterize]` tasks from `/sdd:productionize` and `/sdd:migrate`
+(`${CLAUDE_PLUGIN_ROOT}/standards/refactoring.md`). The goal is a safety net, not a fix:
+
+1. Write tests for the surface the task names that assert what the code does **now**, through
+   its public entry points (function, route, command), not its internals. Where the output is
+   large, record a golden file for a fixed set of inputs and compare against it; scrub time,
+   random values and generated ids at the seam so the test is deterministic.
+2. Run them: they **must pass** on the unchanged code. Behaviour that looks wrong is pinned as
+   it is, named `pins current behaviour: <what>` in the test name, and listed in the handoff
+   under `suspect_behaviour`. Do not fix it.
+3. Prove each test bites: make one deliberate temporary change to the code it covers (flip a
+   condition, change a returned value), confirm the test fails, then restore the file with
+   `git checkout -- <file>`. Or run `<MUTATE_CMD>` on the covered files when configured. A test
+   that cannot be made to fail is rewritten or dropped.
+4. Never change product code. Commit `test: characterize <area>` and report `bite_checks` (test,
+   how it was made to fail) in the handoff.
+
+### Tidy mode
+
+Used for `[tidy]` tasks and migration waves. Structure changes; behaviour does not.
+
+1. Run `<TEST_CMD>` first. If anything is red, stop and return `BLOCKED` with the output: a
+   structural change on a red suite proves nothing.
+2. Every test file is READ-ONLY, as in `implement` mode. The one exception is a task that names
+   the tests themselves as the subject (a test framework migration): then translate them to the
+   new framework, keeping every test, its name and its expected values, and never weakening,
+   skipping or deleting an assertion.
+3. Work in small steps and run the tests after each. Change no exported name, signature,
+   route, flag, config key or persisted format unless the task names it, and add no behaviour.
+4. If the change cannot be made without changing what a test expects, it is not a tidy: stop
+   and return `BEHAVIOUR_CHANGE` with the test and the reason, `next_action: "planner"`, so it
+   is planned as a `[change]` task.
+5. Commit `refactor: <what moved>`.
 
 ---
 
@@ -211,7 +251,8 @@ Process:
 
 - **Single task at a time** — never implement multiple tasks in one invocation
 - **Red before green** — always write failing tests before implementing
-- **Read-only tests in `implement` mode** — never modify test assertions; raise `TEST_DISPUTE` instead
+- **Read-only tests in `implement` and `tidy` modes** — never modify test assertions; raise `TEST_DISPUTE` or `BEHAVIOUR_CHANGE` instead
+- **No product code in `characterize` mode** — pin behaviour, never fix it
 - **Minimal code** — only what's needed to pass tests
 - **Follow design.md** — do not deviate from the architecture
 - **Report design gaps** — do not work around them silently

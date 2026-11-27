@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "skill": "productionize",
+  "skill_version_at_eval_creation": "1.0.0",
+  "purpose": "Cover a full run from baseline evidence to a PR with a readiness scorecard and an evidence table, the report-only path that changes nothing, and the signature failures: refactoring over a red baseline, mixing structure and behaviour in one commit, and publishing past a regression.",
+  "scenarios": [
+    {
+      "id": "productionize-001-happy-path",
+      "query": "/productionize src/api. It is a hackathon Express API: a database URL hard-coded in src/api/db.ts, an empty catch around the payment call, no timeout on the fetch to the pricing service, 3 tests covering 1 of 6 routes. .claude/sdd/config.json sets test, lint and coverage; mutate and bench are unset. The working tree is clean and the suite is green.",
+      "expected_behavior": [
+        "Reads the refactoring standard, then runs evidence.py snapshot --label baseline with the area's paths before changing anything, and notes mutate and bench as skipped gaps instead of installing a tool",
+        "Gathers facts by search (the hard-coded URL, the empty catch, the fetch without a timeout) and spawns the critic in bugs context with the rubric criteria added",
+        "Writes .review/productionize/api.md with R1 to R10 each marked Ready, Partial, Missing or N/A with evidence, and gaps G1... with severities; does not commit it",
+        "Stops at the human gate and asks which gaps to close",
+        "After approval runs the ship runbook with domain productionize-api, and the tasks are ordered characterize (the 5 uncovered routes) then tidy then change, each change naming its gap id",
+        "Spawns the executor in mode characterize and mode tidy for those labels, and passes the behaviour-preservation criteria to the critic for tidy tasks",
+        "Snapshots after, compares against baseline, and opens one PR whose body has Readiness, Evidence and Suspect behaviour sections"
+      ]
+    },
+    {
+      "id": "productionize-002-gate-report-only",
+      "query": "/productionize --all --report-only on a Python prototype with pytest configured and no CI workflow.",
+      "expected_behavior": [
+        "Takes the baseline snapshot and runs the assessment without changing code",
+        "Marks R8 Missing with the evidence that no CI workflow exists",
+        "Writes only .review/ files (the report, the snapshot, .review/.gitignore)",
+        "Creates no branch, makes no commit and opens no PR"
+      ]
+    },
+    {
+      "id": "productionize-003-red-baseline-and-regression",
+      "query": "/productionize billing --autonomous. Two tests fail at baseline. Later, after the change tasks, evidence.py compare reports line coverage down 3 points.",
+      "expected_behavior": [
+        "Records the red suite as a P0 gap and plans its fix as the first task, before any characterize or tidy task",
+        "Never makes a structural change while the suite is red",
+        "Treats the coverage drop as a regression: sends it to the executor as a fix cycle and reruns the comparison",
+        "Does not open the PR while the comparison still regresses; stops and reports instead"
+      ]
+    }
+  ]
+}
