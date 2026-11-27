@@ -93,10 +93,10 @@ Use a regex that matches a skill invocation but excludes filename paths like `sp
 (^|[^/\w-])/<skill-names-joined-by-|>([^\w.-]|$)
 ```
 
-Build the pattern concretely by joining the skill names with `|`, then run it via Grep with the standards file path. Example:
+Build the pattern concretely by joining the skill names with `|`, then run it via Grep with the standards file path. The optional `(sdd[-:])?` catches every installed form of a name: bare in this repository, with the `sdd:` namespace from a plugin, with the `sdd-` prefix from a flat install. Example:
 
 ```
-(^|[^/\w-])/(audit|bug-hunt|branching-model|create-pr|critique|fix-pr|implement|lint-harness|plan|prepare-docs|publish|qa|qa-explore|review-diff|review-pr|sdd-init|ship|spec|tasks|test|triage-pr)([^\w.-]|$)
+(^|[^/\w-])/(sdd[-:])?(audit|bug-hunt|branching-model|create-pr|critique|fix-pr|implement|lint-harness|plan|prepare-docs|publish|qa|qa-explore|review-diff|review-pr|sdd-init|ship|spec|tasks|test|triage-pr)([^\w.-]|$)
 ```
 
 This allows `` `/lint-harness` `` (backtick before, backtick after), ` /create-pr ` (spaces), but rejects `tasks.md`, `design.md`, and `specs/<domain>/tasks.md`.
