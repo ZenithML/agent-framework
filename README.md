@@ -10,6 +10,17 @@ for driving software work with an agent.
 | **`ci-runner`** | CI on your own machine — a `ci-runner` command that installs a self-hosted GitHub Actions runner and switches a repo between it and GitHub-hosted runners |
 | **`learn`** | Learning with an AI tutor — an evidence-based learner model, placement, session planning, Socratic tutoring and objective grading; first subject pack: cyber resilience (SOC, SIEM, NDR) |
 
+## How it works
+
+`/sdd:ship <feature>` takes one sentence to an open pull request. Your session writes the spec and
+design with you; separate agents with their own limited context implement, review and test it.
+
+![The lifecycle: agree what to build (spec, your approval, plan), build each task (tests then code, review, QA that never sees the code), then check the whole change and ship it (exploratory QA, diff review, pull request, your merge)](docs/assets/how-it-works/01-lifecycle.excalidraw.svg)
+
+[How it works](docs/how-it-works.md) has the full set of diagrams: each stage, retry budgets,
+profiles, what each agent can see, installing and upgrading, and layering a private platform on
+top.
+
 **Framework, not a hosted service.** Everything runs inside your own Claude Code sessions and
 your own repository. No account, server or external infrastructure is required.
 
@@ -33,7 +44,7 @@ To also wire the project for Codex, add `--harness claude,codex`. Skills are exp
 symlink, native subagents read the canonical Markdown roles, and MCP definitions are synced
 from `.mcp.json`; see [Using Codex](docs/installation.md#using-codex). `agy` is covered by default.
 
-Then open Claude Code in your project, run `/sdd-init` once, and `/ship <feature>` to start the
+Then open Claude Code in your project, run `/sdd-init` once, and `/sdd-ship <feature>` to start the
 pipeline. To install through the GitHub marketplace or as a vendored copy instead, see
 [Installation](docs/installation.md).
 
@@ -48,6 +59,7 @@ this source checkout. Consumer plugin installations still use `/sdd:ship`.
 
 | Guide | Covers |
 |---|---|
+| [How it works](docs/how-it-works.md) | Diagrams of the pipeline, agents, context isolation, profiles, upgrades and layering |
 | [Installation](docs/installation.md) | Flat copy, GitHub marketplace and vendored copy, and how to update each |
 | [Plugins](docs/plugins.md) | What `sdd`, `render` and `ci-runner` contain, and every skill |
 | [Configuration](docs/configuration.md) | What `sdd-init` sets up, `.claude/sdd/config.json`, placeholders, the SessionStart hook |

@@ -11,7 +11,7 @@ loop for implementation.
 ```
 plugins/sdd/
   .claude-plugin/plugin.json   — plugin manifest
-  skills/<name>/SKILL.md        — 23 slash commands (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
+  skills/<name>/SKILL.md        — 23 skills (invoked as /sdd:<name> as a plugin, /sdd-<name> in a flat install)
   agents/<name>.md              — 7 agents (planner, critic, executor,
                                   tester, publisher, archivist, qa-engineer)
   hooks/                        — SessionStart hook (remote/web setup, config-driven)
